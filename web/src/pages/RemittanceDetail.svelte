@@ -3,6 +3,7 @@
     import { can, branchName, refreshBranchDay, toast } from "../lib/app.svelte";
     import { Query, invalidate } from "../lib/cache.svelte";
     import { load } from "../lib/data";
+    import { remittable } from "../lib/remittable";
     import { Action, act } from "../lib/act.svelte";
     import { peso, label, day, dateTime, time, sum } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
@@ -59,7 +60,13 @@
 
     const covered = $derived(new Map((r?.dayBreakdowns ?? []).map((b) => [b.branchDayId, b.id])));
     const inLines = $derived(new Set(lines.map((l) => l.sessionId ?? l.productSaleId)));
-    const eligibleSessions = $derived(sessions.filter((s) => s.sessionStatus === "COMPLETED"));
+    const eligibleSessions = $derived(
+        remittable(
+            sessions.filter((s) => s.sessionStatus === "COMPLETED"),
+            (s) => s.finalPrice,
+        ),
+    );
+    const eligibleSales = $derived(remittable(sales, (s) => s.totalAmountAtTime));
     const isProduct = $derived(r?.type === "PRODUCT");
     const itemWord = $derived(isProduct ? "Product sales" : "Sessions");
 
@@ -68,7 +75,7 @@
     const lineBySource = $derived(new Map(lines.map((l) => [l.sessionId ?? l.productSaleId ?? "", l.id])));
     const items = $derived.by<Item[]>(() => {
         const pick: Item[] = isProduct
-            ? sales.map((s) => ({
+            ? eligibleSales.map((s) => ({
                   id: s.id,
                   when: s.soldAt,
                   what: `${s.productName} × ${s.quantity}`,
@@ -147,7 +154,7 @@
             }
             const srcs =
                 r.type === "PRODUCT"
-                    ? sales.map((s) => ({ id: s.id, amount: s.totalAmountAtTime }))
+                    ? eligibleSales.map((s) => ({ id: s.id, amount: s.totalAmountAtTime }))
                     : eligibleSessions.map((s) => ({ id: s.id, amount: s.finalPrice }));
             let skipped = 0;
             for (const s of srcs) {
