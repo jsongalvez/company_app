@@ -46,12 +46,19 @@ object RequestQueryTally {
     private val logger = KotlinLogging.logger {}
     private val quotedLiteral = Regex("'(?:[^']|'')*'")
     private val readOnly = Regex("^\\s*SELECT\\b", RegexOption.IGNORE_CASE)
+    private val writeTarget = Regex("^\\s*(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+\"?(\\w+)\"?[\\s(]", RegexOption.IGNORE_CASE)
 
     private class Tally {
         var nanos = 0L
         var queries = 0
-        val untilWrite = HashMap<Any, Any>()
+        val untilWrite = HashMap<Any, Held>()
     }
+
+    /** A request-scoped read and the tables it read from. */
+    class Held(
+        val reads: Set<String>,
+        val value: Any,
+    )
 
     data class Snapshot(
         val dbMs: Long,
@@ -74,23 +81,31 @@ object RequestQueryTally {
     }
 
     /**
-     * [load]'s answer for [key], kept for the rest of this request until any statement
-     * other than a SELECT runs (or a rollback), so a read never outlives a write that
-     * could change it. Outside a request it just loads. [T] is a plain class, not a
+     * [load]'s answer for [key], kept for the rest of this request until a statement writes one of
+     * the tables in [reads], or one this can't name (a batch, a rollback), so a read never outlives a
+     * write that could change it. Outside a request it just loads. [T] is a plain class, not a
      * generic one, so the cast back is checked.
      */
     inline fun <reified T : Any> untilWrite(
         key: Any,
+        reads: Set<String>,
         load: () -> T,
     ): T {
         val memo = untilWriteMemo() ?: return load()
-        return memo[key] as? T ?: load().also { memo[key] = it }
+        return memo[key]?.value as? T ?: load().also { memo[key] = Held(reads, it) }
     }
 
-    fun untilWriteMemo(): MutableMap<Any, Any>? = current.get()?.untilWrite
+    fun untilWriteMemo(): MutableMap<Any, Held>? = current.get()?.untilWrite
 
     fun dropReads() {
         current.get()?.untilWrite?.clear()
+    }
+
+    private fun dropReadsOf(sql: String) {
+        val memo = current.get()?.untilWrite ?: return
+        if (memo.isEmpty() || readOnly.containsMatchIn(sql)) return
+        val table = writeTarget.find(sql)?.groupValues?.get(1)
+        if (table == null) memo.clear() else memo.values.removeIf { table in it.reads }
     }
 
     fun record(
@@ -100,8 +115,8 @@ object RequestQueryTally {
         current.get()?.let {
             it.nanos += nanos
             it.queries++
-            if (!readOnly.containsMatchIn(sql)) it.untilWrite.clear()
         }
+        dropReadsOf(sql)
         val ms = nanos / NANOS_PER_MILLI
         if (ms >= slowMs) {
             val traceId = MDC.get(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN

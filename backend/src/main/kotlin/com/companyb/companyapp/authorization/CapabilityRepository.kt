@@ -46,14 +46,27 @@ internal object CapabilityRepository {
         val userId: UUID,
     )
 
+    /** The tables [ActiveUserCapabilitiesView] reads; CapabilityReadOncePostgresTest checks them against Postgres. */
+    internal val VIEW_READS =
+        setOf(
+            "app_user",
+            "branch",
+            "capability",
+            "role",
+            "role_capability",
+            "user_branch_assignment",
+            "user_capability",
+            "user_role",
+        )
+
     /**
      * Every active grant of [userId], read once per request: planning the view costs more than
      * running it (about 3ms of 4, checked with EXPLAIN ANALYZE), and a request used to ask it
-     * five or six times. The copy is dropped by any write in the request.
+     * four to six times. The copy is dropped by a write to any table in [VIEW_READS].
      */
     private fun grantsOf(userId: UUID): List<Grant> =
         RequestQueryTally
-            .untilWrite(GrantsKey(userId)) {
+            .untilWrite(GrantsKey(userId), VIEW_READS) {
                 Grants(
                     transaction {
                         ActiveUserCapabilitiesView
