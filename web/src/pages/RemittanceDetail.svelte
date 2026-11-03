@@ -19,7 +19,7 @@
     });
     const r = $derived(q.data);
     const draft = $derived(r?.status === "DRAFT");
-    const send = $derived(!!r && can("SUBMIT_REMITTANCE", r.branchId));
+    const send = $derived(!!r && can("SUBMIT_REMITTANCE", { branch: r.branchId }));
     const editable = $derived(draft && send);
     const lines = $derived((r?.lines ?? []).filter((l) => !l.deletedAt));
 

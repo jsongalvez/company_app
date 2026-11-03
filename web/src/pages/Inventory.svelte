@@ -1,7 +1,7 @@
 <script lang="ts">
     import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, canAtBranch, canBranchWide } from "../lib/app.svelte";
+    import { app, can } from "../lib/app.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -58,10 +58,11 @@
         }
     }
 
-    const edit = $derived(can("EDIT_BRANCH_DATA"));
+    const edit = $derived(can("WORK_DAY"));
     // Restock, counts and prices are the branch's own: relief's day grant sells but doesn't change stock.
-    const editStock = $derived(canBranchWide("EDIT_BRANCH_DATA"));
-    const manage = $derived(canAtBranch("MANAGE_PRODUCTS"));
+    const editPrices = $derived(can("WORK_HOME_BRANCH"));
+    const manage = $derived(can("MANAGE_STOCK"));
+    const editStock = $derived(manage || editPrices);
     const LOW = 5;
     const nameVs = viewSetting("q", "");
     let filter = $state(nameVs.read);
@@ -231,9 +232,11 @@
                         <td class="num">{num(i.adjustment)}</td>
                         {#if editStock}
                             <td class="right nowrap">
-                                <button class="sm" onclick={() => openFor(i, "restock")}>Restock</button>
-                                <button class="sm" onclick={() => openFor(i, "adjust")}>Fix count</button>
-                                <button class="sm" onclick={() => openProductPrice(i)}>Change prices</button>
+                                {#if manage}
+                                    <button class="sm" onclick={() => openFor(i, "restock")}>Restock</button>
+                                    <button class="sm" onclick={() => openFor(i, "adjust")}>Fix count</button>
+                                {/if}
+                                {#if editPrices}<button class="sm" onclick={() => openProductPrice(i)}>Change prices</button>{/if}
                             </td>
                         {/if}
                     </tr>

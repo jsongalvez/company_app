@@ -1,23 +1,30 @@
-// Which grant rows count for a code. The server sends the rows (/api/me/capabilities); this is the one place
-// the web decides whether a row applies, and it follows the server: edit, void, remit and commission are honoured
-// only from a branch (or a day) grant, so an all-branch row must not switch them on. Pay is honoured from an
-// all-branch grant too: the Owner pays at every branch (owed #25).
-// Codes and reaches come from the server's Act table (access.gen.ts, rendered by WebAccessTableTest).
-import { ACTS, type Code, type Reach } from "./access.gen";
+// Whether the server would let the caller do an Act at a place, from the grant rows it sent (/api/me/capabilities).
+// This mirrors Access.contextsFor on the server; web/tests/unit/grants.test.ts checks it against REACH_CASES,
+// which WebAccessTableTest renders from the server's own function.
+import { ACTS, type Act } from "./access.gen";
 
 export type Grant = { capabilityCode: string; contextType?: string; contextId: string };
+/** Where an action happens: a branch, one day of it, or neither (everywhere). */
+export type Place = { branch?: string; day?: string };
 
-const ALL_BRANCH: ReadonlySet<Reach> = new Set(["EVERYWHERE", "HOME_OR_EVERYWHERE", "HOME_OR_EVERYWHERE_OR_DAY"]);
-
-/** Codes some server Act accepts from an all-branch (GLOBAL) grant. Any other code needs a branch or day grant. */
-const GLOBAL_CODES: ReadonlySet<Code> = new Set(Object.values(ACTS).flatMap((a) => (ALL_BRANCH.has(a.reach) ? [a.code] : [])));
-
-const BRANCH_LIKE = new Set(["BRANCH", "MEDICAL_MISSION", "PROVINCIAL_TOUR"]);
-
-/** Does one grant row apply to `code` at the branch (and day)? */
-export function applies(c: Grant, code: Code, branchId: string, branchDayId: string | undefined, todayDayId: string | undefined): boolean {
+function counts(c: Grant, act: Act, at: Place): boolean {
+    const { code, reach } = ACTS[act];
     if (c.capabilityCode !== code) return false;
-    if (c.contextType === "GLOBAL") return GLOBAL_CODES.has(code);
-    if (BRANCH_LIKE.has(c.contextType ?? "")) return c.contextId === branchId;
-    return c.contextType === "BRANCH_DAY" && (!branchDayId || c.contextId === branchDayId) && c.contextId === (branchDayId ?? todayDayId);
+    if (reach === "ANYWHERE") return true;
+    const everywhere = reach === "EVERYWHERE" || reach === "HOME_OR_EVERYWHERE" || reach === "HOME_OR_EVERYWHERE_OR_DAY";
+    const home = reach !== "EVERYWHERE";
+    const day = reach === "HOME_OR_DAY" || reach === "HOME_OR_EVERYWHERE_OR_DAY";
+    if (c.contextType === "GLOBAL") return everywhere;
+    if (c.contextType === "BRANCH") return home && !!at.branch && c.contextId === at.branch;
+    if (c.contextType === "BRANCH_DAY") return day && !!at.branch && !!at.day && c.contextId === at.day;
+    return false;
+}
+
+export function allows(rows: readonly Grant[], act: Act, at: Place): boolean {
+    return rows.some((c) => counts(c, act, at));
+}
+
+/** A GET of an Act's routes: the server also lets through whoever may do its reading Act (Act.whenReading). */
+export function reads(rows: readonly Grant[], act: Act, at: Place): boolean {
+    return allows(rows, act, at) || allows(rows, ACTS[act].read as Act, at);
 }

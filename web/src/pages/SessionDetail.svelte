@@ -47,7 +47,7 @@
     let staff = $state<{ id: string; name: string }[]>([]);
     $effect(() => {
         // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
-        const dayId = isToday && can("ASSIGN_COMPENSATION") ? app.today?.branchDayId : undefined;
+        const dayId = isToday && can("PAY") ? app.today?.branchDayId : undefined;
         const du = dayId ? load.dayUsers(dayId) : null;
         const mem = load.members(app.branchId);
         Promise.all([du ? fetchCached(du.key, du.fn).catch(() => []) : Promise.resolve([]), fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {
@@ -57,13 +57,15 @@
             staff = [...map].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
         });
     });
+    /** The session's own day: the server checks edits and voids there (SessionAuthz). */
+    const sessionAt = $derived({ branch: app.branchId, day: s?.branchDayId ?? (isToday ? app.today?.branchDayId : undefined) });
     const voided = $derived(s?.isVoided ?? false);
     const dayStatus = $derived(s?.dayStatus ?? (isToday ? app.today?.status : "PAST"));
     /** A remitted day takes changes only from those who may change remitted days. */
-    const locked = $derived(dayStatus === "REMITTED" && !can("EDIT_PAST_DAY"));
-    const edit = $derived(!locked && (can("EDIT_BRANCH_DATA") || can("EDIT_PAST_DAY")));
+    const locked = $derived(dayStatus === "REMITTED" && !can("CHANGE_CLOSED_DAY"));
+    const edit = $derived(!locked && can("WORK_DAY", sessionAt));
     /** Branch members void and correct marks; relief does not. */
-    const correct = $derived(!locked && can("VOID_SESSION"));
+    const correct = $derived(!locked && can("VOID", sessionAt));
     const needReason = $derived(dayStatus !== "OPEN");
     // Past days need a reason for every change: ask for it when the change is made.
     // Gives "" when none is needed, null when the person cancels.

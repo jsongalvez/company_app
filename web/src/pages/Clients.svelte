@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { can, canAnywhere } from "../lib/app.svelte";
+    import { can } from "../lib/app.svelte";
     import { Query, wrote } from "../lib/cache.svelte";
     import { load, warm } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -34,7 +34,7 @@
     const a = new Action();
     let open = $state(false);
     let draft = $state<ClientDraft>(emptyDraft());
-    const canCreate = $derived(can("EDIT_BRANCH_DATA") || canAnywhere("EDIT_BRANCH_DATA"));
+    const canCreate = $derived(can("WORK_ANYWHERE"));
 
     async function create() {
         let made: S["ClientResponse"] | undefined;

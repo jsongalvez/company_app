@@ -2,7 +2,7 @@
     import History from "../components/History.svelte";
     import { askReason, keepReason, lastReason } from "../lib/ask.svelte";
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can } from "../lib/app.svelte";
+    import { app, can, canRead } from "../lib/app.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -38,9 +38,9 @@
     const summary = new Query<S["DailySalesSummaryResponse"]>();
     // The day's sessions, so past ones can be opened and corrected (feedback 3578107f).
     const sessQ = new Query<S["DashboardSessionResponse"][]>();
-    const seeSessions = $derived(can("VIEW_BRANCH_DATA"));
+    const seeSessions = $derived(canRead("SEE_DAY", { branch: bid, day: dayId || undefined }));
     // Members' commission is private to the branch: its members, and relief on its day (owed #26).
-    const seeCommission = $derived(!!dayId && can("VIEW_COMMISSION", bid, dayId));
+    const seeCommission = $derived(!!dayId && canRead("SEE_COMMISSION", { branch: bid, day: dayId }));
     $effect(() => {
         if (!seeSessions) return;
         const l = load.daySessions(bid, date);
@@ -74,9 +74,9 @@
 
     const closed = $derived(status !== undefined && status !== "OPEN");
     /** Branch members change expenses until the day is remitted; pay and shares on a closed day stay with past-day rights. */
-    const pastRights = $derived(can("EDIT_PAST_DAY"));
-    const edit = $derived(status === "REMITTED" ? pastRights : can("EDIT_BRANCH_DATA"));
-    const pay = $derived(can("ASSIGN_COMPENSATION"));
+    const pastRights = $derived(can("CHANGE_CLOSED_DAY", { branch: bid }));
+    const edit = $derived(status === "REMITTED" ? pastRights : can("WORK_DAY", { branch: bid, day: dayId }));
+    const pay = $derived(can("PAY", { branch: bid, day: dayId }));
     /** The expense whose change history is open, one at a time. */
     let historyOf = $state<string | null>(null);
     // Fetch before opening, so the row opens on its history instead of a Loading line.
@@ -202,7 +202,7 @@
 {#if theDay === null}
     <div class="notice row wrap">
         <span class="grow">Nothing was recorded on {day(date)}.</span>
-        {#if can("EDIT_BRANCH_DATA")}<button class="sm primary" onclick={() => openExpense(null)}>Add expense</button>{/if}
+        {#if can("WORK_HOME_BRANCH", { branch: bid })}<button class="sm primary" onclick={() => openExpense(null)}>Add expense</button>{/if}
     </div>
 {:else if theDay}
     <div class="row mb wrap">

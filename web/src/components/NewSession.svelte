@@ -74,7 +74,8 @@
         );
         a.reset();
         // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
-        const usersOf = can("ASSIGN_COMPENSATION") ? (date ? dayId : app.today?.branchDayId) : undefined;
+        const day = (date ? dayId : app.today?.branchDayId) || undefined;
+        const usersOf = day && can("PAY", { branch: app.branchId, day }) ? day : undefined;
         const l = usersOf ? load.dayUsers(usersOf) : null;
         const m = load.members(app.branchId);
         Promise.all([l ? fetchCached(l.key, l.fn).catch(() => []) : Promise.resolve([]), fetchCached(m.key, m.fn).catch(() => [])]).then(([du, mem]) => {

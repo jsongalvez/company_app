@@ -1,17 +1,5 @@
 <script lang="ts">
-    import {
-        app,
-        can,
-        canAnywhere,
-        canBranchWide,
-        canEverywhere,
-        selectBranch,
-        signOut,
-        clockIn,
-        clockOut,
-        stopViewAs,
-        setViewAsChanges,
-    } from "../lib/app.svelte";
+    import { app, can, canRead, selectBranch, signOut, clockIn, clockOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
     import { route, go } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import FullIcon from "./FullIcon.svelte";
@@ -30,19 +18,19 @@
     type Item = { path: string; text: string; show: boolean; page?: PageName; reads?: () => Loader<unknown>[] };
 
     const bid = $derived(app.branchId);
-    const view = $derived(can("VIEW_BRANCH_DATA"));
+    const view = $derived(canRead("SEE_DAY"));
     // Reports cover the whole branch, so relief's one-day grant doesn't open them. Relief does see the stock.
-    const viewBranch = $derived(canBranchWide("VIEW_BRANCH_DATA"));
+    const viewBranch = $derived(canRead("SEE_BRANCH", { branch: bid }));
     // Today's Expenses & pay and Sales reports, as those pages read them when opened with no date.
     function financeReads(): Loader<unknown>[] {
         const d = operationalDate();
         const dayId = app.today?.branchDayId;
         if (!dayId) return [load.branchDay(bid, d)];
-        const pay = can("ASSIGN_COMPENSATION");
+        const pay = can("PAY", { branch: bid, day: dayId });
         return [
             load.daySessions(bid, d),
             load.expenses(dayId),
-            ...(can("VIEW_COMMISSION", bid, dayId) ? [load.commissionSplits(dayId)] : []),
+            ...(canRead("SEE_COMMISSION", { branch: bid, day: dayId }) ? [load.commissionSplits(dayId)] : []),
             ...(pay ? [load.compensations(dayId), load.allowances(dayId), load.dayUsers(dayId)] : []),
             load.dailySummary(bid, d),
             load.members(bid),
@@ -58,7 +46,7 @@
             title: "Branch",
             items: [
                 { path: "/today", text: "Sessions", show: view, reads: () => [load.dashboard(bid), load.roster(bid)] },
-                { path: "/clients", page: "Clients", text: "Clients", show: view || canAnywhere("EDIT_BRANCH_DATA") },
+                { path: "/clients", page: "Clients", text: "Clients", show: canRead("WORK_ANYWHERE") },
                 { path: "/inventory", page: "Inventory", text: "Stock", show: view, reads: () => [load.inventory(bid), load.movements(bid, "")] },
                 { path: "/finance", page: "Finance", text: "Expenses & pay", show: view, reads: financeReads },
                 { path: "/reports", page: "Reports", text: "Sales reports", show: viewBranch, reads: reportReads },
@@ -66,7 +54,7 @@
                     path: "/remittance",
                     page: "Remittances",
                     text: "Remittance",
-                    show: can("SUBMIT_REMITTANCE") || canEverywhere("VIEW_BRANCH_DATA"),
+                    show: canRead("SUBMIT_REMITTANCE", { branch: bid }),
                     reads: () => [load.remittances(bid)],
                 },
             ],
@@ -89,18 +77,18 @@
         {
             title: "Admin",
             items: [
-                { path: "/users", page: "Users", text: "Users", show: canAnywhere("MANAGE_USERS"), reads: () => [load.users()] },
+                { path: "/users", page: "Users", text: "Users", show: canRead("MANAGE_USERS"), reads: () => [load.users()] },
                 {
                     path: "/branches",
                     page: "Branches",
                     text: "Branches",
-                    show: canAnywhere("MANAGE_USERS") || canAnywhere("ASSIGN_DELEGATE") || app.accessible.length > 0,
-                    reads: () => (canAnywhere("MANAGE_USERS") ? [load.branches()] : []),
+                    show: can("MANAGE_USERS") || can("ASSIGN_DELEGATE") || app.accessible.length > 0,
+                    reads: () => (canRead("MANAGE_USERS") ? [load.branches()] : []),
                 },
                 // Owed #25(a): who pays at every branch pays from one page.
-                { path: "/pay", page: "Payouts", text: "Pay, all branches", show: canEverywhere("ASSIGN_COMPENSATION") },
-                { path: "/catalog", page: "Catalog", text: "Products", show: canAnywhere("MANAGE_CATALOG"), reads: () => [load.products()] },
-                { path: "/feedback", page: "FeedbackList", text: "Feedback inbox", show: canAnywhere("MANAGE_USERS") },
+                { path: "/pay", page: "Payouts", text: "Pay, all branches", show: can("PAY", {}) },
+                { path: "/catalog", page: "Catalog", text: "Products", show: canRead("MANAGE_CATALOG"), reads: () => [load.products()] },
+                { path: "/feedback", page: "FeedbackList", text: "Feedback inbox", show: canRead("MANAGE_USERS") },
                 { path: "/audit", page: "Audit", text: "Change history", show: true, reads: () => [load.auditTables()] },
             ],
         },

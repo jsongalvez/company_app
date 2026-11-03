@@ -111,24 +111,34 @@ sealed interface Place {
 
 /** The only way the server asks whether someone may do something. */
 object Access {
+    /**
+     * The grant rows that count for [reach] at [place], or null when a grant of the code anywhere counts.
+     * The web mirrors this (`web/src/lib/grants.ts`); `WebAccessTableTest` renders its outcomes for the web's test.
+     */
+    fun contextsFor(
+        reach: Reach,
+        place: Place,
+    ): List<Pair<CapabilityContextType, UUID>>? {
+        val home = place.branchId?.let { CapabilityContextType.BRANCH to it }
+        val everywhere = CapabilityContextType.GLOBAL to CapabilityService.GLOBAL_CONTEXT_ID
+        val day = (place as? Place.Day)?.let { CapabilityContextType.BRANCH_DAY to it.dayId }
+        return when (reach) {
+            Reach.ANYWHERE -> null
+            Reach.EVERYWHERE -> listOf(everywhere)
+            Reach.HOME -> listOfNotNull(home)
+            Reach.HOME_OR_EVERYWHERE -> listOfNotNull(home, everywhere)
+            Reach.HOME_OR_DAY -> listOfNotNull(home, day)
+            Reach.HOME_OR_EVERYWHERE_OR_DAY -> listOfNotNull(home, everywhere, day)
+        }
+    }
+
     fun allows(
         userId: UUID,
         act: Act,
         place: Place = Place.Everywhere,
     ): Boolean {
-        if (act.reach == Reach.ANYWHERE) return CapabilityRepository.hasCapabilityAnyContext(userId, act.code)
-        val home = place.branchId?.let { CapabilityContextType.BRANCH to it }
-        val everywhere = CapabilityContextType.GLOBAL to CapabilityService.GLOBAL_CONTEXT_ID
-        val day = (place as? Place.Day)?.let { CapabilityContextType.BRANCH_DAY to it.dayId }
         val contexts =
-            when (act.reach) {
-                Reach.EVERYWHERE -> listOf(everywhere)
-                Reach.HOME -> listOfNotNull(home)
-                Reach.HOME_OR_EVERYWHERE -> listOfNotNull(home, everywhere)
-                Reach.HOME_OR_DAY -> listOfNotNull(home, day)
-                Reach.HOME_OR_EVERYWHERE_OR_DAY -> listOfNotNull(home, everywhere, day)
-                Reach.ANYWHERE -> error("handled above")
-            }
+            contextsFor(act.reach, place) ?: return CapabilityRepository.hasCapabilityAnyContext(userId, act.code)
         return CapabilityRepository.holdsIn(userId, act.code, contexts)
     }
 

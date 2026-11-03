@@ -16,7 +16,7 @@
         const l = load.remittances(bid);
         q.load(l.key, l.fn);
     });
-    const send = $derived(can("SUBMIT_REMITTANCE"));
+    const send = $derived(can("SUBMIT_REMITTANCE", { branch: bid }));
 
     type F = "all" | "DRAFT" | "SUBMITTED";
     const showVs = viewSetting("show", "all", ["all", "DRAFT", "SUBMITTED"]);

@@ -6,7 +6,7 @@
 <script lang="ts">
     import { MediaQuery } from "svelte/reactivity";
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
-    import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, showMark, applyStart } from "../lib/app.svelte";
+    import { app, can, canRead, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, showMark, applyStart } from "../lib/app.svelte";
     import { Query, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
@@ -41,7 +41,7 @@
     const pastSplit = new Query<S["CommissionSplitResponse"][]>();
     $effect(() => {
         const id = pastDay.data?.id;
-        if (isToday || !id || !can("VIEW_COMMISSION", bid, id)) return;
+        if (isToday || !id || !canRead("SEE_COMMISSION", { branch: bid, day: id })) return;
         const l = load.commissionSplits(id);
         pastSplit.load(l.key, l.fn);
     });
@@ -105,8 +105,8 @@
         }
     });
 
-    const edit = $derived(can("EDIT_BRANCH_DATA"));
-    const correct = $derived(can("EDIT_PAST_DAY"));
+    const edit = $derived(can("WORK_DAY"));
+    const correct = $derived(can("CHANGE_CLOSED_DAY", { branch: bid }));
 
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
     // Feedback 77b8ea5f: on a phone the side lists sit above today's sessions, so they start folded to their counts.
@@ -328,7 +328,7 @@
         {/each}
     </div>
 {/if}
-{#if !edit && can("VIEW_BRANCH_DATA")}
+{#if !edit && canRead("SEE_DAY")}
     <div class="notice mb">View only. Clock in here (or get relief access) to make changes.</div>
 {/if}
 

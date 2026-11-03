@@ -39,7 +39,7 @@
 
     const closed = $derived(status !== "OPEN");
     // The user (owed #25): pay on earlier days needs a reason, not past-day rights; a remitted day still does.
-    const payEdit = $derived(can("ASSIGN_COMPENSATION", branchId) && (status !== "REMITTED" || can("EDIT_PAST_DAY", branchId)));
+    const payEdit = $derived(can("PAY", { branch: branchId, day: dayId }) && (status !== "REMITTED" || can("CHANGE_CLOSED_DAY", { branch: branchId })));
 
     let reason = $state("");
     function r() {

@@ -6,8 +6,8 @@ import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 import { operationalDate } from "./format";
-import { applies } from "./grants";
-import type { Code } from "./access.gen";
+import { allows, reads, type Place } from "./grants";
+import type { Act } from "./access.gen";
 import { seedTodayScreen } from "./data";
 
 type Cap = S["UserCapabilityResponse"];
@@ -273,24 +273,17 @@ export async function refreshUnread() {
     }
 }
 
-/** Does the user hold `code` for the branch (or globally)? */
-export function can(code: Code, branchId: string = app.branchId, branchDayId?: string): boolean {
-    return app.caps.some((c) => applies(c, code, branchId, branchDayId, app.today?.branchDayId));
+/** A branch, with today's day when it is the branch on screen. */
+export function at(branch: string = app.branchId): Place {
+    return { branch, day: branch === app.branchId ? app.today?.branchDayId : undefined };
 }
-/** Every branch at once: an all-branch (GLOBAL) grant, as the server's SEE_EVERY_BRANCH asks. */
-export function canEverywhere(code: Code): boolean {
-    return app.caps.some((c) => c.capabilityCode === code && c.contextType === "GLOBAL");
+/** Would the server let the user do `act` at `place` (default: here, today)? Screens show a control only when it would. */
+export function can(act: Act, place: Place = at()): boolean {
+    return allows(app.caps, act, place);
 }
-/** The branch as a whole, not one day of it: relief's day grant doesn't count (reports, stock changes). */
-export function canBranchWide(code: Code, branchId: string = app.branchId): boolean {
-    return app.caps.some((c) => applies(c, code, branchId, undefined, undefined));
-}
-/** Rights the server only honours at a branch the person works at (an all-branch grant doesn't count). */
-export function canAtBranch(code: Code, branchId: string = app.branchId): boolean {
-    return app.caps.some((c) => c.capabilityCode === code && c.contextType !== "GLOBAL" && c.contextId === branchId);
-}
-export function canAnywhere(code: Code): boolean {
-    return app.caps.some((c) => c.capabilityCode === code);
+/** Would the server answer a GET of `act`'s routes (doers, plus whoever may do its reading Act)? */
+export function canRead(act: Act, place: Place = at()): boolean {
+    return reads(app.caps, act, place);
 }
 
 /** Adding sessions and sales needs an open shift at this branch today (no one is exempt). */

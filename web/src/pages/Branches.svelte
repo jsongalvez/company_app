@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, can, canAtBranch, canAnywhere, refreshBranchNames } from "../lib/app.svelte";
+    import { app, can, canRead, refreshBranchNames } from "../lib/app.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -13,7 +13,7 @@
     import PersonPicker from "../components/PersonPicker.svelte";
     import PeopleChecklist from "../components/PeopleChecklist.svelte";
 
-    const manageUsers = $derived(canAnywhere("MANAGE_USERS"));
+    const manageUsers = $derived(canRead("MANAGE_USERS"));
     // a11802ff: whoever manages users sees every branch; anyone else sees the branches they belong to (the server's read window).
     const list = new Query<S["BranchResponse"][]>();
     $effect(() => {
@@ -30,10 +30,10 @@
         else if ((!sel || (sel === mine && !listed(sel))) && branches?.length) go("/branches", { id: branches[0]!.id });
     });
 
-    const manageHelpers = $derived(canAnywhere("ASSIGN_DELEGATE"));
+    const manageHelpers = $derived(can("ASSIGN_DELEGATE"));
     // 503bf228: any branch member sees its session prices; anyone who can edit the branch changes them. Product prices and commission live on Stock.
-    const seeRates = $derived(!!sel && canAtBranch("VIEW_BRANCH_DATA", sel));
-    const manageRates = $derived(!!sel && canAtBranch("EDIT_BRANCH_DATA", sel));
+    const seeRates = $derived(!!sel && canRead("SEE_BRANCH", { branch: sel }));
+    const manageRates = $derived(!!sel && can("WORK_HOME_BRANCH", { branch: sel }));
 
     let users = $state<S["UserSummaryResponse"][]>([]);
     $effect(() => {
