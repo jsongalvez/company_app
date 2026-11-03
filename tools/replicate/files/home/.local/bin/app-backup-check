@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# app-backup-check [NAME]: restore a company_app backup from R2 into a throwaway Postgres and
+# compare every table's row count with prod (read-only). Default NAME: the newest backup.
+# A table passes when its counts match, or when prod's change since the dump equals the
+# inserts minus deletes audit_log recorded since the dump, or when prod's rows created
+# before the dump match. telemetry_event is skipped: the nightly dump leaves its data out.
+# Exit 0 only when pg_restore succeeds and every table passes.
+set -euo pipefail
+PROD=@DB_UUID@
+RCLONE=~/.local/bin/rclone
+set -a; . ~/.config/company-app-backup.env; set +a
+export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare \
+  RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+  RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+  RCLONE_CONFIG_R2_ENDPOINT="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
+  RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true RCLONE_CONFIG=/dev/null
+DEST="r2:$R2_BUCKET"
+TALLY=~/.local/state/company-app-backup/ops-$(date +%Y-%m).txt
+tally() { # the backup job's monthly R2 call budget counts these calls too
+  [[ -f "$TALLY" ]] || echo "0 0" > "$TALLY"
+  read -r a b < "$TALLY"; echo "$((a + $1)) $((b + $2))" > "$TALLY"
+}
+
+name=${1:-}
+if [[ -z "$name" ]]; then
+  name=$($RCLONE lsf "$DEST" --include 'company_app-*.dump.gpg' | sort | tail -1); tally 1 0
+fi
+[[ -n "$name" ]] || { echo "no backups in $DEST" >&2; exit 1; }
+
+tmp=$(mktemp -d); box="backup-check-$$"
+trap 'docker rm -f "$box" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
+$RCLONE copyto "$DEST/$name" "$tmp/$name"; tally 0 1
+gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 3 -d -o "$tmp/db.dump" "$tmp/$name" 3<<<"$BACKUP_PASSPHRASE"
+echo "backup: $name ($(stat -c %s "$tmp/$name") bytes)"
+
+docker run -d --name "$box" --network none -e POSTGRES_PASSWORD=check -e POSTGRES_DB=restored postgres:18-alpine >/dev/null
+for _ in $(seq 60); do docker exec "$box" pg_isready -U postgres -d restored -q 2>/dev/null && break; sleep 1; done
+sleep 2; docker exec "$box" pg_isready -U postgres -d restored -q
+docker cp "$tmp/db.dump" "$box:/db.dump" >/dev/null
+dumped=$(docker exec "$box" pg_restore -l /db.dump | sed -n 's/^;[[:space:]]*Archive created at //p' | head -1)
+echo "dump taken: $dumped"
+rc=0; docker exec "$box" pg_restore -U postgres -d restored --no-owner --no-privileges --no-tablespaces --exit-on-error /db.dump || rc=$?
+echo "pg_restore rc=$rc"
+(( rc == 0 )) || exit 1
+since=$(date -d "$dumped" '+%Y-%m-%d %H:%M:%S%z')
+
+tables=$(docker exec "$box" psql -U postgres -d restored -At -c \
+  "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1" | tr '\n' ' ')
+counts() { # container user db -> "table count" lines
+  local sql; sql=$(for t in $tables; do printf "select '%s', count(*) from %s union all " "$t" "$t"; done)
+  docker exec "$1" psql -U "$2" -d "$3" -At -F' ' -c "${sql% union all }"
+}
+declare -A restored prod net asof
+while read -r t n; do restored[$t]=$n; done < <(counts "$box" postgres restored)
+while read -r t n; do prod[$t]=$n; done < <(counts "$PROD" company_user company_app)
+while IFS='|' read -r t n; do net[$t]=$n; done < <(docker exec "$PROD" psql -U company_user -d company_app -At -c \
+  "select table_name, sum(case action when 'INSERT' then 1 when 'DELETE' then -1 else 0 end) from audit_log where changed_at > '$since' group by 1")
+# The column that holds when a row was made, for tables audit_log does not cover.
+declare -A born=([audit_log]=changed_at [notification]=created_at [credential_token]=created_at
+  [user_feedback]=created_at [attendance]=clock_in [session]=created_at [session_void]=voided_at
+  [relief_invite]=created_at [remittance_line]=created_at [inventory_movement]=moved_at
+  [product_sale]=sold_at [expense]=created_at [app_user]=created_at [visit_booking]=created_at
+  [concern]=created_at [flyway_schema_history]=installed_on)
+for t in "${!born[@]}"; do
+  [[ " $tables " == *" $t "* ]] || continue
+  asof[$t]=$(docker exec "$PROD" psql -U company_user -d company_app -At -c "select count(*) from $t where ${born[$t]} <= '$since'")
+done
+
+# Day tables carry no timestamp and no audit trail. They pass when no backed-up row is gone from
+# prod and every row prod has beyond the backup hangs off a day on or after the dump's business day.
+dumpday=$(TZ=Asia/Manila date -d "$dumped - 4 hours" +%F)
+declare -A daysql=([branch_day]="select date from branch_day x where"
+  [branch_day_assignment]="select d.date from branch_day_assignment x join branch_day d on d.id = x.branch_day_id where")
+declare -A dayok
+for t in "${!daysql[@]}"; do
+  [[ " $tables " == *" $t "* ]] || continue
+  ids=$(docker exec "$box" psql -U postgres -d restored -At -c "select string_agg(quote_literal(id::text), ',') from $t")
+  ids=${ids:-"''"}
+  gone=$(docker exec "$PROD" psql -U company_user -d company_app -At -c \
+    "select count(*) from (values $(sed "s/\([^,]*\)/(\1)/g" <<<"$ids")) v(id) where v.id <> '' and not exists (select 1 from $t x where x.id::text = v.id)")
+  early=$(docker exec "$PROD" psql -U company_user -d company_app -At -c \
+    "select count(*) from (${daysql[$t]} x.id::text not in ($ids)) n where n.date < '$dumpday'")
+  extra=$(( ${prod[$t]} - ${restored[$t]} + gone ))
+  (( gone == 0 && early == 0 )) && dayok[$t]="match: $extra new in prod, all on days from $dumpday on; none gone"
+done
+
+fail=0
+printf '%-32s %9s %9s  %s\n' table restored prod result
+for t in $tables; do
+  r=${restored[$t]}; p=${prod[$t]:-missing}
+  if [[ $t == telemetry_event ]]; then res="skipped: nightly dump leaves its data out (restored $r)"
+  elif [[ $p == "$r" ]]; then res=match
+  elif [[ $p != missing && -n ${net[$t]:-} ]] && (( p - r == ${net[$t]} )); then res="match: prod changed by ${net[$t]} since the dump, per audit_log"
+  elif [[ -n ${asof[$t]:-} && ${asof[$t]} == "$r" ]]; then res="match: prod rows made before the dump = $r"
+  elif [[ -n ${dayok[$t]:-} ]]; then res=${dayok[$t]}
+  else res="MISMATCH (audit net since dump: ${net[$t]:-none}; made before dump: ${asof[$t]:-n/a})"; fail=1
+  fi
+  printf '%-32s %9s %9s  %s\n' "$t" "$r" "$p" "$res"
+done
+for t in $(docker exec "$PROD" psql -U company_user -d company_app -At -c "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE'"); do
+  [[ " $tables " == *" $t "* ]] || { echo "$t: in prod, not in backup"; fail=1; }
+done
+(( fail == 0 )) && echo "OK: backup restores and every table matches prod" || echo "FAIL: see MISMATCH rows"
+exit $fail

@@ -200,5 +200,6 @@ jobs:
           bash tools/quality/check-patterns-test.sh
           bash tools/quality/push-test.sh
           bash tools/quality/shot-gate-test.sh
+          bash tools/quality/replicate-test.sh
           bash tools/perf/test/record.test.sh
           bash tools/perf/test/alert.test.sh

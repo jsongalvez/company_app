@@ -1,0 +1,7 @@
+[Unit]
+Description=Install fixed linux-oracle kernel when available
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kernel-fix-check

@@ -1,0 +1,31 @@
+#!/bin/sh
+# company_app feedback reports in the prod database, without hand-written psql.
+#   app-feedback open             reports not DONE: id, date, page, text
+#   app-feedback show ID          one report in full, plus the reporter's telemetry sessions around it
+#   app-feedback done ID...       mark these DONE (8-char id prefixes are fine)
+#   app-feedback since DAYS       every report from the last DAYS days (for the pattern log)
+set -e
+C=$(docker ps --format '{{.Names}}' | grep '^@DB_PREFIX@' | head -1)
+[ -n "$C" ] || { echo "prod postgres container (@DB_PREFIX@*) not running" >&2; exit 2; }
+q() { docker exec "$C" psql -U company_user -d company_app -At -F ' | ' -c "$1"; }
+case "$1" in
+  open)
+    q "select left(id::text,8), created_at::date, kind, coalesce(page,''), replace(message,E'\n',' '), left(replace(coalesce(details,''),E'\n',' '),200) from user_feedback where status<>'DONE' order by created_at" ;;
+  show)
+    id=${2:-}; case "$id" in *[!0-9a-f-]*|???????|??????|?????|????|???|??|?|'') echo "bad id (hex, 8+ chars): $id" >&2; exit 2;; esac
+    q "select 'id ' || id || E'\\nwhen ' || to_char(created_at at time zone 'Asia/Manila','YYYY-MM-DD HH24:MI') || ' Manila  status ' || status || '  kind ' || kind
+       || E'\\npage ' || coalesce(page,'') || '  build ' || coalesce(app_version,'') || E'\\nuser ' || left(user_id::text,8)
+       || E'\\n\\n' || message || E'\\n\\n' || coalesce(details,'') from user_feedback where id::text like '$id%'"
+    echo; echo "sessions within 30 min:"; exec app-telemetry around "$id" ;;
+  done)
+    shift; [ $# -gt 0 ] || { echo "usage: app-feedback done ID..." >&2; exit 2; }
+    for id in "$@"; do
+      case "$id" in *[!0-9a-f-]*|???????|??????|?????|????|???|??|?) echo "bad id (hex, 8+ chars): $id" >&2; exit 2;; esac
+      q "update user_feedback set status='DONE' where id::text like '$id%' returning left(id::text,8), status"
+    done
+    q "select status, count(*) from user_feedback group by 1" ;;
+  since)
+    d=${2:-7}; case "$d" in *[!0-9]*) echo "DAYS must be a number" >&2; exit 2;; esac
+    q "select left(id::text,8), created_at::date, status, kind, coalesce(page,''), replace(message,E'\n',' '), left(replace(coalesce(details,''),E'\n',' '),200) from user_feedback where created_at > now() - interval '$d days' order by created_at" ;;
+  *) sed -n '2,6p' "$0"; exit 2 ;;
+esac

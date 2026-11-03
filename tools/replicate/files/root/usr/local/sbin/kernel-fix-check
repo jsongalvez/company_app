@@ -1,0 +1,12 @@
+#!/bin/bash
+# Daily: if Ubuntu ships a newer linux-oracle kernel (CVE-2026-98432 fix), install it and reboot at 04:00.
+set -euo pipefail
+apt-get update -qq
+if apt list --upgradable 2>/dev/null | grep -q '^linux-oracle/'; then
+  echo "new linux-oracle kernel available, installing"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq linux-oracle linux-image-oracle linux-headers-oracle
+  echo "installed $(dpkg-query -W -f='${Version}' linux-oracle); reboot scheduled 04:00"
+  shutdown -r 04:00 "kernel update (CVE-2026-98432)"
+else
+  echo "no kernel update; running $(uname -r)"
+fi

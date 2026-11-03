@@ -1,0 +1,34 @@
+#!/bin/sh
+# Is company_app green and live?  app-shipcheck [SHA...]   (default: origin/master)
+# In reminders write `app-shipcheck origin/master`, not a fixed commit: a newer push never makes it stale.
+# Per SHA: its GitHub runs, and whether the live image contains it. Then once: container, java, /health, live build file.
+# Exit 0 = every run of every SHA succeeded, each SHA is live, /health UP. 1 = something not there yet or red.
+R=$HOME/Projects/company_app
+cd "$R" || exit 2
+git fetch -q origin master
+[ $# -gt 0 ] || set -- origin/master
+c=$(docker ps --format '{{.Names}}' | grep '^@APP_PREFIX@' | head -1)
+img=$(docker inspect "$c" --format '{{.Config.Image}}' 2>/dev/null); live=${img##*:}
+ok=0
+for ref in "$@"; do
+  sha=$(git rev-parse "$ref") || exit 2
+  echo "== $(git log --oneline -1 "$sha" | cut -c1-70)"
+  runs=$(gh run list --commit "$sha" --json name,status,conclusion -q '.[]|[.name,.status,.conclusion]|@tsv')
+  if [ -z "$runs" ]; then
+    if [ "$sha" != "$(git rev-parse origin/master)" ] && git merge-base --is-ancestor "$sha" origin/master; then
+      echo "  runs: none (pushed with a later commit; its runs cover this one)"
+    else echo "  runs: none yet"; ok=1; fi
+  fi
+  echo "$runs" | while IFS="$(printf '\t')" read -r n s cl; do [ -n "$n" ] && echo "  run $n: $s $cl"; done
+  echo "$runs" | grep -qvE 'completed	success$|^$' && ok=1
+  if [ "$live" = "$sha" ]; then echo "  live: yes (this image)"
+  elif git merge-base --is-ancestor "$sha" "$live" 2>/dev/null; then echo "  live: yes (inside ${live%"${live#????????}"})"
+  else echo "  live: not deployed yet"; ok=1; fi
+done
+echo "container: $c image $(echo "$live" | cut -c1-8) ($(docker ps --filter name="$c" --format '{{.Status}}'))"
+docker exec "$c" java -version 2>&1 | head -1
+ip=$(docker inspect "$c" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+h=$(curl -s -m5 "http://$ip:3023/health"); echo "health: $h"
+echo "live build: $(curl -s -m5 "http://$ip:3023/" | grep -o 'index-[A-Za-z0-9_-]*\.js' | head -1)"
+case "$h" in *UP*) ;; *) ok=1;; esac
+exit $ok

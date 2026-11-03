@@ -1,0 +1,5 @@
+[Unit]
+Description=Encrypted company_app DB backup to Cloudflare R2
+[Service]
+Type=oneshot
+ExecStart=%h/bin/company-app-db-backup.sh

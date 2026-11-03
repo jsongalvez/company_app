@@ -1,0 +1,13 @@
+#!/bin/bash
+# Docker's published ports skip ufw, so Coolify's admin ports are dropped here for traffic
+# arriving on the public interface. Tailscale and localhost still reach them. Safe to rerun.
+set -euo pipefail
+pub=$(ip route show default | awk '{for (i=1;i<NF;i++) if ($i=="dev") {print $(i+1); exit}}')
+[[ -n "$pub" ]] || { echo "no default route, nothing to lock" >&2; exit 1; }
+for ipt in iptables ip6tables; do
+  $ipt -S DOCKER-USER >/dev/null 2>&1 || continue
+  for port in 8000 8080 6001 6002; do
+    rule=(-i "$pub" -p tcp -m conntrack --ctorigdstport "$port" --ctdir ORIGINAL -j DROP)
+    $ipt -C DOCKER-USER "${rule[@]}" 2>/dev/null || $ipt -I DOCKER-USER "${rule[@]}"
+  done
+done

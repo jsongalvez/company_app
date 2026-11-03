@@ -1,0 +1,7 @@
+[Unit]
+Description=Deploy company_app when GitHub runs on master are green
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/deploy-gate/deploy-gate.sh

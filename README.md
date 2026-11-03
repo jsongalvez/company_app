@@ -58,3 +58,5 @@ means, and what the code calls it. Screens use only the app words.
 Coolify builds `backend/Dockerfile` from the repo root. The image contains the
 backend and the built web app; set the backend env vars from `.env.example` in
 Coolify.
+
+To build a second box, or check that one matches the expected state, see [tools/replicate](tools/replicate/README.md).

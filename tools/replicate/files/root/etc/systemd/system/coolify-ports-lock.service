@@ -1,0 +1,13 @@
+[Unit]
+Description=Drop public traffic to Coolify's admin ports
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/coolify-ports-lock
+
+[Install]
+WantedBy=multi-user.target

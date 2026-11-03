@@ -1,0 +1,7 @@
+[Unit]
+Description=Nightly company_app DB backup at 4 AM (app day change)
+[Timer]
+OnCalendar=*-*-* 04:00:00 Asia/Manila
+Persistent=true
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep company_app container logs across redeploys
+
+[Service]
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/bin/company-app-logs.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

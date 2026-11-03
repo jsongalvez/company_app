@@ -1,0 +1,38 @@
+#!/bin/sh
+# company_app telemetry in the prod database, without hand-written psql. Times are Manila.
+#   app-telemetry session ID [N]       one session's last N events (default 80): time, kind, data
+#   app-telemetry around FEEDBACK [M]  the reporter's sessions within M minutes (default 30) of a feedback report
+#   app-telemetry page ROUTE [DAYS]    API timings for a page (e.g. '#/finance') by hour: count, p50, p90 ms, p50 server ms
+set -e
+C=$(docker ps --format '{{.Names}}' | grep '^@DB_PREFIX@' | head -1)
+[ -n "$C" ] || { echo "prod postgres container (@DB_PREFIX@*) not running" >&2; exit 2; }
+num() { case "$1" in ''|*[!0-9]*) echo "$2 must be a number" >&2; exit 2;; esac; }
+hex() { case "$1" in *[!0-9a-f-]*|???????|??????|?????|????|???|??|?|'') echo "bad id (hex, 8+ chars): $1" >&2; exit 2;; esac; }
+# Values go in as psql variables (:'x'), never pasted into the SQL text.
+q() { sql=$1; shift; echo "$sql" | docker exec -i "$C" psql -U company_user -d company_app -At -F ' | ' -v ON_ERROR_STOP=1 "$@"; }
+case "$1" in
+  session)
+    hex "$2"; n=${3:-80}; num "$n" N
+    q "select * from (select to_char(at at time zone 'Asia/Manila','MM-DD HH24:MI:SS'), kind, left(data,300) from telemetry_event
+       where session_id::text like :'id' || '%' order by at desc, seq desc limit :n) t order by 1" -v id="$2" -v n="$n" ;;
+  around)
+    hex "$2"; m=${3:-30}; num "$m" M
+    q "select f.id::text as fid, f.created_at, f.user_id from user_feedback f where f.id::text like :'id' || '%' \gset
+       select 'feedback ' || left(:'fid',8) || ' at ' || to_char(:'created_at'::timestamptz at time zone 'Asia/Manila','MM-DD HH24:MI:SS');
+       select left(session_id::text,8), to_char(min(at) at time zone 'Asia/Manila','MM-DD HH24:MI:SS'),
+              to_char(max(at) at time zone 'Asia/Manila','HH24:MI:SS'), count(*) || ' events',
+              coalesce(max(case when kind='boot' then data::json->>'v' end),'') as build
+       from telemetry_event where user_id = :'user_id'::uuid
+         and at between :'created_at'::timestamptz - make_interval(mins => :m) and :'created_at'::timestamptz + make_interval(mins => :m)
+       group by session_id order by min(at)" -v id="$2" -v m="$m" ;;
+  page)
+    r=${2:?usage: app-telemetry page ROUTE [DAYS]}; case "$r" in *[!#/a-z0-9_?=.-]*) echo "bad route: $r" >&2; exit 2;; esac
+    d=${3:-2}; num "$d" DAYS
+    q "select to_char(at at time zone 'Asia/Manila','MM-DD HH24'), count(*),
+              percentile_disc(0.5) within group (order by (data::json->>'ms')::int),
+              percentile_disc(0.9) within group (order by (data::json->>'ms')::int),
+              percentile_disc(0.5) within group (order by (data::json->>'app')::int)
+       from telemetry_event where kind='api' and data::json->>'r' like :'r' || '%' and at > now() - make_interval(days => :d)
+       group by 1 order by 1" -v r="$r" -v d="$d" ;;
+  *) sed -n '2,5p' "$0"; exit 2 ;;
+esac
