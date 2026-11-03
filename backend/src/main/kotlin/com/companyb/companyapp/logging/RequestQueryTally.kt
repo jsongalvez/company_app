@@ -45,10 +45,12 @@ object RequestQueryTally {
 
     private val logger = KotlinLogging.logger {}
     private val quotedLiteral = Regex("'(?:[^']|'')*'")
+    private val readOnly = Regex("^\\s*SELECT\\b", RegexOption.IGNORE_CASE)
 
     private class Tally {
         var nanos = 0L
         var queries = 0
+        val untilWrite = HashMap<Any, Any>()
     }
 
     data class Snapshot(
@@ -71,6 +73,26 @@ object RequestQueryTally {
         return Snapshot(dbMs = tally.nanos / NANOS_PER_MILLI, queries = tally.queries)
     }
 
+    /**
+     * [load]'s answer for [key], kept for the rest of this request until any statement
+     * other than a SELECT runs (or a rollback), so a read never outlives a write that
+     * could change it. Outside a request it just loads. [T] is a plain class, not a
+     * generic one, so the cast back is checked.
+     */
+    inline fun <reified T : Any> untilWrite(
+        key: Any,
+        load: () -> T,
+    ): T {
+        val memo = untilWriteMemo() ?: return load()
+        return memo[key] as? T ?: load().also { memo[key] = it }
+    }
+
+    fun untilWriteMemo(): MutableMap<Any, Any>? = current.get()?.untilWrite
+
+    fun dropReads() {
+        current.get()?.untilWrite?.clear()
+    }
+
     fun record(
         sql: String,
         nanos: Long,
@@ -78,6 +100,7 @@ object RequestQueryTally {
         current.get()?.let {
             it.nanos += nanos
             it.queries++
+            if (!readOnly.containsMatchIn(sql)) it.untilWrite.clear()
         }
         val ms = nanos / NANOS_PER_MILLI
         if (ms >= slowMs) {

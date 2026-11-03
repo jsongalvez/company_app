@@ -12,7 +12,7 @@ import javax.sql.DataSource
  * connections, a connection hands out timed statements, and a statement times
  * the calls that run SQL. Everything else passes straight through. Only
  * statement execution is counted: connection checkout, commit and rollback are
- * not. Two entry points stay untimed because the app uses neither and detekt
+ * not. A rollback drops the request's [RequestQueryTally.untilWrite] reads. Two entry points stay untimed because the app uses neither and detekt
  * caps overloads at five: `prepareCall` and `prepareStatement(sql, int[])`.
  */
 object JdbcTiming {
@@ -47,6 +47,16 @@ private class TimedDataSource(
 private class TimedConnection(
     private val connection: Connection,
 ) : Connection by connection {
+    override fun rollback() {
+        RequestQueryTally.dropReads()
+        connection.rollback()
+    }
+
+    override fun rollback(savepoint: java.sql.Savepoint) {
+        RequestQueryTally.dropReads()
+        connection.rollback(savepoint)
+    }
+
     override fun createStatement(): Statement = TimedStatement(connection.createStatement())
 
     override fun createStatement(

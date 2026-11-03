@@ -1,13 +1,12 @@
 package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.logging.RequestQueryTally
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -31,24 +30,61 @@ internal object CapabilityRepository {
         contextId: UUID,
     ): Boolean = holdsIn(userId, capabilityCode, listOf(contextType to contextId))
 
+    /** One row of [ActiveUserCapabilitiesView], with its code. */
+    private data class Grant(
+        val code: String,
+        val contextType: CapabilityContextType,
+        val contextId: UUID,
+        val sourceType: CapabilitySourceType,
+    )
+
+    private class Grants(
+        val rows: List<Grant>,
+    )
+
+    private data class GrantsKey(
+        val userId: UUID,
+    )
+
+    /**
+     * Every active grant of [userId], read once per request: planning the view costs more than
+     * running it (about 3ms of 4, checked with EXPLAIN ANALYZE), and a request used to ask it
+     * five or six times. The copy is dropped by any write in the request.
+     */
+    private fun grantsOf(userId: UUID): List<Grant> =
+        RequestQueryTally
+            .untilWrite(GrantsKey(userId)) {
+                Grants(
+                    transaction {
+                        ActiveUserCapabilitiesView
+                            .innerJoin(
+                                CapabilityTable,
+                                { ActiveUserCapabilitiesView.capabilityId },
+                                { CapabilityTable.id },
+                            ).selectAll()
+                            .where { ActiveUserCapabilitiesView.userId eq userId }
+                            .map { row ->
+                                Grant(
+                                    code = row[CapabilityTable.code],
+                                    contextType = row[ActiveUserCapabilitiesView.contextType],
+                                    contextId = row[ActiveUserCapabilitiesView.contextId],
+                                    sourceType = row[ActiveUserCapabilitiesView.sourceType],
+                                )
+                            }
+                    },
+                )
+            }.rows
+
     fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
-        transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).selectAll()
-                .where { ActiveUserCapabilitiesView.userId eq userId }
-                .map { row ->
-                    UserCapabilityResponse(
-                        capabilityCode = row[CapabilityTable.code],
-                        contextType = row[ActiveUserCapabilitiesView.contextType],
-                        contextId = row[ActiveUserCapabilitiesView.contextId].toString(),
-                        sourceType = row[ActiveUserCapabilitiesView.sourceType],
-                    )
-                }
-        }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }
+        grantsOf(userId)
+            .map {
+                UserCapabilityResponse(
+                    capabilityCode = it.code,
+                    contextType = it.contextType,
+                    contextId = it.contextId.toString(),
+                    sourceType = it.sourceType,
+                )
+            }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }
 
     /**
      * Distinct branch context ids where [userId] holds any active grant — the
@@ -57,54 +93,27 @@ internal object CapabilityRepository {
      * users and out-of-window grants.
      */
     fun findBranchWindow(userId: UUID): List<UUID> =
-        transaction {
-            ActiveUserCapabilitiesView
-                .selectAll()
-                .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH)
-                }.withDistinct()
-                .map { it[ActiveUserCapabilitiesView.contextId] }
-        }.also { logger.info { "[BRANCH-WINDOW] $userId window=${it.size} branches" } }
+        contextsOf(userId, CapabilityContextType.BRANCH)
+            .also { logger.info { "[BRANCH-WINDOW] $userId window=${it.size} branches" } }
 
     /** The branch days [userId] holds any grant for (relief), past, present or future. */
-    fun findDayWindow(userId: UUID): List<UUID> =
-        transaction {
-            ActiveUserCapabilitiesView
-                .select(ActiveUserCapabilitiesView.contextId)
-                .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY)
-                }.withDistinct()
-                .map { it[ActiveUserCapabilitiesView.contextId] }
-        }
+    fun findDayWindow(userId: UUID): List<UUID> = contextsOf(userId, CapabilityContextType.BRANCH_DAY)
 
-    /** One read for "holds [capabilityCode] in any of [contexts]". The view applies the grant window. */
+    private fun contextsOf(
+        userId: UUID,
+        type: CapabilityContextType,
+    ): List<UUID> = grantsOf(userId).filter { it.contextType == type }.map { it.contextId }.distinct()
+
+    /** "Holds [capabilityCode] in any of [contexts]". The view applies the grant window. */
     fun holdsIn(
         userId: UUID,
         capabilityCode: String,
         contexts: List<Pair<CapabilityContextType, UUID>>,
     ): Boolean {
         if (contexts.isEmpty()) return false
-        return transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).selectAll()
-                .where {
-                    val inAnyContext =
-                        contexts
-                            .map { (type, id) ->
-                                (ActiveUserCapabilitiesView.contextType eq type) and
-                                    (ActiveUserCapabilitiesView.contextId eq id)
-                            }.reduce { left, right -> left or right }
-                    (ActiveUserCapabilitiesView.userId eq userId) and (CapabilityTable.code eq capabilityCode) and
-                        inAnyContext
-                }.empty()
-                .not()
-        }.also { granted -> logger.debug { "[HOLDS-IN] $capabilityCode $contexts granted=$granted" } }
+        return grantsOf(userId)
+            .any { it.code == capabilityCode && (it.contextType to it.contextId) in contexts }
+            .also { granted -> logger.debug { "[HOLDS-IN] $capabilityCode $contexts granted=$granted" } }
     }
 
     /**
@@ -115,19 +124,7 @@ internal object CapabilityRepository {
         userId: UUID,
         capabilityCode: String,
     ): Boolean =
-        transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).selectAll()
-                .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (CapabilityTable.code eq capabilityCode)
-                }.empty()
-                .not()
-        }.also { granted ->
+        grantsOf(userId).any { it.code == capabilityCode }.also { granted ->
             logger.debug { "[HAS-CAPABILITY-ANY] $capabilityCode granted=$granted" }
         }
 }
