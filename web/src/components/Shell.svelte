@@ -106,16 +106,25 @@
     let menuOpen = $state(false);
     // People take ~0.9s from opening the menu to tapping a page; a page with nothing saved for today
     // (first Sales reports or Expenses & pay of the day) gets its data in that time instead of "Loading…".
+    // It starts after the menu has painted: run inside the tap, it held the menu back ~100ms on a slow phone.
     $effect(() => {
         if (!menuOpen) return;
-        for (const group of nav)
-            for (const item of group.items)
-                if (item.show) {
+        const items = nav.flatMap((group) => group.items.filter((item) => item.show));
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const frame = requestAnimationFrame(() => {
+            timer = setTimeout(() => {
+                for (const item of items) {
                     if (item.page) page(item.page);
                     item.reads?.()
                         .filter((l) => peek(l.key) === undefined)
                         .forEach(warm);
                 }
+            });
+        });
+        return () => {
+            cancelAnimationFrame(frame);
+            clearTimeout(timer);
+        };
     });
     // The phone menu hangs from the bottom of the top bar, wherever that is (the "Viewing as" bar pushes it down).
     let topEl: HTMLElement | undefined = $state();
