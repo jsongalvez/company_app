@@ -12,6 +12,7 @@ on:
       - master
     paths:
       - 'backend/**'
+      - 'web/src/lib/access.gen.ts'
       - 'detekt-rules/**'
       - 'gradle/**'
       - 'gradlew'
@@ -35,6 +36,7 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'web/src/lib/access.gen.ts'
       - 'detekt-rules/**'
       - 'gradle/**'
       - 'gradlew'

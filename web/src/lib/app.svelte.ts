@@ -7,6 +7,7 @@ import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
 import { operationalDate } from "./format";
 import { applies } from "./grants";
+import type { Code } from "./access.gen";
 import { seedTodayScreen } from "./data";
 
 type Cap = S["UserCapabilityResponse"];
@@ -273,22 +274,22 @@ export async function refreshUnread() {
 }
 
 /** Does the user hold `code` for the branch (or globally)? */
-export function can(code: string, branchId: string = app.branchId, branchDayId?: string): boolean {
+export function can(code: Code, branchId: string = app.branchId, branchDayId?: string): boolean {
     return app.caps.some((c) => applies(c, code, branchId, branchDayId, app.today?.branchDayId));
 }
 /** Every branch at once: an all-branch (GLOBAL) grant, as the server's SEE_EVERY_BRANCH asks. */
-export function canEverywhere(code: string): boolean {
+export function canEverywhere(code: Code): boolean {
     return app.caps.some((c) => c.capabilityCode === code && c.contextType === "GLOBAL");
 }
 /** The branch as a whole, not one day of it: relief's day grant doesn't count (reports, stock changes). */
-export function canBranchWide(code: string, branchId: string = app.branchId): boolean {
+export function canBranchWide(code: Code, branchId: string = app.branchId): boolean {
     return app.caps.some((c) => applies(c, code, branchId, undefined, undefined));
 }
 /** Rights the server only honours at a branch the person works at (an all-branch grant doesn't count). */
-export function canAtBranch(code: string, branchId: string = app.branchId): boolean {
+export function canAtBranch(code: Code, branchId: string = app.branchId): boolean {
     return app.caps.some((c) => c.capabilityCode === code && c.contextType !== "GLOBAL" && c.contextId === branchId);
 }
-export function canAnywhere(code: string): boolean {
+export function canAnywhere(code: Code): boolean {
     return app.caps.some((c) => c.capabilityCode === code);
 }
 
