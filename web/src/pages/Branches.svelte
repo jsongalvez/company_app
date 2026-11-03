@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can, canAtBranch, canAnywhere, refreshBranchNames } from "../lib/app.svelte";
-    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
+    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { go, route } from "../lib/router.svelte";
@@ -81,8 +81,7 @@
         })),
     );
 
-    function refresh(...keys: string[]) {
-        invalidate(...keys);
+    function refresh() {
         staff.refresh();
         if (seeRates) rates.refresh();
         if (takesHelpers) helpers.refresh();
@@ -97,7 +96,7 @@
         const id = uuid();
         if (await ba.run(() => ok(api.POST("/api/branches", { body: { id, name: bName.trim(), branchType: bType } })), "Branch created")) {
             bOpen = false;
-            invalidate("branches");
+            wrote("branches");
             list.refresh();
             go("/branches", { id });
         }
@@ -117,7 +116,7 @@
         const branchId = branch.id;
         if (await ra.run(() => ok(api.PATCH("/api/branches/{branchId}", { params: { path: { branchId } }, body: { name: rName.trim() } })), "Branch renamed")) {
             rOpen = false;
-            invalidate("branches");
+            wrote("branches");
             list.refresh();
             void refreshBranchNames();
         }
@@ -150,7 +149,10 @@
             },
             sPicked.length === 1 ? "Added" : `Added ${sPicked.length} people`,
         );
-        if (added.size) refresh(`assign:${sel}`, "users");
+        if (added.size) {
+            wrote("assignments", sel, true);
+            refresh();
+        }
         if (done) sOpen = false;
         else sPicked = sPicked.filter((id) => !added.has(id));
     }
@@ -161,8 +163,10 @@
                 () => ok(api.DELETE("/api/branches/{branchId}/assignments/{assignmentId}", { params: { path: { branchId: sel, assignmentId: a.id } } })),
                 "Removed",
             )
-        )
-            refresh(`assign:${sel}`, "users");
+        ) {
+            wrote("assignments", sel, true);
+            refresh();
+        }
     }
     // One move at a time, and the new order shows at once: a second tap on a stale list would move the wrong person.
     let moving = $state(false);
@@ -182,7 +186,8 @@
             );
             if (swapped) {
                 staff.data = staff.data?.map((x) => (x.id === a.id ? { ...x, slot: b.slot } : x.id === b.id ? { ...x, slot: a.slot } : x));
-                refresh(`assign:${sel}`);
+                wrote("assignments", sel, false);
+                refresh();
             }
         } finally {
             moving = false;
@@ -205,7 +210,8 @@
         const body = { id: uuid(), sessionType: pType, rate: pRate.trim() };
         if (await pa.run(() => ok(api.POST("/api/branches/{branchId}/rates", { params: { path: { branchId: sel } }, body })), "Price saved")) {
             pOpen = false;
-            refresh(`rates:${sel}`);
+            wrote("rates", sel);
+            refresh();
         }
     }
 
@@ -218,13 +224,16 @@
         const body = { delegateId: uuid(), targetUserId: hUser, branchId: sel, role: hRole };
         if (await ha.run(() => ok(api.POST("/api/delegates", { body })), "Helper added")) {
             hOpen = false;
-            refresh(`deleg:${sel}`);
+            wrote("delegates", sel);
+            refresh();
         }
     }
     async function removeHelper(d: S["DelegateResponse"]) {
         if (!confirm(`Remove ${nameOf[d.targetUser] ?? "this helper"}?`)) return;
-        if (await act(() => ok(api.DELETE("/api/delegates/{delegateId}", { params: { path: { delegateId: d.id } } })), "Helper removed"))
-            refresh(`deleg:${sel}`);
+        if (await act(() => ok(api.DELETE("/api/delegates/{delegateId}", { params: { path: { delegateId: d.id } } })), "Helper removed")) {
+            wrote("delegates", sel);
+            refresh();
+        }
     }
 </script>
 

@@ -3,7 +3,7 @@
     import { rolesToSave } from "../lib/roles-to-save";
     import { api, ok, type S } from "../api/client";
     import { app, startViewAs } from "../lib/app.svelte";
-    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
+    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { label, dateTime } from "../lib/format";
@@ -36,7 +36,7 @@
     const inactiveCount = $derived((q.data ?? []).filter((u) => u.status === "INACTIVE").length);
 
     function refresh() {
-        invalidate("users", "assign:");
+        wrote("users");
         q.refresh();
     }
 

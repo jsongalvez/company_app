@@ -1,6 +1,7 @@
 import { ApiError, api, ok, setToken, getToken, setUnauthorizedHandler, uuid, errText, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { forgetSnapshot } from "./snapshot";
-import { clearCache, fetchCached, forget, invalidate, reread, peek, restoreCache, seed } from "./cache.svelte";
+import { key } from "./keys";
+import { wrote, clearCache, fetchCached, peek, restoreCache, seed } from "./cache.svelte";
 import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { doneText, heldClock, heldSoFar, SENT } from "./outbox.svelte";
@@ -122,18 +123,18 @@ const onToday = () => ["", "#", "#/", "#/today"].includes(location.hash);
 function takeStart(s: S["StartResponse"], withToday: boolean) {
     const day = operationalDate();
     Object.assign(app, { me: s.me, caps: s.capabilities, branches: s.branches, accessible: s.accessible });
-    seed("boot:me", s.me);
-    seed("boot:caps", s.capabilities);
-    seed("boot:branches", s.branches);
-    seed("boot:accessible", s.accessible);
+    seed(key.boot("me"), s.me);
+    seed(key.boot("caps"), s.capabilities);
+    seed(key.boot("branches"), s.branches);
+    seed(key.boot("accessible"), s.accessible);
     if (s.branchId && s.branchId !== app.branchId) {
         app.branchId = s.branchId;
         localStorage.setItem("branchId", s.branchId);
     }
     app.today = s.today;
-    if (s.branchId && s.today) seed(`boot:today:${s.branchId}:${day}`, s.today);
+    if (s.branchId && s.today) seed(key.bootToday(s.branchId, day), s.today);
     app.shift = (s.shift as S["ActiveShiftResponse"] | null) ?? null;
-    seed("boot:shift", app.shift);
+    seed(key.boot("shift"), app.shift);
     applyHeldClock();
     app.shiftKnown = true;
     app.unread = s.unreadCount;
@@ -148,11 +149,11 @@ export async function boot() {
         return;
     }
     restoreCache();
-    const saved = [peek("boot:me"), peek("boot:caps"), peek("boot:branches"), peek("boot:accessible")];
+    const saved = [peek(key.boot("me")), peek(key.boot("caps")), peek(key.boot("branches")), peek(key.boot("accessible"))];
     if (saved.every((x) => x !== undefined)) {
         Object.assign(app, { me: saved[0], caps: saved[1], branches: saved[2], accessible: saved[3] });
-        app.today = peek<S["BranchDayTodayResponse"]>(`boot:today:${app.branchId}:${operationalDate()}`) ?? null;
-        app.shift = peek<S["ActiveShiftResponse"] | null>("boot:shift") ?? null;
+        app.today = peek<S["BranchDayTodayResponse"]>(key.bootToday(app.branchId, operationalDate())) ?? null;
+        app.shift = peek<S["ActiveShiftResponse"] | null>(key.boot("shift")) ?? null;
         applyHeldClock();
         app.ready = true;
     }
@@ -219,10 +220,10 @@ export async function refreshBranchDay() {
         app.today = null;
         return;
     }
-    const key = `boot:today:${id}:${operationalDate()}`;
-    if (!app.today) app.today = peek<S["BranchDayTodayResponse"]>(key) ?? null;
+    const today = key.bootToday(id, operationalDate());
+    if (!app.today) app.today = peek<S["BranchDayTodayResponse"]>(today) ?? null;
     try {
-        const t = await fetchCached(key, () => ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } })), true);
+        const t = await fetchCached(today, () => ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } })), true);
         if (app.branchId === id) app.today = t;
     } catch (e) {
         // No signal: keep the day we knew.
@@ -234,7 +235,7 @@ export async function refreshShift() {
     try {
         const r = await ok(api.GET("/api/me/active-attendance"));
         app.shift = (r.shift as S["ActiveShiftResponse"] | null) ?? null;
-        void fetchCached("boot:shift", () => Promise.resolve(app.shift), true);
+        void fetchCached(key.boot("shift"), () => Promise.resolve(app.shift), true);
         applyHeldClock();
     } catch (e) {
         // Lost signal says nothing about the shift: keep what we knew.
@@ -260,7 +261,7 @@ function applyHeldClock() {
 
 export async function refreshCaps() {
     [app.caps, app.branches] = await Promise.all([ok(api.GET("/api/me/capabilities")), ok(api.GET("/api/me/branches"))]);
-    invalidate("");
+    wrote("rights");
 }
 
 export async function refreshUnread() {
@@ -332,7 +333,7 @@ export function showMark(userId: string, present: boolean, branchId: string, att
 export async function applyStart(s: S["StartResponse"] | null | undefined) {
     if (!s) return;
     takeStart(s, onToday());
-    await reread("dash:", "roster:");
+    await wrote("clockApplied");
     app.marking = null;
 }
 export async function clockIn(branchId: string = app.branchId): Promise<boolean> {
@@ -363,7 +364,7 @@ export async function clockOut(): Promise<boolean> {
         const r = await ok(
             api.POST("/api/attendance/clock-out", { params: { query: { branchId: app.branchId || undefined, withToday: onToday() } }, body: { attendanceId } }),
         );
-        if (heldSoFar() > before) return (applyHeldClock(), forget("dash:", "roster:"), toast(doneText(before)!), true);
+        if (heldSoFar() > before) return (applyHeldClock(), wrote("clockOutHeld"), toast(doneText(before)!), true);
         toast(doneText(before, "Clocked out")!);
         // Today's list needs a clock-in: the new state takes it off screen (and off the phone).
         void applyStart(r.start);

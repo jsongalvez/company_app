@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
-    import { Query, invalidate } from "../lib/cache.svelte";
+    import { Query, wrote } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { go, viewSetting } from "../lib/router.svelte";
@@ -43,7 +43,7 @@
         const done = await a.run(() => ok(api.POST("/api/remittances", { body: { id, type, method, branchId: bid, dateRangeStart: from, dateRangeEnd: to } })));
         if (done) {
             open = false;
-            invalidate(`rem:${bid}`);
+            wrote("remittances", bid);
             go(`/remittance/${id}`);
         }
     }

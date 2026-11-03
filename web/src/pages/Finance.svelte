@@ -3,7 +3,7 @@
     import { askReason, keepReason, lastReason } from "../lib/ask.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
-    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
+    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { route, go, viewSetting } from "../lib/router.svelte";
@@ -96,11 +96,10 @@
 
     // Re-read only what the save can change. The totals count expenses, pay and shares, not allowances.
     // Other people's edits to the other lists show when Finance is opened again or the app reloads.
-    function refresh(...changed: ("exp" | "split" | "summary")[]) {
-        const lists = { exp, split, summary };
-        const keys = { exp: `exp:${dayId}`, split: `split:${dayId}`, summary: `dsum:${bid}:${date}` };
-        invalidate(...changed.map((c) => keys[c]), ...(changed.includes("exp") ? ["audit:expense:"] : []));
-        for (const c of changed) lists[c].refresh();
+    function refresh(...lists: ("exp" | "split" | "summary")[]) {
+        const shown = { exp, split, summary };
+        wrote("finance", bid, date, dayId, lists);
+        for (const c of lists) shown[c].refresh();
     }
 
     // ---- Expense dialog ----
@@ -137,7 +136,7 @@
         if (done) {
             eOpen = false;
             if (!dayId) {
-                invalidate(`bday:${bid}:${date}`);
+                wrote("dayRow", bid, date);
                 dayQ.refresh();
                 return;
             }

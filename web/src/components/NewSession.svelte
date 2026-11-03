@@ -3,7 +3,7 @@
     import { guessPreview, rememberPrice } from "../lib/prices";
     import { rememberClient } from "../lib/clientdir.svelte";
     import { app, can } from "../lib/app.svelte";
-    import { fetchCached, invalidate } from "../lib/cache.svelte";
+    import { wrote, fetchCached } from "../lib/cache.svelte";
     import { load, seedTodayScreen } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { label, peso, operationalDate, shortDay } from "../lib/format";
@@ -140,7 +140,7 @@
                 if (creating) {
                     c = await ok(api.POST("/api/clients", { body: createBody(uuid(), draft) }));
                     rememberClient(c);
-                    invalidate("clients:");
+                    wrote("clientAdded");
                     client = c;
                     creating = false;
                     // Price comes from the preview; stop here so the user sees it first.
@@ -179,7 +179,7 @@
                         },
                     }),
                 );
-                if (fresh.length) invalidate("concerns");
+                if (fresh.length) wrote("concerns");
                 const chosen = c;
                 await Promise.all([
                     // A booked visit that turned into this session is marked as came.
@@ -194,9 +194,9 @@
                           ).catch(() => {})
                         : null,
                 ]);
-                invalidate("bookings:");
+                wrote("bookings");
                 if (withToday && s.todayScreen) seedTodayScreen(app.branchId, Promise.resolve(s.todayScreen));
-                invalidate("dash:", "dsess:", "dsum:", "clients:", `client:${c.id}`, `session:${s.id}`);
+                wrote("sessionAdded", c.id, s.id);
                 open = false;
                 onsaved();
             },

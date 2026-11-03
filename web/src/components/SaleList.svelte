@@ -2,7 +2,7 @@
     import { api, ok, type S } from "../api/client";
     import { app } from "../lib/app.svelte";
     import { askReason } from "../lib/ask.svelte";
-    import { Query, fetchCached, invalidate } from "../lib/cache.svelte";
+    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { peso, dateTime, sum } from "../lib/format";
@@ -64,7 +64,7 @@
     }
 
     function changed() {
-        invalidate(`sales:${dayId}`, `inv:${app.branchId}`, `dash:${app.branchId}`, "dsess:", "dsum:", "moves:", "audit:product_sale:");
+        wrote("productSale", app.branchId, dayId);
         q.refresh();
         onchanged();
     }

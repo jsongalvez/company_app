@@ -2,9 +2,10 @@
 import { api, ok, ApiError, type S } from "../api/client";
 import { fetchCached } from "./cache.svelte";
 import { operationalDate } from "./format";
+import { key, type Key } from "./keys";
 
-export type Loader<T> = { key: string; fn: () => Promise<T> };
-const L = <T>(key: string, fn: () => Promise<T>): Loader<T> => ({ key, fn });
+export type Loader<T> = { key: Key; fn: () => Promise<T> };
+const L = <T>(key: Key, fn: () => Promise<T>): Loader<T> => ({ key, fn });
 const b = (branchId: string) => ({ params: { path: { branchId } } });
 
 /**
@@ -44,39 +45,38 @@ const part = <T>(v: T | null | undefined, why?: string | null): T => {
 
 export const load = {
     dashboard: (branchId: string) =>
-        L(`dash:${branchId}:${operationalDate()}`, async () => {
+        L(key.dashboard(branchId, operationalDate()), async () => {
             const t = await todayScreen(branchId);
             return part(t.dashboard, t.dashboardRefusal);
         }),
     /** Earlier open days still holding a Waiting session (feedback d6cc83cf); "dash:" so marks refresh it. */
     earlierWaiting: (branchId: string) =>
-        L(`dash:waiting:${branchId}:${operationalDate()}`, async () => (await todayScreen(branchId)).earlierWaitingDays ?? []),
+        L(key.earlierWaiting(branchId, operationalDate()), async () => (await todayScreen(branchId)).earlierWaitingDays ?? []),
     /** A day's row at a branch (its id and status), or null when nothing was recorded that day. */
     branchDay: (branchId: string, date: string) =>
-        L(`bday:${branchId}:${date}`, async () => {
+        L(key.branchDay(branchId, date), async () => {
             const r = await ok(api.GET("/api/branches/{branchId}/remittance-days", { params: { path: { branchId }, query: { from: date, to: date } } }));
             return r[0] ?? null;
         }),
     daySessions: (branchId: string, date: string) =>
-        L(`dsess:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/sessions", { params: { path: { branchId }, query: { date } } }))),
-    roster: (branchId: string) => L(`roster:${branchId}:${operationalDate()}`, async () => part((await todayScreen(branchId)).roster)),
-    members: (branchId: string) => L(`members:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/members", b(branchId)))),
+        L(key.daySessions(branchId, date), () => ok(api.GET("/api/branches/{branchId}/sessions", { params: { path: { branchId }, query: { date } } }))),
+    roster: (branchId: string) => L(key.roster(branchId, operationalDate()), async () => part((await todayScreen(branchId)).roster)),
+    members: (branchId: string) => L(key.members(branchId), () => ok(api.GET("/api/branches/{branchId}/members", b(branchId)))),
     dayUsers: (branchDayId: string) =>
-        L(`dayusers:${branchDayId}`, () => ok(api.GET("/api/branch-days/{branchDayId}/users", { params: { path: { branchDayId } } }))),
-    concerns: () => L(`concerns`, () => ok(api.GET("/api/concerns"))),
-    clients: (q: string) => L(`clients:${q}`, () => ok(api.GET("/api/clients", { params: { query: { q } } }))),
-    // Key "clients:" with no term cannot clash with a search (2+ letters) and still clears with invalidate("clients:").
-    recentClients: () => L("clients:", () => ok(api.GET("/api/recent-clients"))),
-    client: (clientId: string) => L(`client:${clientId}`, () => ok(api.GET("/api/clients/{clientId}", { params: { path: { clientId } } }))),
-    bookings: (branchId: string) => L(`bookings:${branchId}`, async () => part((await todayScreen(branchId)).bookings)),
+        L(key.dayUsers(branchDayId), () => ok(api.GET("/api/branch-days/{branchDayId}/users", { params: { path: { branchDayId } } }))),
+    concerns: () => L(key.concerns(), () => ok(api.GET("/api/concerns"))),
+    clients: (q: string) => L(key.clients(q), () => ok(api.GET("/api/clients", { params: { query: { q } } }))),
+    recentClients: () => L(key.recentClients(), () => ok(api.GET("/api/recent-clients"))),
+    client: (clientId: string) => L(key.client(clientId), () => ok(api.GET("/api/clients/{clientId}", { params: { path: { clientId } } }))),
+    bookings: (branchId: string) => L(key.bookings(branchId), async () => part((await todayScreen(branchId)).bookings)),
     clientBookings: (clientId: string) =>
-        L(`bookings:client:${clientId}`, () => ok(api.GET("/api/clients/{clientId}/bookings", { params: { path: { clientId } } }))),
+        L(key.clientBookings(clientId), () => ok(api.GET("/api/clients/{clientId}/bookings", { params: { path: { clientId } } }))),
     clientHistory: (clientId: string) =>
-        L(`client:${clientId}:history`, () => ok(api.GET("/api/clients/{clientId}/history", { params: { path: { clientId } } }))),
+        L(key.clientHistory(clientId), () => ok(api.GET("/api/clients/{clientId}/history", { params: { path: { clientId } } }))),
     // GET /api/sessions/{id} only answers for sessions in the caller's notifications,
     // so read today's dashboard first and fall back to it.
     session: (sessionId: string, branchId: string) =>
-        L(`session:${sessionId}`, async () => {
+        L(key.session(sessionId), async () => {
             if (branchId) {
                 const d = await load
                     .dashboard(branchId)
@@ -87,51 +87,51 @@ export const load = {
             }
             return ok(api.GET("/api/sessions/{sessionId}", { params: { path: { sessionId } } }));
         }),
-    inventory: (branchId: string) => L(`inv:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/inventory", b(branchId)))),
+    inventory: (branchId: string) => L(key.inventory(branchId), () => ok(api.GET("/api/branches/{branchId}/inventory", b(branchId)))),
     movements: (branchId: string, date: string) =>
-        L(`moves:${branchId}:${date}`, () =>
+        L(key.movements(branchId, date), () =>
             ok(api.GET("/api/branches/{branchId}/inventory/movements", { params: { path: { branchId }, query: { date: date || undefined } } })),
         ),
-    products: () => L(`products`, () => ok(api.GET("/api/products"))),
-    categories: () => L(`categories`, () => ok(api.GET("/api/product-categories"))),
-    productSales: (branchDayId: string) => L(`sales:${branchDayId}`, () => ok(api.GET("/api/product-sales", { params: { query: { branchDayId } } }))),
-    expenses: (branchDayId: string) => L(`exp:${branchDayId}`, () => ok(api.GET("/api/expenses", { params: { query: { branchDayId } } }))),
-    compensations: (branchDayId: string) => L(`comp:${branchDayId}`, () => ok(api.GET("/api/compensations", { params: { query: { branchDayId } } }))),
-    allowances: (branchDayId: string) => L(`allow:${branchDayId}`, () => ok(api.GET("/api/allowances", { params: { query: { branchDayId } } }))),
+    products: () => L(key.products(), () => ok(api.GET("/api/products"))),
+    categories: () => L(key.categories(), () => ok(api.GET("/api/product-categories"))),
+    productSales: (branchDayId: string) => L(key.productSales(branchDayId), () => ok(api.GET("/api/product-sales", { params: { query: { branchDayId } } }))),
+    expenses: (branchDayId: string) => L(key.expenses(branchDayId), () => ok(api.GET("/api/expenses", { params: { query: { branchDayId } } }))),
+    compensations: (branchDayId: string) => L(key.compensations(branchDayId), () => ok(api.GET("/api/compensations", { params: { query: { branchDayId } } }))),
+    allowances: (branchDayId: string) => L(key.allowances(branchDayId), () => ok(api.GET("/api/allowances", { params: { query: { branchDayId } } }))),
     commissionSplits: (branchDayId: string) =>
-        L(`split:${branchDayId}`, () => ok(api.GET("/api/commission-splits/{branchDayId}", { params: { path: { branchDayId } } }))),
+        L(key.commissionSplits(branchDayId), () => ok(api.GET("/api/commission-splits/{branchDayId}", { params: { path: { branchDayId } } }))),
     dailySummary: (branchId: string, date: string) =>
-        L(`dsum:${branchId}:${date}`, () => ok(api.GET("/api/branches/{branchId}/daily-summary", { params: { path: { branchId }, query: { date } } }))),
+        L(key.dailySummary(branchId, date), () => ok(api.GET("/api/branches/{branchId}/daily-summary", { params: { path: { branchId }, query: { date } } }))),
     dailySummaries: (branchId: string, from: string, to: string) =>
-        L(`dsums:${branchId}:${from}:${to}`, () =>
+        L(key.dailySummaries(branchId, from, to), () =>
             ok(api.GET("/api/branches/{branchId}/daily-summaries", { params: { path: { branchId }, query: { from, to, limit: "100" } } })),
         ),
     monthly: (branchId: string, year: number, month: number) =>
-        L(`msum:${branchId}:${year}-${month}`, () =>
+        L(key.monthly(branchId, year, month), () =>
             ok(api.GET("/api/branches/{branchId}/monthly-summary", { params: { path: { branchId }, query: { year, month } } })),
         ),
-    remittances: (branchId: string) => L(`rem:${branchId}`, () => ok(api.GET("/api/remittances", { params: { query: { branchId } } }))),
+    remittances: (branchId: string) => L(key.remittances(branchId), () => ok(api.GET("/api/remittances", { params: { query: { branchId } } }))),
     remittance: (remittanceId: string) =>
-        L(`remd:${remittanceId}`, () => ok(api.GET("/api/remittances/{remittanceId}", { params: { path: { remittanceId } } }))),
-    notifications: () => L(`notif`, () => ok(api.GET("/api/notifications"))),
-    reliefMine: () => L(`relief:mine`, () => ok(api.GET("/api/relief-access/mine"))),
-    reliefInvitesMine: () => L(`relief:invites`, () => ok(api.GET("/api/relief-invites"))),
-    reliefOptions: () => L(`relief:options`, () => ok(api.GET("/api/relief-access/branch-options"))),
-    reliefUpcoming: (branchId: string) => L(`relief:branch:${branchId}:upcoming`, () => ok(api.GET("/api/relief-access", { params: { query: { branchId } } }))),
+        L(key.remittance(remittanceId), () => ok(api.GET("/api/remittances/{remittanceId}", { params: { path: { remittanceId } } }))),
+    notifications: () => L(key.notifications(), () => ok(api.GET("/api/notifications"))),
+    reliefMine: () => L(key.reliefMine(), () => ok(api.GET("/api/relief-access/mine"))),
+    reliefInvitesMine: () => L(key.reliefInvitesMine(), () => ok(api.GET("/api/relief-invites"))),
+    reliefOptions: () => L(key.reliefOptions(), () => ok(api.GET("/api/relief-access/branch-options"))),
+    reliefUpcoming: (branchId: string) => L(key.reliefUpcoming(branchId), () => ok(api.GET("/api/relief-access", { params: { query: { branchId } } }))),
     reliefForBranch: (branchId: string, date: string) =>
-        L(`relief:branch:${branchId}:${date}`, () => ok(api.GET("/api/relief-access", { params: { query: { branchId, date } } }))),
-    branchInvites: (branchId: string) => L(`relief:binv:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/relief-invites", b(branchId)))),
-    users: () => L(`users`, () => ok(api.GET("/api/users"))),
-    roles: () => L(`roles`, () => ok(api.GET("/api/roles"))),
-    branches: () => L(`branches`, () => ok(api.GET("/api/branches"))),
-    assignments: (branchId: string) => L(`assign:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/assignments", b(branchId)))),
-    rates: (branchId: string) => L(`rates:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/rates", b(branchId)))),
-    delegates: (branchId: string) => L(`deleg:${branchId}`, () => ok(api.GET("/api/branches/{branchId}/delegates", b(branchId)))),
-    myHistory: (from: string, to: string) => L(`me:history:${from}:${to}`, () => ok(api.GET("/api/me/history", { params: { query: { from, to } } }))),
+        L(key.reliefForBranch(branchId, date), () => ok(api.GET("/api/relief-access", { params: { query: { branchId, date } } }))),
+    branchInvites: (branchId: string) => L(key.branchInvites(branchId), () => ok(api.GET("/api/branches/{branchId}/relief-invites", b(branchId)))),
+    users: () => L(key.users(), () => ok(api.GET("/api/users"))),
+    roles: () => L(key.roles(), () => ok(api.GET("/api/roles"))),
+    branches: () => L(key.branches(), () => ok(api.GET("/api/branches"))),
+    assignments: (branchId: string) => L(key.assignments(branchId), () => ok(api.GET("/api/branches/{branchId}/assignments", b(branchId)))),
+    rates: (branchId: string) => L(key.rates(branchId), () => ok(api.GET("/api/branches/{branchId}/rates", b(branchId)))),
+    delegates: (branchId: string) => L(key.delegates(branchId), () => ok(api.GET("/api/branches/{branchId}/delegates", b(branchId)))),
+    myHistory: (from: string, to: string) => L(key.myHistory(from, to), () => ok(api.GET("/api/me/history", { params: { query: { from, to } } }))),
     audit: (tableName: string, recordId: string) =>
-        L(`audit:${tableName}:${recordId}`, () => ok(api.GET("/api/audit-log", { params: { query: { tableName, recordId } } }))),
-    auditTables: () => L(`audit:tables`, () => ok(api.GET("/api/audit-log/tables"))),
-    auditFlagged: () => L(`audit:flagged`, () => ok(api.GET("/api/audit-log/flagged"))),
+        L(key.audit(tableName, recordId), () => ok(api.GET("/api/audit-log", { params: { query: { tableName, recordId } } }))),
+    auditTables: () => L(key.auditTables(), () => ok(api.GET("/api/audit-log/tables"))),
+    auditFlagged: () => L(key.auditFlagged(), () => ok(api.GET("/api/audit-log/flagged"))),
 };
 
 export function warm<T>(l: Loader<T>) {

@@ -2,7 +2,7 @@
     import { api, ok, uuid, type S } from "../api/client";
     import { rememberClient } from "../lib/clientdir.svelte";
     import { app, branchName } from "../lib/app.svelte";
-    import { invalidate } from "../lib/cache.svelte";
+    import { wrote } from "../lib/cache.svelte";
     import { Action } from "../lib/act.svelte";
     import { clientName, operationalDate, addDays } from "../lib/format";
     import { createBody, emptyDraft } from "../lib/client-draft";
@@ -44,7 +44,7 @@
                 if (creating) {
                     const c = await ok(api.POST("/api/clients", { body: createBody(uuid(), draft) }));
                     rememberClient(c);
-                    invalidate("clients:");
+                    wrote("clientAdded");
                     client = c;
                     creating = false;
                     return;
@@ -60,7 +60,7 @@
                             body: { id: uuid(), clientId: client.id, visitDate: date, visitTime: at || null, note: note.trim() || null },
                         }),
                     );
-                    invalidate("bookings:");
+                    wrote("bookings");
                 }
                 open = false;
                 onsaved?.();

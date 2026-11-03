@@ -7,7 +7,7 @@
     import { MediaQuery } from "svelte/reactivity";
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, showMark, applyStart } from "../lib/app.svelte";
-    import { Query, invalidate, seed } from "../lib/cache.svelte";
+    import { Query, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { askReason } from "../lib/ask.svelte";
@@ -21,7 +21,7 @@
     import NewSession from "../components/NewSession.svelte";
     import BookVisit from "../components/BookVisit.svelte";
     import Bookings from "../components/Bookings.svelte";
-    import { fetchCached } from "../lib/cache.svelte";
+    import { wrote, fetchCached } from "../lib/cache.svelte";
     import { changed } from "../lib/changed";
     import type { Booking } from "../lib/bookings";
     import ProductSale from "../components/ProductSale.svelte";
@@ -186,13 +186,13 @@
     function reloadLists() {
         if (!isToday) {
             // The first add to a day with nothing recorded makes its row, which a sale needs.
-            invalidate(`bday:${bid}:${date}`, `dsess:${bid}:${date}`, `dsum:${bid}:${date}`, `dash:waiting:${bid}`);
+            wrote("pastDayLists", bid, date);
             pastDay.refresh();
             pastList.refresh();
             pastSum.refresh();
             return;
         }
-        invalidate(`dash:${bid}`, `roster:${bid}`, `bookings:${bid}`);
+        wrote("todayLists", bid);
         dash.refresh();
         roster.refresh();
         booked.refresh();

@@ -1,6 +1,6 @@
 /** Booked visits: one place for how a booking's day and time read, and for saving changes. */
 import { api, ok, type S } from "../api/client";
-import { invalidate } from "./cache.svelte";
+import { wrote } from "./cache.svelte";
 import { addDays, operationalDate, shortDay } from "./format";
 
 export type Booking = S["BookingResponse"];
@@ -30,6 +30,6 @@ export async function setBooking(b: Booking, change: Partial<Pick<Booking, "visi
             body: { visitDate: next.visitDate, visitTime: next.visitTime || null, note: next.note || null, status: next.status },
         }),
     );
-    invalidate("bookings:");
+    wrote("bookings");
     return r;
 }

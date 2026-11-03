@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, type S } from "../api/client";
-    import { Query, invalidate } from "../lib/cache.svelte";
+    import { Query, wrote } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, route } from "../lib/router.svelte";
@@ -99,7 +99,7 @@
 
     async function review(e: E) {
         if (await act(() => ok(api.PATCH("/api/audit-log/{entryId}/acknowledge", { params: { path: { entryId: e.id } } })), "Marked reviewed")) {
-            invalidate("audit:flagged");
+            wrote("auditFlags");
             flagged.refresh();
         }
     }

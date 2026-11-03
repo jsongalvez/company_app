@@ -1,7 +1,7 @@
 <script lang="ts">
     import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
-    import { Query, invalidate, fetchCached } from "../lib/cache.svelte";
+    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { peso } from "../lib/format";
@@ -34,7 +34,7 @@
     const offCount = $derived((products.data ?? []).filter((p) => !p.isActive).length);
 
     function refresh() {
-        invalidate("products", "categories", "inv:");
+        wrote("catalog");
         products.refresh();
         cats.refresh();
     }

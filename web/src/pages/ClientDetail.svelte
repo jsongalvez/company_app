@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, type S } from "../api/client";
     import { can, canAnywhere, canEverywhere } from "../lib/app.svelte";
-    import { Query, invalidate } from "../lib/cache.svelte";
+    import { Query, wrote } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { clientName, label, peso, shortDay, sum } from "../lib/format";
@@ -55,7 +55,7 @@
             return;
         }
         if (await a.run(() => ok(api.PATCH("/api/clients/{clientId}", { params: { path: { clientId: id } }, body })), "Client saved")) {
-            invalidate(`client:${id}`, "clients:", `audit:client:${id}`);
+            wrote("clientEdited", id);
             open = false;
             q.refresh();
         }
@@ -66,7 +66,7 @@
     let confirmText = $state("");
     async function anonymize() {
         if (await an.run(() => ok(api.POST("/api/clients/{clientId}/anonymize", { params: { path: { clientId: id } } })), "Client anonymized")) {
-            invalidate(`client:${id}`, "clients:");
+            wrote("clientAnonymized", id);
             anonOpen = false;
             q.refresh();
         }

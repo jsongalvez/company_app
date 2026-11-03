@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, ApiError, type S } from "../api/client";
     import { can, branchName, refreshBranchDay, toast } from "../lib/app.svelte";
-    import { Query, invalidate } from "../lib/cache.svelte";
+    import { Query, wrote } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { remittable } from "../lib/remittable";
     import { Action, act } from "../lib/act.svelte";
@@ -101,7 +101,7 @@
     }
 
     function reload() {
-        invalidate(`remd:${id}`, `rem:`);
+        wrote("remittance", id);
         q.refresh();
         void loadPicker();
     }
@@ -210,7 +210,7 @@
             )
         ) {
             sOpen = false;
-            invalidate("dash:", "dsum");
+            wrote("remitted");
             reload();
             void refreshBranchDay();
         }

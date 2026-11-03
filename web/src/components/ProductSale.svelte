@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app } from "../lib/app.svelte";
-    import { fetchCached, invalidate, peek } from "../lib/cache.svelte";
+    import { wrote, fetchCached, peek } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { askReason } from "../lib/ask.svelte";
     import { Action } from "../lib/act.svelte";
@@ -75,7 +75,7 @@
     const most = $derived((item?.currentStock ?? 999) + (sale && productId === sale.productId ? sale.quantity : 0));
 
     function refreshAfter() {
-        invalidate(`inv:${app.branchId}`, `dash:${app.branchId}`, "dsess:", "dsum:", "moves:", "sales:", "audit:product_sale:");
+        wrote("productSale", app.branchId);
         open = false;
         onsaved();
     }
