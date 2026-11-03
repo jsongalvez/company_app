@@ -30,6 +30,22 @@ node tools/perf/calls.mjs --base http://127.0.0.1:18181 --user owner --pass owne
 
 `tools/verify/verify.sh up` gives the local app. The save flow writes one session for a client named "Probe" (made on first use) and marks it Done: point it at a test or probe account, or pass `--no-save`.
 
+# Server time per route
+
+`route-bench.mjs` signs in once and sends `--n` requests to each main read route, reading the app's own `Server-Timing` (db and app ms), so the network and the browser are out of the number. For an A/B, start a copy of the old commit on 18282 (see `verify.sh at`) and alternate runs against both ports; single runs on the VPS move 2-3x with its other load.
+
+```
+node tools/perf/route-bench.mjs --base http://127.0.0.1:18181 --n 80
+```
+
+# Main thread per tap
+
+`tap-profile.mjs` signs in on a phone-sized page with Chromium's CPU slowdown (default 4x, no network shaping) and, for each of the menu, a screen, the menu again and Sessions, prints the tap's Event Timing duration and the functions with the most self time, mapped to `web/src` through the build's sourcemaps. Native `getBoundingClientRect`, `elementsFromPoint` and aria lookups are Playwright's own click work.
+
+```
+node tools/perf/tap-profile.mjs --base http://127.0.0.1:18181 --runs 5
+```
+
 # Hotspot harness
 
 `hotspot.mjs` is the frozen measure for slow phone hotspots: a 375px phone at 300 ms latency, 800 kbit/s down and 300 kbit/s up. For each flow it prints the time until the screen is usable, the time until the last answer, `/api` calls, rounds and bytes. It takes the median of `--runs` runs and shows the min-max as the noise band.
@@ -39,7 +55,7 @@ node tools/perf/hotspot.mjs --base http://127.0.0.1:18181 --user owner --pass ow
 HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/hotspot.mjs --base https://<public address> --runs 5 --no-save
 ```
 
-`hotspot-audit.md` holds the ranked audit and the baseline; `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
+`hotspot-audit.md` holds the ranked audit and the baseline; its "save a session" usable times from before Nov 4 include up to ~400ms of Playwright polling lag (the page had closed the dialog at the answer). Measure on a stack started without `SLOW_STATEMENT_MS=0`: logging every statement slows each request. `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
 
 # Day volume and fixtures
 

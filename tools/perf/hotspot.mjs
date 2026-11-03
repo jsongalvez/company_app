@@ -258,7 +258,8 @@ async function oneRun() {
         await flow(
             "save a session",
             () => dialog.getByRole("button", { name: "Add session" }).click(),
-            () => dialog.waitFor({ state: "hidden", timeout: 30000 }),
+            // Polled every 50ms like screenUsable: locator.waitFor backs off to 500ms and saw the dialog close ~400ms late.
+            () => page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 30000, polling: 50 }),
         );
         await flow("mark the session Done", async () => {
             const r = page.getByRole("row").filter({ hasText: "Probe" }).filter({ has: page.getByRole("button", { name: "Done" }) }).first();
