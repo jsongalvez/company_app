@@ -6,6 +6,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.MDC
+import kotlin.reflect.KClass
+import kotlin.reflect.safeCast
 
 @Serializable
 data class SlowStatementEvent(
@@ -46,16 +48,19 @@ object RequestQueryTally {
     private val logger = KotlinLogging.logger {}
     private val quotedLiteral = Regex("'(?:[^']|'')*'")
     private val readOnly = Regex("^\\s*SELECT\\b", RegexOption.IGNORE_CASE)
-    private val writeTarget = Regex("^\\s*(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+\"?(\\w+)\"?[\\s(]", RegexOption.IGNORE_CASE)
+    private val writeTarget =
+        Regex("^\\s*(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+\"?(\\w+)\"?[\\s(]", RegexOption.IGNORE_CASE)
 
     private class Tally {
         var nanos = 0L
         var queries = 0
-        val untilWrite = HashMap<Any, Held>()
+        val untilWrite = HashMap<ReadKey, Held>()
     }
 
-    /** A request-scoped read and the tables it read from. */
-    class Held(
+    /** Names one request-scoped read kept by [untilWrite]; implement it with a data class. */
+    interface ReadKey
+
+    private class Held(
         val reads: Set<String>,
         val value: Any,
     )
@@ -83,19 +88,17 @@ object RequestQueryTally {
     /**
      * [load]'s answer for [key], kept for the rest of this request until a statement writes one of
      * the tables in [reads], or one this can't name (a batch, a rollback), so a read never outlives a
-     * write that could change it. Outside a request it just loads. [T] is a plain class, not a
-     * generic one, so the cast back is checked.
+     * write that could change it. Outside a request it just loads.
      */
-    inline fun <reified T : Any> untilWrite(
-        key: Any,
+    fun <T : Any> untilWrite(
+        key: ReadKey,
+        type: KClass<T>,
         reads: Set<String>,
         load: () -> T,
     ): T {
-        val memo = untilWriteMemo() ?: return load()
-        return memo[key]?.value as? T ?: load().also { memo[key] = Held(reads, it) }
+        val memo = current.get()?.untilWrite ?: return load()
+        return type.safeCast(memo[key]?.value) ?: load().also { memo[key] = Held(reads, it) }
     }
-
-    fun untilWriteMemo(): MutableMap<Any, Held>? = current.get()?.untilWrite
 
     fun dropReads() {
         current.get()?.untilWrite?.clear()

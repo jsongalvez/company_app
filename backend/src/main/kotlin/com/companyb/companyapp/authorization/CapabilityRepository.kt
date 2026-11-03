@@ -44,7 +44,7 @@ internal object CapabilityRepository {
 
     private data class GrantsKey(
         val userId: UUID,
-    )
+    ) : RequestQueryTally.ReadKey
 
     /** The tables [ActiveUserCapabilitiesView] reads; CapabilityReadOncePostgresTest checks them against Postgres. */
     internal val VIEW_READS =
@@ -66,7 +66,7 @@ internal object CapabilityRepository {
      */
     private fun grantsOf(userId: UUID): List<Grant> =
         RequestQueryTally
-            .untilWrite(GrantsKey(userId), VIEW_READS) {
+            .untilWrite(GrantsKey(userId), Grants::class, VIEW_READS) {
                 Grants(
                     transaction {
                         ActiveUserCapabilitiesView
