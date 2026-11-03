@@ -1,7 +1,10 @@
 package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
 import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
@@ -120,23 +123,23 @@ object AuditLogRoutes {
         // inside the service). The pre-#122 GLOBAL ASSIGN_COMPENSATION filter was
         // broken by construction (F2) and is removed here.
 
-        config.routes.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH) { context ->
+        config.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH, Gate.InHandler("AuditLogService: per row")) { context ->
             val response = handleBrowse(context)
             context.status(HttpStatus.OK)
             context.json(response)
         }
 
-        config.routes.get(ApiRoutes.AUDIT_LOG_TABLES_PATH) { context ->
+        config.get(ApiRoutes.AUDIT_LOG_TABLES_PATH, Gate.SignedIn("table names only")) { context ->
             val tables: List<AuditLogTableResponse> = AuditLogService.listTables()
             context.status(HttpStatus.OK)
             context.json(tables)
         }
 
-        config.routes.get(ApiRoutes.AUDIT_LOG) { context ->
+        config.get(ApiRoutes.AUDIT_LOG, Gate.InHandler("AuditLogService: per row")) { context ->
             context.json(handleHistory(context))
         }
 
-        config.routes.get(ApiRoutes.AUDIT_LOG_FLAGGED_PATH) { context ->
+        config.get(ApiRoutes.AUDIT_LOG_FLAGGED_PATH, Gate.InHandler("AuditLogService: per row")) { context ->
             val callerId = context.callerUuid()
 
             val entries = AuditLogService.findFlagged(callerId)
@@ -145,7 +148,7 @@ object AuditLogRoutes {
             context.json(entries.toResponses())
         }
 
-        config.routes.patch(ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH) { context ->
+        config.patch(ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH, Gate.InHandler("AuditLogService.acknowledge")) { context ->
             context.json(handleAcknowledge(context))
         }
     }

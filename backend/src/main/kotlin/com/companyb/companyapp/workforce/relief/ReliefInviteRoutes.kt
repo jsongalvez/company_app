@@ -1,6 +1,9 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.contracts.workforce.CreateReliefInviteRequest
@@ -27,10 +30,8 @@ import java.util.UUID
  * Relief invite flow: branch-initiated, assignment-gated inviter surface
  * (`/api/branches/{branchId}/relief-*`) + bearer-gated invitee surface
  * (`/api/relief-invites`). All gates are service-level — the inviter gate is the active
- * `user_branch_assignment` (a membership record, not a capability), so no
- * [com.companyb.companyapp.authorization.Access] before-filters apply (and the
- * 2-segment `/api/branches` MANAGE_USERS filter does not fire on these 4-segment paths —
- * Javalin 7 segment matching).
+ * `user_branch_assignment` (a membership record, not a capability), so every route here is
+ * `Gate.InHandler` or `Gate.SignedIn`.
  */
 @OpenApi(
     path = ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH,
@@ -182,15 +183,23 @@ object ReliefInviteRoutes {
     }
 
     private fun registerMutations(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.BRANCH_RELIEF_INVITES_PATH, ::handleCreate)
-        config.routes.post(ApiRoutes.RELIEF_INVITE_ACCEPT_PATH, ::handleAccept)
-        config.routes.post(ApiRoutes.RELIEF_INVITE_DECLINE_PATH, ::handleDecline)
-        config.routes.post(ApiRoutes.RELIEF_INVITE_RETRACT_PATH, ::handleRetract)
-        config.routes.post(ApiRoutes.RELIEF_INVITE_REVOKE_PATH, ::handleRevoke)
+        config.post(ApiRoutes.BRANCH_RELIEF_INVITES_PATH, Gate.InHandler("ReliefInviteService"), ::handleCreate)
+        config.post(
+            ApiRoutes.RELIEF_INVITE_ACCEPT_PATH,
+            Gate.InHandler("ReliefInviteService: the invitee only"),
+            ::handleAccept,
+        )
+        config.post(
+            ApiRoutes.RELIEF_INVITE_DECLINE_PATH,
+            Gate.InHandler("ReliefInviteService: the invitee only"),
+            ::handleDecline,
+        )
+        config.post(ApiRoutes.RELIEF_INVITE_RETRACT_PATH, Gate.InHandler("ReliefInviteService"), ::handleRetract)
+        config.post(ApiRoutes.RELIEF_INVITE_REVOKE_PATH, Gate.InHandler("ReliefInviteService"), ::handleRevoke)
     }
 
     private fun registerReads(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_RELIEF_INVITES_PATH, Gate.InHandler("ReliefInviteService")) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
@@ -198,7 +207,7 @@ object ReliefInviteRoutes {
             context.json(ReliefInviteService.listSent(callerId, branchId).map { it.toResponse() })
         }
 
-        config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_ACCEPTED_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_RELIEF_INVITES_ACCEPTED_PATH, Gate.InHandler("ReliefInviteService")) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
@@ -208,7 +217,7 @@ object ReliefInviteRoutes {
 
         // deep-link day read: the notification tap's (branchId, date) pair, every
         // invite status at that day. Audience scoping lives in the service.
-        config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH, Gate.InHandler("ReliefInviteService")) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val date = parseRequiredDate(context.queryParam("date"), "date")
@@ -217,7 +226,7 @@ object ReliefInviteRoutes {
             context.json(ReliefInviteService.listForDay(callerId, branchId, date).map { it.toResponse() })
         }
 
-        config.routes.get(ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH, Gate.InHandler("ReliefInviteService")) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val query = context.queryParam("q").orEmpty()
@@ -237,7 +246,7 @@ object ReliefInviteRoutes {
             )
         }
 
-        config.routes.get(ApiRoutes.RELIEF_INVITES) { context ->
+        config.get(ApiRoutes.RELIEF_INVITES, Gate.SignedIn("invites sent to the caller")) { context ->
             val callerId = context.callerUuid()
 
             context.status(HttpStatus.OK)

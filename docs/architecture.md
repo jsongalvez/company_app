@@ -125,7 +125,7 @@ One mutation transaction per command ([ADR-0024](adr/0024-command-owned-mutation
 the owning feature command opens exactly one DB transaction, performs the
 mutation, and records its audit row inside it. Repository mutators are
 `*InTransaction` store operations that open no transaction; routes are thin
-adapters (parse → call one command; capability before-filters).
+adapters (parse → call one command; each route declares its gate, ADR-0027).
 
 Feature packages under `com.companyb.companyapp` are the semantic modules;
 Kotlin `internal` does not stop sibling imports, so seams are protected
@@ -198,8 +198,8 @@ fun hasCapability(
 ): Boolean
 ```
 
-Capability gates live at the route layer as Javalin before-filters ([ADR-0007](adr/0007-route-level-capability-gates.md)):
-each route declares its required capability, with resource-specific resolution in
+Capability gates live at the route layer ([ADR-0007](adr/0007-route-level-capability-gates.md)); each route names its gate
+where it is declared (`api/Gate.kt`, [ADR-0027](adr/0027-every-route-declares-its-gate.md)), and `route-access.txt` pins the codes, with resource-specific resolution in
 feature-local policy helpers (`SessionAuthz`, `ExpenseAuthz`, `RemittanceAuthz` —
 #605) over `Access.require` with an `Act` (`authorization/Access.kt`). The service
 layer retains day-state assertions (`BranchDayService.checkBranchDayEditable`),

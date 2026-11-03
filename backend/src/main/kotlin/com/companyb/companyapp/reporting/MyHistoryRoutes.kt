@@ -1,7 +1,9 @@
 package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.contracts.reporting.MyHistoryResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
@@ -36,7 +38,7 @@ private const val MAX_RANGE_DAYS = 400L
 object MyHistoryRoutes {
     fun register(config: JavalinConfig) {
         // Only ever the caller's own rows, so signing in is the only gate.
-        config.routes.get(ApiRoutes.ME_HISTORY) { context ->
+        config.get(ApiRoutes.ME_HISTORY, Gate.SignedIn("the caller's own work")) { context ->
             val from = date(context, "from")
             val to = date(context, "to")
             if (from.isAfter(to)) throw BadRequestResponse("from must be on or before to")

@@ -1,7 +1,10 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
@@ -62,20 +65,20 @@ object SessionBaseRateRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.BRANCH_RATES_PATH) { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            // 404 precedence for an unknown branch before the capability gate:
-            // the access check alone conflates "unknown branch" with
-            // "known but non-member" (the createInvite / #715 listSent order, resolving
-            // the #724-deferred session-rate filter policy with the same precedence).
-            BranchService.findById(branchId)
-            // 503bf228 — any branch member sees its prices and anyone who can edit the branch
-            // changes them; every change is audited (Base Rate in Change history).
-            val act = if (context.method() == HandlerType.POST) Act.WORK_HOME_BRANCH else Act.SEE_BRANCH
-            Access.require(context, act, Place.Branch(branchId))
-        }
+        fun branchRatesGate(act: Act) =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+                // 404 precedence for an unknown branch before the capability gate:
+                // the access check alone conflates "unknown branch" with
+                // "known but non-member" (the createInvite / #715 listSent order, resolving
+                // the #724-deferred session-rate filter policy with the same precedence).
+                BranchService.findById(branchId)
+                // 503bf228 — any branch member sees its prices and anyone who can edit the branch
+                // changes them; every change is audited (Base Rate in Change history).
+                Access.require(context, act, Place.Branch(branchId))
+            }
 
-        config.routes.post(ApiRoutes.BRANCH_RATES_PATH) { context ->
+        config.post(ApiRoutes.BRANCH_RATES_PATH, branchRatesGate(Act.WORK_HOME_BRANCH)) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SetRateRequest>()
@@ -99,7 +102,7 @@ object SessionBaseRateRoutes {
             context.json(result.rate.toResponse())
         }
 
-        config.routes.get(ApiRoutes.BRANCH_RATES_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_RATES_PATH, branchRatesGate(Act.SEE_BRANCH)) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
             context.json(SessionBaseRateService.findActiveRates(branchId).map { it.toResponse() })

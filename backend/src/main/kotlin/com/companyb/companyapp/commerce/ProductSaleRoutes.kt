@@ -1,6 +1,11 @@
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
@@ -18,7 +23,6 @@ import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
-import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.NotFoundResponse
 import io.javalin.http.bodyAsClass
@@ -99,40 +103,31 @@ import java.util.UUID
 )
 object ProductSaleRoutes {
     fun register(config: JavalinConfig) {
-        registerGuards(config)
-        config.routes.get(ApiRoutes.PRODUCT_SALES, ::handleList)
-        config.routes.post(ApiRoutes.PRODUCT_SALES, ::handleCreate)
-        config.routes.patch(ApiRoutes.PRODUCT_SALE_PATH, ::handleChange)
-        config.routes.delete(ApiRoutes.PRODUCT_SALE_PATH, ::handleDelete)
-        config.routes.post(ApiRoutes.PRODUCT_SALE_RESTORE_PATH, ::handleRestore)
+        config.get(
+            ApiRoutes.PRODUCT_SALES,
+            Gate.Before { Access.require(it, Act.SEE_DAY, Place.day(it.uuidFromQuery("branchDayId"))) },
+            ::handleList,
+        )
+        config.post(
+            ApiRoutes.PRODUCT_SALES,
+            Gate.Before {
+                val request = it.bodyAsClass<CreateProductSaleRequest>()
+                Access.require(it, Act.WORK_DAY, Place.day(uuidOrThrow(request.branchDayId, "branch day id")))
+            },
+            ::handleCreate,
+        )
+        config.patch(ApiRoutes.PRODUCT_SALE_PATH, saleGate, ::handleChange)
+        config.delete(ApiRoutes.PRODUCT_SALE_PATH, saleGate, ::handleDelete)
+        config.post(ApiRoutes.PRODUCT_SALE_RESTORE_PATH, saleGate, ::handleRestore)
     }
 
-    private fun registerGuards(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.PRODUCT_SALES) { context ->
-            when (context.method()) {
-                HandlerType.POST -> {
-                    val request = context.bodyAsClass<CreateProductSaleRequest>()
-                    val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-                    Access.require(context, Act.WORK_DAY, Place.day(branchDayId))
-                }
-
-                HandlerType.GET -> {
-                    Access.require(context, Act.SEE_DAY, Place.day(context.uuidFromQuery("branchDayId")))
-                }
-
-                else -> {}
-            }
+    private val saleGate =
+        Gate.Before { context ->
+            val sale =
+                ProductSaleRepository.findById(context.pathParamAsUuid("saleId"))
+                    ?: throw NotFoundResponse("Product sale not found")
+            Access.require(context, Act.WORK_DAY, Place.day(sale.branchDayId))
         }
-        // A sale's own path and its restore path are separate segments, so each needs its guard.
-        for (path in listOf(ApiRoutes.PRODUCT_SALE_PATH, ApiRoutes.PRODUCT_SALE_RESTORE_PATH)) {
-            config.routes.before(path) { context ->
-                val sale =
-                    ProductSaleRepository.findById(context.pathParamAsUuid("saleId"))
-                        ?: throw NotFoundResponse("Product sale not found")
-                Access.require(context, Act.WORK_DAY, Place.day(sale.branchDayId))
-            }
-        }
-    }
 
     private fun handleList(context: Context) {
         val branchDayId = context.uuidFromQuery("branchDayId")

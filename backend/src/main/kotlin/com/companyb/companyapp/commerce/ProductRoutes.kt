@@ -1,6 +1,10 @@
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
@@ -82,13 +86,12 @@ object ProductRoutes {
     private const val INCLUDE_INACTIVE_PARAM = "includeInactive"
 
     fun register(config: JavalinConfig) {
-        registerGuards(config)
         registerMutations(config)
         registerReads(config)
     }
 
-    private fun registerGuards(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.PRODUCTS) { context ->
+    private val productsGate =
+        Gate.Before { context ->
             Access.require(
                 context,
                 Act.MANAGE_CATALOG,
@@ -96,22 +99,22 @@ object ProductRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.PRODUCT_PATH) { context ->
+    private val productGate =
+        Gate.Before { context ->
             Access.require(
                 context,
                 Act.MANAGE_CATALOG,
                 message = "MANAGE_CATALOG capability required to manage products",
             )
         }
-    }
 
     private fun registerMutations(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.PRODUCTS, ::handleCreate)
-        config.routes.patch(ApiRoutes.PRODUCT_PATH, ::handleUpdate)
+        config.post(ApiRoutes.PRODUCTS, productsGate, ::handleCreate)
+        config.patch(ApiRoutes.PRODUCT_PATH, productGate, ::handleUpdate)
     }
 
     private fun registerReads(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.PRODUCTS) { context ->
+        config.get(ApiRoutes.PRODUCTS, productsGate) { context ->
             val includeInactive = context.queryParam(INCLUDE_INACTIVE_PARAM)?.toBooleanStrictOrNull() == true
             val products =
                 if (includeInactive) {
@@ -122,7 +125,7 @@ object ProductRoutes {
             context.json(products.map { it.toResponse() })
         }
 
-        config.routes.get(ApiRoutes.PRODUCT_PATH) { context ->
+        config.get(ApiRoutes.PRODUCT_PATH, productGate) { context ->
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             context.json(ProductService.findById(productId).toResponse())
         }

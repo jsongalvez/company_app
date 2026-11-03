@@ -1,6 +1,10 @@
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
@@ -65,46 +69,33 @@ import java.util.UUID
 )
 object CompensationRoutes {
     fun register(config: JavalinConfig) {
-        registerGuards(config)
         registerReads(config)
         registerMutations(config)
     }
 
-    private fun registerGuards(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.COMPENSATION) { context ->
-            val branchDayId =
-                when (context.method()) {
-                    HandlerType.POST -> {
-                        val request = context.bodyAsClass<CreateCompensationRequest>()
-                        uuidOrThrow(request.workBranchDayId, "work branch day id")
-                    }
-
-                    else -> {
-                        return@before
-                    }
-                }
-            Access.require(context, Act.PAY, Place.day(branchDayId))
+    private val compensationCreateGate =
+        Gate.Before { context ->
+            val request = context.bodyAsClass<CreateCompensationRequest>()
+            Access.require(context, Act.PAY, Place.day(uuidOrThrow(request.workBranchDayId, "work branch day id")))
         }
 
-        config.routes.before(ApiRoutes.COMPENSATIONS) { context ->
-            if (context.method() != HandlerType.GET) {
-                return@before
-            }
+    private val compensationsGate =
+        Gate.Before { context ->
             val branchDayId = context.uuidFromQuery("branchDayId")
             Access.require(context, Act.PAY, Place.day(branchDayId))
         }
 
-        config.routes.before(ApiRoutes.COMPENSATION_PATH) { context ->
+    private val compensationGate =
+        Gate.Before { context ->
             val compensationId = context.pathParamAsUuid("compensationId")
             val compensation =
                 FinanceReads.findCompensationById(compensationId)
                     ?: throw io.javalin.http.NotFoundResponse("Compensation not found")
             Access.require(context, Act.PAY, Place.day(compensation.workBranchDayId))
         }
-    }
 
     private fun registerReads(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.COMPENSATIONS) { context ->
+        config.get(ApiRoutes.COMPENSATIONS, compensationsGate) { context ->
             val branchDayId = context.uuidFromQuery("branchDayId")
             val compensations = CompensationService.findByPayingBranchDayId(branchDayId)
             context.json(compensations.map { it.toResponse() })
@@ -112,7 +103,7 @@ object CompensationRoutes {
     }
 
     private fun registerMutations(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.COMPENSATION) { context ->
+        config.post(ApiRoutes.COMPENSATION, compensationCreateGate) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateCompensationRequest>()
 
@@ -140,7 +131,7 @@ object CompensationRoutes {
             context.json(compensation.toResponse())
         }
 
-        config.routes.patch(ApiRoutes.COMPENSATION_PATH) { context ->
+        config.patch(ApiRoutes.COMPENSATION_PATH, compensationGate) { context ->
             val callerId = context.callerUuid()
             val compensationId = context.pathParamAsUuid("compensationId")
             val request = context.bodyAsClass<UpdateCompensationRequest>()

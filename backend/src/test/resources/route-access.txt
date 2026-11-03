@@ -1,0 +1,157 @@
+route                                                                OWN  ACC  PRA  COO  MAN  SUP OWNx  OUT  REL  NON  gate
+GET /health                                                          200  200  200  200  200  200  200  200  200  200  Open: health check
+POST /auth/login                                                     400  400  400  400  400  400  400  400  400  400  Open: sign-in
+POST /auth/accept-invite                                             400  400  400  400  400  400  400  400  400  400  Open: the invite code is the key
+POST /auth/forgot-password                                           400  400  400  400  400  400  400  400  400  400  Open: asks for a reset email
+POST /auth/reset-password                                            400  400  400  400  400  400  400  400  400  400  Open: the reset token is the key
+POST /api/auth/logout                                                200  200  200  200  200  200  200  200  200  200  SignedIn: ends the caller's own sign-in
+GET /api/me                                                          200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own profile
+GET /api/start                                                       200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own start screen
+PATCH /api/me                                                        400  400  400  400  400  400  400  400  400  400  SignedIn: the caller's own profile
+POST /api/me/password                                                400  400  400  400  400  400  400  400  400  400  SignedIn: the caller's own password
+GET /api/me/capabilities                                             200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own grants
+POST /api/view-as                                                    400  400  400  400  400  400  400  400  400  400  InHandler: ViewAs.start: Superuser only
+POST /api/view-as/stop                                               400  400  400  400  400  400  400  400  400  400  InHandler: ViewAs.stop: logs the caller's own stop
+GET /api/me/branches                                                 200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own branches
+GET /api/me/active-attendance                                        200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own clock-in
+POST /api/attendance/clock-in                                        400  400  400  400  400  400  400  400  400  400  InHandler: WORK_DAY at the body's branch today
+POST /api/attendance/clock-out                                       400  400  400  400  400  400  400  400  400  400  InHandler: AttendanceService: the caller's own attendance
+POST /api/branches/{branchId}/attendance/marks                       400  400  400  400  400  400  400  400  400  400  InHandler: AttendanceService.mark
+GET /api/branches/accessible                                         200  200  200  200  200  200  200  200  200  200  SignedIn: lists only the branches the caller may see
+POST /api/branches                                                   400  403  403  403  400  400  400  403  403  403  Before
+GET /api/branches                                                    200  403  403  403  200  200  200  403  403  403  Before
+PATCH /api/branches/{branchId}                                       400  403  403  403  400  400  400  403  403  403  Before
+GET /api/branches/{branchId}                                         200  200  200  200  200  200  200  403  403  403  Before
+POST /api/branches/{branchId}/assignments                            400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
+GET /api/branches/{branchId}/assignments                             200  200  200  200  200  200  200  403  403  403  InHandler: UserBranchAssignmentService
+DELETE /api/branches/{branchId}/assignments/{assignmentId}           404  403  403  403  404  404  404  403  403  403  InHandler: UserBranchAssignmentService
+PATCH /api/branches/{branchId}/assignments/{assignmentId}/slot       400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
+POST /api/branches/{branchId}/slots/swap                             400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
+GET /api/branches/{branchId}/members                                 200  200  200  200  200  200  200  403  200  403  InHandler: UserBranchAssignmentService
+PATCH /api/users/{userId}/deactivate                                 204  403  403  403  204  204  204  403  403  403  Before
+GET /api/users                                                       200  403  403  403  200  200  200  403  403  403  Before
+PATCH /api/users/{userId}/reactivate                                 204  403  403  403  204  204  204  403  403  403  Before
+POST /api/invites                                                    201  403  403  403  201  201  201  403  403  403  Before
+GET /api/roles                                                       200  403  403  403  200  200  200  403  403  403  Before
+PUT /api/users/{userId}/roles                                        400  403  403  403  400  400  400  403  403  403  Before
+POST /api/relief-access/request                                      400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may ask for relief
+PATCH /api/relief-access/{requestId}/grant                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
+PATCH /api/relief-access/{requestId}/deny                            404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
+PATCH /api/relief-access/{requestId}/cancel                          404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
+GET /api/relief-access                                               400  400  400  400  400  400  400  400  400  400  InHandler: ReliefAccessService
+GET /api/relief-access/mine                                          200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own requests
+GET /api/relief-access/branch-options                                200  200  200  200  200  200  200  200  200  200  SignedIn: branch names for the relief request picker
+POST /api/branches/{branchId}/relief-invites                         400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
+POST /api/relief-invites/{inviteId}/accept                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService: the invitee only
+POST /api/relief-invites/{inviteId}/decline                          404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService: the invitee only
+POST /api/relief-invites/{inviteId}/retract                          404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService
+POST /api/relief-invites/{inviteId}/revoke                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService
+GET /api/branches/{branchId}/relief-invites                          200  403  200  200  200  200  403  403  403  403  InHandler: ReliefInviteService
+GET /api/branches/{branchId}/relief-invites/accepted                 200  403  200  200  200  200  403  403  403  403  InHandler: ReliefInviteService
+GET /api/branches/{branchId}/relief-invites/by-date                  400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
+GET /api/branches/{branchId}/relief-candidates                       400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
+GET /api/relief-invites                                              200  200  200  200  200  200  200  200  200  200  SignedIn: invites sent to the caller
+GET /api/branches/{branchId}/delegates                               400  403  403  403  400  400  400  403  403  403  Before
+POST /api/delegates                                                  400  403  403  403  400  400  400  403  403  403  Before
+DELETE /api/delegates/{delegateId}                                   404  403  403  403  404  404  404  403  403  403  Before
+POST /api/clients                                                    400  403  400  400  400  400  403  400  400  403  Before
+GET /api/clients                                                     400  400  400  400  400  400  400  400  400  403  Before
+GET /api/client-directory                                            200  200  200  200  200  200  200  200  200  403  Before
+GET /api/recent-clients                                              200  200  200  200  200  200  200  200  200  403  Before
+GET /api/clients/{clientId}                                          404  404  404  404  404  404  404  404  404  403  Before
+PATCH /api/clients/{clientId}                                        400  403  400  400  400  400  403  400  400  403  Before
+POST /api/clients/{clientId}/anonymize                               404  403  403  404  404  404  404  403  403  403  Before
+POST /api/branches/{branchId}/rates                                  400  403  400  400  400  400  403  403  403  403  Before
+GET /api/branches/{branchId}/rates                                   200  200  200  200  200  200  200  403  403  403  Before
+POST /api/branches/{branchId}/bookings                               400  403  400  400  400  400  403  403  403  403  Before
+PATCH /api/branches/{branchId}/bookings/{bookingId}                  400  403  400  400  400  400  403  403  403  403  Before
+GET /api/clients/{clientId}/bookings                                 200  200  200  200  200  200  200  200  200  403  Before
+GET /api/sessions/{sessionId}                                        404  404  404  404  404  404  404  404  404  404  InHandler: DashboardService.getSessionDetail: the session's day
+POST /api/sessions                                                   400  400  400  400  400  400  400  400  400  400  InHandler: SessionSaveService: the body's day
+GET /api/sessions/{sessionId}/practitioners                          404  404  404  404  404  404  404  404  404  404  Before
+PATCH /api/sessions/{sessionId}/status                               400  400  400  400  400  400  400  400  400  400  Before
+PATCH /api/sessions/{sessionId}/final-price                          404  404  404  404  404  404  404  404  404  404  Before
+POST /api/sessions/{sessionId}/void                                  404  404  404  404  404  404  404  404  404  404  Before
+POST /api/sessions/{sessionId}/unvoid                                404  404  404  404  404  404  404  404  404  404  Before
+POST /api/sessions/{sessionId}/practitioners                         404  404  404  404  404  404  404  404  404  404  Before
+PATCH /api/sessions/{sessionId}/practitioners/{practitionerId}       404  404  404  404  404  404  404  404  404  404  Before
+DELETE /api/sessions/{sessionId}/practitioners/{practitionerId}      404  404  404  404  404  404  404  404  404  404  Before
+GET /api/concerns                                                    200  200  200  200  200  200  200  200  200  403  Before
+DELETE /api/concerns/{concernId}                                     404  403  404  404  404  404  403  404  404  403  Before
+GET /api/sessions/{sessionId}/concerns                               404  404  404  404  404  404  404  404  404  404  Before
+POST /api/sessions/{sessionId}/concerns                              404  404  404  404  404  404  404  404  404  404  Before
+DELETE /api/sessions/{sessionId}/concerns/{concernId}                404  404  404  404  404  404  404  404  404  404  Before
+POST /api/sessions/{sessionId}/promote-concern                       404  404  404  404  404  404  404  404  404  404  Before
+GET /api/branches/{branchId}/session-preview                         400  400  400  400  400  400  400  403  400  403  Before
+POST /api/product-categories                                         400  403  400  400  400  400  400  400  400  403  Before
+GET /api/product-categories                                          200  403  200  200  200  200  200  200  200  403  Before
+GET /api/product-categories/{categoryId}                             404  403  404  404  404  404  404  404  404  403  Before
+POST /api/products                                                   400  403  400  400  400  400  400  400  400  403  Before
+PATCH /api/products/{productId}                                      400  403  400  400  400  400  400  400  400  403  Before
+GET /api/products                                                    200  403  200  200  200  200  200  200  200  403  Before
+GET /api/products/{productId}                                        404  403  404  404  404  404  404  404  404  403  Before
+POST /api/branches/{branchId}/inventory                              400  403  403  400  400  400  403  403  403  403  Before
+POST /api/branches/{branchId}/inventory/{productId}/restock          400  403  403  400  400  400  403  403  403  403  Before
+GET /api/branches/{branchId}/inventory                               200  200  200  200  200  200  200  403  200  403  Before
+GET /api/branches/{branchId}/inventory/low-stock                     200  200  200  200  200  200  200  403  200  403  Before
+GET /api/branches/{branchId}/inventory/movements                     200  200  200  200  200  200  200  403  200  403  Before
+POST /api/branches/{branchId}/inventory/{productId}/movement         400  400  400  400  400  400  400  400  400  400  Before
+PUT /api/branches/{branchId}/inventory/{productId}/price             404  403  404  404  404  404  403  403  403  403  Before
+GET /api/branches/{branchId}/today                                   200  200  200  200  200  200  200  403  200  403  Before
+GET /api/branch-days/{branchDayId}/users                             200  403  403  200  200  200  200  403  403  403  Before
+GET /api/branches/{branchId}/sessions                                400  400  400  400  400  400  400  403  403  403  Before
+GET /api/branches/{branchId}/today-screen                            200  200  200  200  200  200  200  200  200  200  InHandler: TodayScreenService: per part of the screen
+GET /api/product-sales                                               400  400  400  400  400  400  400  400  400  400  Before
+POST /api/product-sales                                              400  400  400  400  400  400  400  400  400  400  Before
+PATCH /api/product-sales/{saleId}                                    404  404  404  404  404  404  404  404  404  404  Before
+DELETE /api/product-sales/{saleId}                                   404  404  404  404  404  404  404  404  404  404  Before
+POST /api/product-sales/{saleId}/restore                             404  404  404  404  404  404  404  404  404  404  Before
+GET /api/compensations                                               400  400  400  400  400  400  400  400  400  400  Before
+POST /api/compensation                                               400  400  400  400  400  400  400  400  400  400  Before
+PATCH /api/compensation/{compensationId}                             404  404  404  404  404  404  404  404  404  404  Before
+POST /api/commission-inclusions                                      400  400  400  400  400  400  400  400  400  400  Before
+GET /api/commission-splits/{branchDayId}                             200  403  200  200  200  200  403  403  200  403  Before
+POST /api/commission/recalculate/{branchDayId}                       403  403  403  200  200  200  403  403  403  403  Before
+GET /api/branches/{branchId}/daily-summary                           400  400  400  400  400  400  400  400  400  400  Before
+GET /api/branches/{branchId}/daily-summaries                         200  200  200  200  200  200  200  403  403  403  Before
+GET /api/expenses                                                    400  400  400  400  400  400  400  400  400  400  Before
+POST /api/expenses                                                   400  400  400  400  400  400  400  400  400  400  Before
+PATCH /api/expenses/{expenseId}                                      404  404  404  404  404  404  404  404  404  404  Before
+DELETE /api/expenses/{expenseId}                                     404  404  404  404  404  404  404  404  404  404  Before
+POST /api/expenses/{expenseId}/restore                               404  404  404  404  404  404  404  404  404  404  Before
+POST /api/allowances                                                 400  400  400  400  400  400  400  400  400  400  Before
+GET /api/allowances                                                  400  400  400  400  400  400  400  400  400  400  Before
+GET /api/notifications                                               200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
+GET /api/notifications/history                                       200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
+GET /api/notifications/unread-count                                  200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
+POST /api/notifications/read-all                                     200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
+PATCH /api/notifications/{notificationId}/read                       404  404  404  404  404  404  404  404  404  404  SignedIn: only the caller's own notification is found
+POST /api/feedback                                                   400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may report
+POST /api/feedback-notes                                             400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may send
+GET /api/feedback-notes                                              200  403  403  403  200  200  200  403  403  403  Before
+PATCH /api/feedback-notes/{feedbackId}                               400  403  403  403  400  400  400  403  403  403  Before
+POST /api/telemetry                                                  400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may send timings
+GET /api/branches/{branchId}/monthly-summary                         400  400  400  400  400  400  400  403  403  403  Before
+GET /api/remittances                                                 400  400  400  400  400  400  400  400  400  400  Before
+GET /api/remittances/{remittanceId}                                  404  404  404  404  404  404  404  404  404  404  Before
+GET /api/remittances/{remittanceId}/drift                            404  404  404  404  404  404  404  404  404  404  Before
+POST /api/remittances                                                400  400  400  400  400  400  400  400  400  400  Before
+POST /api/remittances/{remittanceId}/lines                           404  404  404  404  404  404  404  404  404  404  Before
+DELETE /api/remittances/{remittanceId}/lines/{lineId}                404  404  404  404  404  404  404  404  404  404  Before
+POST /api/remittances/{remittanceId}/day-breakdowns                  404  404  404  404  404  404  404  404  404  404  Before
+DELETE /api/remittances/{remittanceId}/day-breakdowns/{breakdownId}  404  404  404  404  404  404  404  404  404  404  Before
+POST /api/remittances/{remittanceId}/submit                          404  404  404  404  404  404  404  404  404  404  Before
+POST /api/remittances/{remittanceId}/undo                            404  404  404  404  404  404  404  404  404  404  Before
+PATCH /api/remittances/{remittanceId}                                404  404  404  404  404  404  404  404  404  404  Before
+GET /api/branches/{branchId}/remittance-sessions                     400  400  403  400  400  400  400  403  403  403  Before
+GET /api/branches/{branchId}/remittance-product-sales                400  400  403  400  400  400  400  403  403  403  Before
+GET /api/branches/{branchId}/remittance-days                         400  400  400  400  400  400  400  403  403  403  Before
+GET /api/audit-log/entries                                           200  200  200  200  200  200  200  200  200  200  InHandler: AuditLogService: per row
+GET /api/audit-log/tables                                            200  200  200  200  200  200  200  200  200  200  SignedIn: table names only
+GET /api/audit-log                                                   400  400  400  400  400  400  400  400  400  400  InHandler: AuditLogService: per row
+GET /api/audit-log/flagged                                           200  200  200  200  200  200  200  200  200  200  InHandler: AuditLogService: per row
+PATCH /api/audit-log/{entryId}/acknowledge                           404  404  404  404  404  404  404  404  404  404  InHandler: AuditLogService.acknowledge
+GET /api/branches/{branchId}/export/report                           400  400  400  400  400  400  400  403  403  403  Before
+GET /api/branches/export/report                                      400  400  400  400  400  400  400  400  400  400  SignedIn: only the branches the caller may read
+GET /api/me/history                                                  400  400  400  400  400  400  400  400  400  400  SignedIn: the caller's own work
+GET /api/clients/{clientId}/history                                  200  200  200  200  200  200  200  200  200  403  Before

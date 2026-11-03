@@ -1,6 +1,8 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
@@ -67,16 +69,15 @@ import java.util.UUID
 )
 object ExportRoutes {
     fun register(config: JavalinConfig) {
-        // lesson: the wildcard is what makes the gate run on the 5-segment branch
-        // export route (ReportsReadScopeAuthzTest proves 403 for zero-grant callers).
-        config.routes.before("/api/branches/{branchId}/export/*") { context ->
-            val branchId = context.pathParamAsUuid("branchId")
-            // 404 precedence for an unknown branch before the capability gate (precedent).
-            BranchService.findById(branchId)
-            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-        }
-
-        config.routes.get(ApiRoutes.BRANCH_EXPORT_REPORT_PATH) { context ->
+        // ReportsReadScopeAuthzTest proves 403 for zero-grant callers.
+        val branchGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid("branchId")
+                // 404 precedence for an unknown branch before the capability gate (precedent).
+                BranchService.findById(branchId)
+                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
+            }
+        config.get(ApiRoutes.BRANCH_EXPORT_REPORT_PATH, branchGate) { context ->
             val (from, to) = parseRange(context)
             val format = parseFormat(context.queryParam("format"))
             sendFileResponse(
@@ -84,8 +85,10 @@ object ExportRoutes {
                 ExportService.exportBranchReport(context.pathParamAsUuid("branchId"), from, to, format),
             )
         }
-        // JWT-only: the report includes only the branches the caller may read.
-        config.routes.get(ApiRoutes.BRANCHES_EXPORT_REPORT_PATH) { context ->
+        config.get(
+            ApiRoutes.BRANCHES_EXPORT_REPORT_PATH,
+            Gate.SignedIn("only the branches the caller may read"),
+        ) { context ->
             val (from, to) = parseRange(context)
             val format = parseFormat(context.queryParam("format"))
             val type = parseType(context.queryParam("type"))

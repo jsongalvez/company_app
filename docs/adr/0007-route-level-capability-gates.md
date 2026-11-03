@@ -1,6 +1,6 @@
 # ADR-0007: Route-level capability gates via Javalin before filters
 
-**Status:** Accepted
+**Status:** Accepted; mechanism superseded by [ADR-0027](0027-every-route-declares-its-gate.md) (routes declare their gate; no path filters)
 **Date:** 2026-07-16
 
 ## Context

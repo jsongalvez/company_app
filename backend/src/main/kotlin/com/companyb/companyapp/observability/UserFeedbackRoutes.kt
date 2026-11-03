@@ -1,7 +1,11 @@
 package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -75,7 +79,7 @@ object UserFeedbackRoutes {
 
     /** Anyone signed in may send; only GLOBAL MANAGE_USERS (owners) read and triage. */
     fun register(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.FEEDBACK_NOTES) { context ->
+        config.post(ApiRoutes.FEEDBACK_NOTES, Gate.SignedIn("anyone signed in may send")) { context ->
             val callerId = context.callerUuid()
             val note = parseNote(callerId, context.bodyAsClass<SendFeedbackRequest>())
             if (!RateLimiter.isAllowed(KEY_PREFIX + callerId)) {
@@ -86,8 +90,7 @@ object UserFeedbackRoutes {
             }
         }
 
-        config.routes.get(ApiRoutes.FEEDBACK_NOTES) { context ->
-            requireTriage(context)
+        config.get(ApiRoutes.FEEDBACK_NOTES, triageGate) { context ->
             val status =
                 context.queryParam("status")?.let { raw ->
                     FeedbackStatus.entries.firstOrNull { it.name == raw } ?: throw BadRequestResponse("Unknown status")
@@ -95,8 +98,7 @@ object UserFeedbackRoutes {
             context.json(UserFeedbackService.list(status).map { it.toResponse() })
         }
 
-        config.routes.patch(ApiRoutes.FEEDBACK_NOTE_PATH) { context ->
-            requireTriage(context)
+        config.patch(ApiRoutes.FEEDBACK_NOTE_PATH, triageGate) { context ->
             val id = context.pathParamAsUuid("feedbackId")
             val status = context.bodyAsClass<SetFeedbackStatusRequest>().status
             context.json(UserFeedbackService.setStatus(id, status).toResponse())
@@ -126,8 +128,14 @@ object UserFeedbackRoutes {
 
     private fun String?.clean(max: Int): String? = this?.trim()?.take(max)?.ifEmpty { null }
 
-    private fun requireTriage(context: Context) =
-        Access.require(context, Act.MANAGE_USERS, message = "Only owners can read feedback")
+    private val triageGate =
+        Gate.Before {
+            Access.require(
+                it,
+                Act.MANAGE_USERS,
+                message = "Only owners can read feedback",
+            )
+        }
 
     private fun UserFeedback.toResponse() =
         FeedbackNoteResponse(

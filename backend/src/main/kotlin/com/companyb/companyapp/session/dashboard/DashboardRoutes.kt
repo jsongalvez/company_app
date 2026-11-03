@@ -1,5 +1,7 @@
 package com.companyb.companyapp.session.dashboard
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
@@ -45,14 +47,13 @@ object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.BRANCH_SESSIONS_PATH) { context ->
-            if (context.method() == HandlerType.GET) {
+        val branchSessionsGate =
+            Gate.Before { context ->
                 val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
                 val date = context.queryParam("date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
                 Access.require(context, Act.SEE_DAY, date?.let { Place.onDate(branchId, it) } ?: Place.Branch(branchId))
             }
-        }
-        config.routes.get(ApiRoutes.BRANCH_SESSIONS_PATH, ::handleGetSessionsForDay)
+        config.get(ApiRoutes.BRANCH_SESSIONS_PATH, branchSessionsGate, ::handleGetSessionsForDay)
     }
 
     /** Any day's sessions at a branch, for the Expenses & pay page (feedback 3578107f). */

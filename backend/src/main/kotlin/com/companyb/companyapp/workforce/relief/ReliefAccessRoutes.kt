@@ -1,6 +1,10 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.bodyIfPresent
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
@@ -166,7 +170,7 @@ object ReliefAccessRoutes {
     }
 
     fun listReliefAccess(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.RELIEF_ACCESS) { context ->
+        config.get(ApiRoutes.RELIEF_ACCESS, Gate.InHandler("ReliefAccessService")) { context ->
             context.status(HttpStatus.OK)
             // two addressing forms: branchDayId directly, or the notification
             // deep-link pair (branchId + date). Each leg keeps the single-val service-call
@@ -225,7 +229,7 @@ object ReliefAccessRoutes {
     }
 
     fun listMine(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.RELIEF_ACCESS_MINE) { context ->
+        config.get(ApiRoutes.RELIEF_ACCESS_MINE, Gate.SignedIn("the caller's own requests")) { context ->
             val mine = ReliefAccessService.listMine(context.callerUuid())
 
             context.status(HttpStatus.OK)
@@ -234,7 +238,10 @@ object ReliefAccessRoutes {
     }
 
     fun listBranchOptions(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.RELIEF_ACCESS_BRANCH_OPTIONS) { context ->
+        config.get(
+            ApiRoutes.RELIEF_ACCESS_BRANCH_OPTIONS,
+            Gate.SignedIn("branch names for the relief request picker"),
+        ) { context ->
             val options = ReliefAccessService.listBranchOptions()
 
             context.status(HttpStatus.OK)
@@ -251,7 +258,7 @@ object ReliefAccessRoutes {
     }
 
     fun grantReliefAccess(config: JavalinConfig) {
-        config.routes.patch(ApiRoutes.RELIEF_ACCESS_GRANT_PATH) { context ->
+        config.patch(ApiRoutes.RELIEF_ACCESS_GRANT_PATH, Gate.InHandler("ReliefAccessService")) { context ->
             val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<GrantReliefAccessRequest>()?.reason
@@ -266,7 +273,7 @@ object ReliefAccessRoutes {
     }
 
     fun denyReliefAccess(config: JavalinConfig) {
-        config.routes.patch(ApiRoutes.RELIEF_ACCESS_DENY_PATH) { context ->
+        config.patch(ApiRoutes.RELIEF_ACCESS_DENY_PATH, Gate.InHandler("ReliefAccessService")) { context ->
             val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<DenyReliefAccessRequest>()?.reason
@@ -279,7 +286,7 @@ object ReliefAccessRoutes {
     }
 
     fun cancelReliefAccess(config: JavalinConfig) {
-        config.routes.patch(ApiRoutes.RELIEF_ACCESS_CANCEL_PATH) { context ->
+        config.patch(ApiRoutes.RELIEF_ACCESS_CANCEL_PATH, Gate.InHandler("ReliefAccessService")) { context ->
             val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<DenyReliefAccessRequest>()?.reason
@@ -292,7 +299,7 @@ object ReliefAccessRoutes {
     }
 
     fun requestReliefAccess(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.RELIEF_ACCESS_REQUEST) { context ->
+        config.post(ApiRoutes.RELIEF_ACCESS_REQUEST, Gate.SignedIn("anyone signed in may ask for relief")) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ReliefAccessRequest>()
 

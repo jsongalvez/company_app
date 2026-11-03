@@ -1,6 +1,10 @@
 package com.companyb.companyapp.notification
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
@@ -77,7 +81,7 @@ import java.util.UUID
 )
 object NotificationRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.NOTIFICATIONS) { context ->
+        config.get(ApiRoutes.NOTIFICATIONS, Gate.SignedIn("the caller's own notifications")) { context ->
             val callerId = context.callerUuid()
 
             val notifications = NotificationService.listUnread(callerId)
@@ -88,7 +92,7 @@ object NotificationRoutes {
 
         // history: every row the caller owns, read + unread, newest first.
         // keyset-paged: bounded per response, stable across concurrent inserts.
-        config.routes.get(ApiRoutes.NOTIFICATIONS_HISTORY) { context ->
+        config.get(ApiRoutes.NOTIFICATIONS_HISTORY, Gate.SignedIn("the caller's own notifications")) { context ->
             val callerId = context.callerUuid()
 
             val response =
@@ -103,14 +107,14 @@ object NotificationRoutes {
         }
 
         // badge count without row hydration: the poller reads one integer.
-        config.routes.get(ApiRoutes.NOTIFICATIONS_UNREAD_COUNT) { context ->
+        config.get(ApiRoutes.NOTIFICATIONS_UNREAD_COUNT, Gate.SignedIn("the caller's own notifications")) { context ->
             val callerId = context.callerUuid()
 
             context.status(HttpStatus.OK)
             context.json(NotificationUnreadCountResponse(NotificationService.countUnread(callerId)))
         }
 
-        config.routes.post(ApiRoutes.NOTIFICATIONS_READ_ALL) { context ->
+        config.post(ApiRoutes.NOTIFICATIONS_READ_ALL, Gate.SignedIn("the caller's own notifications")) { context ->
             val callerId = context.callerUuid()
 
             val unreadCount = NotificationService.markAllRead(callerId)
@@ -119,7 +123,10 @@ object NotificationRoutes {
             context.json(NotificationMarkAllReadResponse(unreadCount))
         }
 
-        config.routes.patch(ApiRoutes.NOTIFICATION_READ_PATH) { context ->
+        config.patch(
+            ApiRoutes.NOTIFICATION_READ_PATH,
+            Gate.SignedIn("only the caller's own notification is found"),
+        ) { context ->
             val callerId = context.callerUuid()
             val notificationId = context.pathParamAsUuid("notificationId")
 

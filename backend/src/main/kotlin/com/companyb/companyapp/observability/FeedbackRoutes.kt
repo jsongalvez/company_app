@@ -1,7 +1,9 @@
 package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.contracts.incident.FeedbackRequest
 import com.companyb.companyapp.contracts.incident.FeedbackResponse
 import com.companyb.companyapp.dto.ErrorResponse
@@ -41,7 +43,7 @@ object FeedbackRoutes {
      * Abuse is bounded by per-user and per-IP budgets sharing [RateLimiter].
      */
     fun register(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.FEEDBACK) { context ->
+        config.post(ApiRoutes.FEEDBACK, Gate.SignedIn("anyone signed in may report")) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<FeedbackRequest>()
             if (!withinBudget(callerId, ClientIp.of(context))) {

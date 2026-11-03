@@ -1,6 +1,11 @@
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
@@ -209,50 +214,28 @@ import java.util.UUID
 )
 object RemittanceRoutes {
     fun register(config: JavalinConfig) {
-        registerGuards(config)
         registerReads(config)
         registerMutations(config)
     }
 
-    private fun registerGuards(config: JavalinConfig) {
-        registerCollectionGuard(config)
-        registerItemGuards(config)
-    }
-
-    private fun registerCollectionGuard(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.REMITTANCES) { context ->
-            val branchId =
-                when (context.method()) {
-                    HandlerType.POST -> {
-                        uuidOrThrow(
-                            context.bodyAsClass<CreateRemittanceDraftRequest>().branchId,
-                            "branch id",
-                        )
-                    }
-
-                    HandlerType.GET -> {
-                        context.uuidFromQuery("branchId")
-                    }
-
-                    else -> {
-                        return@before
-                    }
-                }
+    private fun remittancesGate(branchIdOf: (Context) -> UUID) =
+        Gate.Before { context ->
+            val branchId = branchIdOf(context)
             // 404 precedence for an unknown branch before the capability gate
             //  (precedent): the access check alone conflates
             // "unknown branch" with "known but non-member".
             BranchService.findById(branchId)
             Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
         }
-    }
 
-    private fun registerItemGuards(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.REMITTANCE_PATH) { context ->
+    private val remittanceGate =
+        Gate.Before { context ->
             val remittanceId = context.pathParamAsUuid("remittanceId")
             RemittanceAuthz.requireForRemittance(context, remittanceId, Act.SUBMIT_REMITTANCE)
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_LINES_PATH) { context ->
+    private val remittanceLinesGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
@@ -260,7 +243,8 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_LINE_PATH) { context ->
+    private val remittanceLineGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
@@ -268,7 +252,8 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH) { context ->
+    private val remittanceDayBreakdownsGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
@@ -276,7 +261,8 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH) { context ->
+    private val remittanceDayBreakdownGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
@@ -284,7 +270,8 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_SUBMIT_PATH) { context ->
+    private val remittanceSubmitGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
@@ -292,7 +279,8 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_UNDO_PATH) { context ->
+    private val remittanceUndoGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
@@ -300,30 +288,34 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before(ApiRoutes.REMITTANCE_DRIFT_PATH) { context ->
+    private val remittanceDriftGate =
+        Gate.Before { context ->
             RemittanceAuthz.requireForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
                 Act.SUBMIT_REMITTANCE,
             )
         }
-    }
 
     private fun registerReads(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.REMITTANCES, ::handleListRemittances)
-        config.routes.get(ApiRoutes.REMITTANCE_PATH, ::handleGetRemittance)
-        config.routes.get(ApiRoutes.REMITTANCE_DRIFT_PATH, ::handleGetDrift)
+        config.get(ApiRoutes.REMITTANCES, remittancesGate { it.uuidFromQuery("branchId") }, ::handleListRemittances)
+        config.get(ApiRoutes.REMITTANCE_PATH, remittanceGate, ::handleGetRemittance)
+        config.get(ApiRoutes.REMITTANCE_DRIFT_PATH, remittanceDriftGate, ::handleGetDrift)
     }
 
     private fun registerMutations(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.REMITTANCES, ::handleCreateDraft)
-        config.routes.post(ApiRoutes.REMITTANCE_LINES_PATH, ::handleAddLine)
-        config.routes.delete(ApiRoutes.REMITTANCE_LINE_PATH, ::handleRemoveLine)
-        config.routes.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, ::handleAddDayBreakdown)
-        config.routes.delete(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH, ::handleRemoveDayBreakdown)
-        config.routes.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, ::handleSubmit)
-        config.routes.post(ApiRoutes.REMITTANCE_UNDO_PATH, ::handleUndo)
-        config.routes.patch(ApiRoutes.REMITTANCE_PATH, ::handleUpdateHeader)
+        config.post(
+            ApiRoutes.REMITTANCES,
+            remittancesGate { uuidOrThrow(it.bodyAsClass<CreateRemittanceDraftRequest>().branchId, "branch id") },
+            ::handleCreateDraft,
+        )
+        config.post(ApiRoutes.REMITTANCE_LINES_PATH, remittanceLinesGate, ::handleAddLine)
+        config.delete(ApiRoutes.REMITTANCE_LINE_PATH, remittanceLineGate, ::handleRemoveLine)
+        config.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, remittanceDayBreakdownsGate, ::handleAddDayBreakdown)
+        config.delete(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH, remittanceDayBreakdownGate, ::handleRemoveDayBreakdown)
+        config.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, remittanceSubmitGate, ::handleSubmit)
+        config.post(ApiRoutes.REMITTANCE_UNDO_PATH, remittanceUndoGate, ::handleUndo)
+        config.patch(ApiRoutes.REMITTANCE_PATH, remittanceGate, ::handleUpdateHeader)
     }
 
     private fun handleCreateDraft(context: Context) {

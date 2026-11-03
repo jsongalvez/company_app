@@ -1,6 +1,8 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.database.DatabaseHealth
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
@@ -22,7 +24,7 @@ import io.javalin.openapi.OpenApiResponse
 )
 object HealthRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.HEALTH) { context ->
+        config.get(ApiRoutes.HEALTH, Gate.Open("health check")) { context ->
             if (isDatabaseReachable()) {
                 context.status(HttpStatus.OK)
                 context.json(mapOf("status" to "UP"))

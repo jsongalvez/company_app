@@ -155,7 +155,7 @@ object ExpenseService {
 
     /**
      * Q5 — restores a soft-deleted expense. Record-scoped EDIT_BRANCH_DATA via the route's
-     * before-filter; day-state gate mirrors every other expense mutation (reason iff REMITTED).
+     * gate; day-state gate mirrors every other expense mutation (reason iff REMITTED).
      * The repository's atomic `deletedAt IS NOT NULL` WHERE closes the double-restore race: a
      * restore that lost the race maps to 400 already-live.
      *
@@ -191,7 +191,7 @@ object ExpenseService {
             after
         }
 
-    // record-scoped read rides the route's before-filter gate (Access.require with Act.WORK_DAY);
+    // record-scoped read rides the route's gate (Access.require with Act.WORK_DAY);
     // the service takes the resolved day only, so no caller param stays unused.
     fun findByBranchDayId(branchDayId: UUID): List<Expense> {
         BranchDayService.requireBranchDayExists(branchDayId)

@@ -1,6 +1,11 @@
 package com.companyb.companyapp.workforce
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
@@ -119,12 +124,28 @@ object UserBranchAssignmentRoutes {
     private const val ASSIGNMENT_ID_PARAM = "assignmentId"
 
     fun register(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleCreateAssignment)
-        config.routes.get(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleGetAssignments)
-        config.routes.delete(ApiRoutes.BRANCH_ASSIGNMENT_PATH, ::handleRemoveAssignment)
-        config.routes.patch(ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH, ::handleUpdateSlot)
-        config.routes.post(ApiRoutes.BRANCH_SLOTS_SWAP_PATH, ::handleSwapSlots)
-        config.routes.get(ApiRoutes.BRANCH_MEMBERS_PATH, ::handleGetMembers)
+        config.post(
+            ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
+            Gate.InHandler("UserBranchAssignmentService"),
+            ::handleCreateAssignment,
+        )
+        config.get(
+            ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
+            Gate.InHandler("UserBranchAssignmentService"),
+            ::handleGetAssignments,
+        )
+        config.delete(
+            ApiRoutes.BRANCH_ASSIGNMENT_PATH,
+            Gate.InHandler("UserBranchAssignmentService"),
+            ::handleRemoveAssignment,
+        )
+        config.patch(
+            ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH,
+            Gate.InHandler("UserBranchAssignmentService"),
+            ::handleUpdateSlot,
+        )
+        config.post(ApiRoutes.BRANCH_SLOTS_SWAP_PATH, Gate.InHandler("UserBranchAssignmentService"), ::handleSwapSlots)
+        config.get(ApiRoutes.BRANCH_MEMBERS_PATH, Gate.InHandler("UserBranchAssignmentService"), ::handleGetMembers)
     }
 
     private fun handleCreateAssignment(context: Context) {

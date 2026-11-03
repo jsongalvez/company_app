@@ -1,6 +1,10 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -62,22 +66,24 @@ import java.util.UUID
 )
 object MedicalMissionDelegateRoutes {
     fun listDelegates(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.BRANCH_DELEGATES_PATH) { context ->
-            Access.require(context, Act.ASSIGN_DELEGATE)
-        }
+        val branchDelegatesGate =
+            Gate.Before { context ->
+                Access.require(context, Act.ASSIGN_DELEGATE)
+            }
 
-        config.routes.get(ApiRoutes.BRANCH_DELEGATES_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_DELEGATES_PATH, branchDelegatesGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             context.json(MedicalMissionDelegateService.listDelegates(branchId).map { it.toResponse() })
         }
     }
 
     fun assignDelegate(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.DELEGATES) { context ->
-            Access.require(context, Act.ASSIGN_DELEGATE)
-        }
+        val delegatesGate =
+            Gate.Before { context ->
+                Access.require(context, Act.ASSIGN_DELEGATE)
+            }
 
-        config.routes.post(ApiRoutes.DELEGATES) { context ->
+        config.post(ApiRoutes.DELEGATES, delegatesGate) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<AssignDelegateRequest>()
 
@@ -100,11 +106,12 @@ object MedicalMissionDelegateRoutes {
     }
 
     fun revokeDelegate(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.DELEGATE_PATH) { context ->
-            Access.require(context, Act.ASSIGN_DELEGATE)
-        }
+        val delegateGate =
+            Gate.Before { context ->
+                Access.require(context, Act.ASSIGN_DELEGATE)
+            }
 
-        config.routes.delete(ApiRoutes.DELEGATE_PATH) { context ->
+        config.delete(ApiRoutes.DELEGATE_PATH, delegateGate) { context ->
             val callerId = context.callerUuid()
             val delegateId = context.pathParamAsUuid("delegateId")
 

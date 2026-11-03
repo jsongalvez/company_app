@@ -1,6 +1,11 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
+import com.companyb.companyapp.api.put
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
@@ -110,11 +115,12 @@ object UserRoutes {
     }
 
     fun deactivate(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.USER_DEACTIVATE_PATH) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-        }
+        val userDeactivateGate =
+            Gate.Before { context ->
+                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
+            }
 
-        config.routes.patch(ApiRoutes.USER_DEACTIVATE_PATH) { context ->
+        config.patch(ApiRoutes.USER_DEACTIVATE_PATH, userDeactivateGate) { context ->
             val callerId = context.callerUuid()
             val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
@@ -124,22 +130,24 @@ object UserRoutes {
     }
 
     private fun list(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.USERS) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-        }
+        val usersGate =
+            Gate.Before { context ->
+                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
+            }
 
-        config.routes.get(ApiRoutes.USERS) { context ->
+        config.get(ApiRoutes.USERS, usersGate) { context ->
             context.status(HttpStatus.OK)
             context.json(UserService.listUsers(context.callerUuid()))
         }
     }
 
     private fun reactivate(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.USER_REACTIVATE_PATH) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-        }
+        val userReactivateGate =
+            Gate.Before { context ->
+                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
+            }
 
-        config.routes.patch(ApiRoutes.USER_REACTIVATE_PATH) { context ->
+        config.patch(ApiRoutes.USER_REACTIVATE_PATH, userReactivateGate) { context ->
             val callerId = context.callerUuid()
             val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
@@ -154,11 +162,12 @@ object UserRoutes {
      * /auth/accept-invite with the code, outside this gate.
      */
     private fun mintInvite(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.INVITES) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-        }
+        val invitesGate =
+            Gate.Before { context ->
+                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
+            }
 
-        config.routes.post(ApiRoutes.INVITES) { context ->
+        config.post(ApiRoutes.INVITES, invitesGate) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<InviteMintRequest>()
 
@@ -168,22 +177,24 @@ object UserRoutes {
     }
 
     private fun roles(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.ROLES) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-        }
+        val rolesGate =
+            Gate.Before { context ->
+                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
+            }
 
-        config.routes.get(ApiRoutes.ROLES) { context ->
+        config.get(ApiRoutes.ROLES, rolesGate) { context ->
             context.status(HttpStatus.OK)
             context.json(UserService.getRoles())
         }
     }
 
     private fun replaceRoles(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.USER_ROLES_PATH) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-        }
+        val userRolesGate =
+            Gate.Before { context ->
+                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
+            }
 
-        config.routes.put(ApiRoutes.USER_ROLES_PATH) { context ->
+        config.put(ApiRoutes.USER_ROLES_PATH, userRolesGate) { context ->
             val callerId = context.callerUuid()
             val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
             val request = context.bodyAsClass<UserRoleReplaceRequest>()

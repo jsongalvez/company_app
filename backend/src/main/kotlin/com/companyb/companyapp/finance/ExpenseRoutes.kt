@@ -1,6 +1,11 @@
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
@@ -101,60 +106,45 @@ import java.util.UUID
 )
 object ExpenseRoutes {
     fun register(config: JavalinConfig) {
-        registerGuards(config)
         registerReads(config)
         registerMutations(config)
     }
 
-    private fun registerGuards(config: JavalinConfig) {
-        // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY) ---
+    // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY) ---
 
-        config.routes.before(ApiRoutes.EXPENSES) { context ->
-            val branchDayId =
-                when (context.method()) {
-                    HandlerType.POST -> {
-                        val request = context.bodyAsClass<CreateExpenseRequest>()
-                        if (request.branchDayId == null) {
-                            Access.require(
-                                context,
-                                Act.WORK_HOME_BRANCH,
-                                Place.Branch(
-                                    uuidOrThrow(request.branchId ?: "", "branch id"),
-                                ),
-                            )
-                            return@before
-                        }
-                        uuidOrThrow(request.branchDayId, "branch day id")
-                    }
+    private val expensesReadGate =
+        Gate.Before { Access.require(it, Act.WORK_DAY, Place.day(it.uuidFromQuery("branchDayId"))) }
 
-                    HandlerType.GET -> {
-                        context.uuidFromQuery("branchDayId")
-                    }
-
-                    else -> {
-                        return@before
-                    }
-                }
-            Access.require(context, Act.WORK_DAY, Place.day(branchDayId))
+    private val expensesCreateGate =
+        Gate.Before { context ->
+            val request = context.bodyAsClass<CreateExpenseRequest>()
+            if (request.branchDayId == null) {
+                Access.require(
+                    context,
+                    Act.WORK_HOME_BRANCH,
+                    Place.Branch(uuidOrThrow(request.branchId ?: "", "branch id")),
+                )
+            } else {
+                Access.require(context, Act.WORK_DAY, Place.day(uuidOrThrow(request.branchDayId, "branch day id")))
+            }
         }
 
-        config.routes.before(ApiRoutes.EXPENSE_PATH) { context ->
+    private val expenseGate =
+        Gate.Before { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
             ExpenseAuthz.requireForExpense(context, expenseId, Act.WORK_DAY)
         }
 
-        // exact-segment lesson: before(ApiRoutes.EXPENSE_PATH) does NOT fire on the
-        // 4-segment restore route — the restore filter is its own (record-scoped EDIT_BRANCH_DATA
-        // via the expense's branch day; 404 for missing expense keeps the filter from running the
-        // handler against a phantom).
-        config.routes.before(ApiRoutes.EXPENSE_RESTORE_PATH) { context ->
+    // Record-scoped EDIT_BRANCH_DATA via the expense's branch day; 404 for a missing expense keeps
+    // the handler from running against a phantom.
+    private val expenseRestoreGate =
+        Gate.Before { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
             ExpenseAuthz.requireForExpense(context, expenseId, Act.WORK_DAY)
         }
-    }
 
     private fun registerReads(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.EXPENSES) { context ->
+        config.get(ApiRoutes.EXPENSES, expensesReadGate) { context ->
             val branchDayId = context.uuidFromQuery("branchDayId")
 
             val expenses = ExpenseService.findByBranchDayId(branchDayId)
@@ -165,10 +155,10 @@ object ExpenseRoutes {
     }
 
     private fun registerMutations(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.EXPENSES, ::handleCreate)
-        config.routes.patch(ApiRoutes.EXPENSE_PATH, ::handleUpdate)
-        config.routes.delete(ApiRoutes.EXPENSE_PATH, ::handleDelete)
-        config.routes.post(ApiRoutes.EXPENSE_RESTORE_PATH, ::handleRestore)
+        config.post(ApiRoutes.EXPENSES, expensesCreateGate, ::handleCreate)
+        config.patch(ApiRoutes.EXPENSE_PATH, expenseGate, ::handleUpdate)
+        config.delete(ApiRoutes.EXPENSE_PATH, expenseGate, ::handleDelete)
+        config.post(ApiRoutes.EXPENSE_RESTORE_PATH, expenseRestoreGate, ::handleRestore)
     }
 
     private fun handleCreate(context: Context) {

@@ -1,7 +1,11 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -76,17 +80,18 @@ object VisitBookingRoutes {
     fun register(config: JavalinConfig) {
         // Any branch member may book: the same capability that lets them add sessions there.
         // The branch's booked visits are read with the Today screen.
-        config.routes.before(ApiRoutes.BRANCH_BOOKINGS_PATH) { context -> requireMember(context) }
-        config.routes.before(ApiRoutes.BRANCH_BOOKING_PATH) { context -> requireMember(context) }
-        config.routes.before(ApiRoutes.CLIENT_BOOKINGS_PATH) { context ->
-            Access.require(
-                context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
-            )
-        }
+        val branchBookingsGate = Gate.Before { context -> requireMember(context) }
+        val branchBookingGate = Gate.Before { context -> requireMember(context) }
+        val clientBookingsGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.WORK_ANYWHERE,
+                    message = "EDIT_BRANCH_DATA capability required to manage clients",
+                )
+            }
 
-        config.routes.post(ApiRoutes.BRANCH_BOOKINGS_PATH) { context ->
+        config.post(ApiRoutes.BRANCH_BOOKINGS_PATH, branchBookingsGate) { context ->
             val request = context.bodyAsClass<CreateBookingRequest>()
             val (booking, created) =
                 VisitBookingService.create(
@@ -99,7 +104,7 @@ object VisitBookingRoutes {
             context.status(if (created) HttpStatus.CREATED else HttpStatus.OK)
             context.json(booking)
         }
-        config.routes.patch(ApiRoutes.BRANCH_BOOKING_PATH) { context ->
+        config.patch(ApiRoutes.BRANCH_BOOKING_PATH, branchBookingGate) { context ->
             val request = context.bodyAsClass<UpdateBookingRequest>()
             context.json(
                 VisitBookingService.update(
@@ -111,7 +116,7 @@ object VisitBookingRoutes {
                 ),
             )
         }
-        config.routes.get(ApiRoutes.CLIENT_BOOKINGS_PATH) { context ->
+        config.get(ApiRoutes.CLIENT_BOOKINGS_PATH, clientBookingsGate) { context ->
             context.json(VisitBookingService.forClient(context.pathParamAsUuid("clientId")))
         }
     }

@@ -1,6 +1,10 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.identity.ChangePasswordRequest
@@ -91,14 +95,14 @@ import java.util.UUID
 )
 object MeRoutes {
     fun updateMe(config: JavalinConfig) {
-        config.routes.patch(ApiRoutes.ME) { context ->
+        config.patch(ApiRoutes.ME, Gate.SignedIn("the caller's own profile")) { context ->
             val request = context.bodyAsClass<UpdateProfileRequest>()
             context.json(MeService.updateProfile(context.callerUuid(), request.displayName, request.email))
         }
     }
 
     fun changePassword(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.ME_PASSWORD) { context ->
+        config.post(ApiRoutes.ME_PASSWORD, Gate.SignedIn("the caller's own password")) { context ->
             val request = context.bodyAsClass<ChangePasswordRequest>()
             AuthService.changePassword(context.callerUuid(), request.currentPassword, request.newPassword)
             context.status(HttpStatus.NO_CONTENT)
@@ -106,7 +110,7 @@ object MeRoutes {
     }
 
     fun getMe(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.ME) { context ->
+        config.get(ApiRoutes.ME, Gate.SignedIn("the caller's own profile")) { context ->
             val callerId = context.callerUuid()
             val response: MeResponse = MeService.getMe(callerId)
             context.status(HttpStatus.OK)
@@ -115,7 +119,7 @@ object MeRoutes {
     }
 
     fun getCapabilities(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.ME_CAPABILITIES) { context ->
+        config.get(ApiRoutes.ME_CAPABILITIES, Gate.SignedIn("the caller's own grants")) { context ->
             val callerId = context.callerUuid()
             val response: List<UserCapabilityResponse> = MeService.getCapabilities(callerId)
             context.status(HttpStatus.OK)
@@ -124,7 +128,7 @@ object MeRoutes {
     }
 
     fun getBranches(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.ME_BRANCHES) { context ->
+        config.get(ApiRoutes.ME_BRANCHES, Gate.SignedIn("the caller's own branches")) { context ->
             val callerId = context.callerUuid()
             val response: List<MeBranchResponse> = MeService.getBranches(callerId)
             context.status(HttpStatus.OK)
@@ -134,7 +138,7 @@ object MeRoutes {
 
     /** caller-only active-shift read for launch/login resume (null shift = none). */
     fun getActiveAttendance(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.ME_ACTIVE_ATTENDANCE) { context ->
+        config.get(ApiRoutes.ME_ACTIVE_ATTENDANCE, Gate.SignedIn("the caller's own clock-in")) { context ->
             val callerId = context.callerUuid()
             val response: ActiveAttendanceResponse = MeService.getActiveAttendance(callerId)
             context.status(HttpStatus.OK)

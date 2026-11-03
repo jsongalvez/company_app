@@ -1,6 +1,9 @@
 package com.companyb.companyapp.commission
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -63,29 +66,31 @@ import java.util.UUID
 )
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.COMMISSION_INCLUSIONS) { context ->
-            if (context.method() != HandlerType.POST) return@before
-            val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
-            val productSaleId = uuidOrThrow(request.productSaleId, "product sale id")
-            val sale =
-                CommerceReads.findSaleById(productSaleId)
-                    ?: throw NotFoundResponse("Product sale not found")
-            Access.require(context, Act.PAY, Place.day(sale.branchDayId))
-        }
+        val commissionInclusionsGate =
+            Gate.Before { context ->
+                val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
+                val productSaleId = uuidOrThrow(request.productSaleId, "product sale id")
+                val sale =
+                    CommerceReads.findSaleById(productSaleId)
+                        ?: throw NotFoundResponse("Product sale not found")
+                Access.require(context, Act.PAY, Place.day(sale.branchDayId))
+            }
 
-        config.routes.before(ApiRoutes.COMMISSION_SPLITS_PATH) { context ->
-            val branchDayId = context.pathParamAsUuid("branchDayId")
-            Access.require(context, Act.SEE_COMMISSION, Place.day(branchDayId))
-        }
+        val commissionSplitsGate =
+            Gate.Before { context ->
+                val branchDayId = context.pathParamAsUuid("branchDayId")
+                Access.require(context, Act.SEE_COMMISSION, Place.day(branchDayId))
+            }
 
-        config.routes.before(ApiRoutes.COMMISSION_RECALCULATE_PATH) { context ->
-            val branchDayId = context.pathParamAsUuid("branchDayId")
-            Access.require(context, Act.CHANGE_CLOSED_DAY, Place.day(branchDayId))
-        }
+        val commissionRecalculateGate =
+            Gate.Before { context ->
+                val branchDayId = context.pathParamAsUuid("branchDayId")
+                Access.require(context, Act.CHANGE_CLOSED_DAY, Place.day(branchDayId))
+            }
 
-        config.routes.post(ApiRoutes.COMMISSION_INCLUSIONS, ::handleCreateInclusion)
-        config.routes.get(ApiRoutes.COMMISSION_SPLITS_PATH, ::handleGetSplits)
-        config.routes.post(ApiRoutes.COMMISSION_RECALCULATE_PATH, ::handleRecalculate)
+        config.post(ApiRoutes.COMMISSION_INCLUSIONS, commissionInclusionsGate, ::handleCreateInclusion)
+        config.get(ApiRoutes.COMMISSION_SPLITS_PATH, commissionSplitsGate, ::handleGetSplits)
+        config.post(ApiRoutes.COMMISSION_RECALCULATE_PATH, commissionRecalculateGate, ::handleRecalculate)
     }
 
     private fun handleCreateInclusion(context: Context) {

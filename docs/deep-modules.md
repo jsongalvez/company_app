@@ -13,7 +13,7 @@ belong under `Search` instead. `Anchors` are candidate entrypoints: open only th
 matching the requested behavior.
 
 ```
-routes (thin: parse → call one service command; capability before-filters)
+routes (thin: parse → call one service command; each declares its gate, ADR-0027)
   └─ service commands (one command = one transaction + its audit row, ADR-0024)
        ├─ Session · Attendance · Inventory · Product Sales · Finance · Relief
        │  · Dashboard · Users · Clients · Export …
@@ -195,7 +195,7 @@ intentionally shallow.
 **Anchors:** `reporting/DailySalesSummaryService.kt` · `reporting/MonthlyRemittanceSummaryService.kt` (shared monthly mapper) · `reporting/ExportService.kt` · `reporting/ExportContract.kt` · `reporting/ExportRoutes.kt`.
 **Public seam:** `getDailySummary` / `browseDailySummaries` · `getMonthlySummary` · `exportDaily` / `exportRange` / `exportMonthly` / `exportAllTime` / `exportByBranchType` → `ExportResult(bytes, contentType, fileName)`.
 **Depends on:** Branch Day (existence + day reads via `BranchService`/`BranchDayService`), Branch existence, Capability read windows; the ledger reads foreign tables (sessions, sales, expenses, pay, remittances) through recorded projection grants (#608).
-**Expansion triggers:** route-gate shape — the wildcard before-filter `/api/branches/{branchId}/export/*` is load-bearing (#114 lesson, fourth occurrence); new summary source; cursor format (`date|branchDayId` opaque).
+**Expansion triggers:** new summary source; cursor format (`date|branchDayId` opaque).
 **Search:** `ExportFormat`, `sendFileResponse`, `encodeDailySummaryCursor`.
 
 ---

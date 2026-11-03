@@ -1,6 +1,8 @@
 package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
@@ -31,14 +33,15 @@ import java.util.UUID
 object ClientHistoryRoutes {
     fun register(config: JavalinConfig) {
         // Same gate as the client record itself (ClientRoutes): clients are global records.
-        config.routes.before(ApiRoutes.CLIENT_HISTORY_PATH) { context ->
-            Access.require(
-                context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
-            )
-        }
-        config.routes.get(ApiRoutes.CLIENT_HISTORY_PATH) { context ->
+        val clientHistoryGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.WORK_ANYWHERE,
+                    message = "EDIT_BRANCH_DATA capability required to manage clients",
+                )
+            }
+        config.get(ApiRoutes.CLIENT_HISTORY_PATH, clientHistoryGate) { context ->
             context.json(ClientHistoryRepository.load(context.pathParamAsUuid("clientId")))
         }
     }

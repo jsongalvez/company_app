@@ -1,6 +1,10 @@
 package com.companyb.companyapp.branch
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -95,39 +99,33 @@ object BranchRoutes {
     private const val MAX_NAME_LENGTH = 100
 
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.BRANCHES) { context ->
-            Access.require(context, Act.MANAGE_USERS, message = "MANAGE_USERS capability required to manage branches")
-        }
+        val branchesGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.MANAGE_USERS,
+                    message = "MANAGE_USERS capability required to manage branches",
+                )
+            }
 
-        // (same class as): before(BRANCHES) is exact-segment
-        // and never fires on this 3-segment item path, which had no gate of its
-        // own — any authenticated caller could read any branch by UUID,
-        // bypassing the BranchReadScope window. Gate on the read window
-        // (BRANCH or GLOBAL VIEW_BRANCH_DATA, mirroring the summary/browse reads).
-        // Deliberately not a wildcard broadening of before(BRANCHES) —
-        // BRANCHES_ACCESSIBLE stays open. Its static 3-segment path
-        // also matches this {branchId} filter, so skip that segment here;
-        // otherwise the picker 400s on UUID parsing for zero-grant callers.
-        config.routes.before(ApiRoutes.BRANCH_PATH) { context ->
-            val rawSegment = context.pathParam(BRANCH_ID_PARAM)
-            if (rawSegment == ApiRoutes.BRANCHES_ACCESSIBLE.substringAfterLast("/")) return@before
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            // 404 precedence for an unknown branch before the capability gate (precedent).
-            BranchService.findById(branchId)
-            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-        }
+        // One branch, for whoever may see it. 404 before 403 for an unknown branch (precedent).
+        val branchGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+                BranchService.findById(branchId)
+                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
+            }
 
-        // the Reports picker data source — the caller's read window
-        // (distinct BRANCH grants, or all branches for a GLOBAL
-        // VIEW_BRANCH_DATA holder). No capability gate: zero-grant callers
-        // get an empty list (audit-log "zero-grant empty-not-403" pattern).
-        // The 2-segment MANAGE_USERS before-filter above is exact-match and
-        // does not fire on this 3-segment path (Javalin 7 segment matching).
-        config.routes.get(ApiRoutes.BRANCHES_ACCESSIBLE) { context ->
+        // The Reports picker: the caller's branches, or every branch for a GLOBAL VIEW_BRANCH_DATA holder.
+        // Zero-grant callers get an empty list, not 403.
+        config.get(
+            ApiRoutes.BRANCHES_ACCESSIBLE,
+            Gate.SignedIn("lists only the branches the caller may see"),
+        ) { context ->
             context.json(accessibleBranches(context.callerUuid()))
         }
 
-        config.routes.post(ApiRoutes.BRANCHES) { context ->
+        config.post(ApiRoutes.BRANCHES, branchesGate) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateBranchRequest>()
             val branchId = uuidOrThrow(request.id, "branch id")
@@ -148,15 +146,14 @@ object BranchRoutes {
             context.json(result.branch.toResponse())
         }
 
-        config.routes.get(ApiRoutes.BRANCHES) { context ->
+        config.get(ApiRoutes.BRANCHES, branchesGate) { context ->
             context.json(BranchService.findAll().map { it.toResponse() })
         }
 
-        // Rename: same GLOBAL MANAGE_USERS gate as create (the item-path before-filter
-        // above only checks the read window, so the write gate lives here).
-        config.routes.patch(ApiRoutes.BRANCH_PATH) { context -> rename(context) }
+        // Rename: branchGate checks only the read window; rename() checks MANAGE_USERS, as create does.
+        config.patch(ApiRoutes.BRANCH_PATH, branchGate) { context -> rename(context) }
 
-        config.routes.get(ApiRoutes.BRANCH_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_PATH, branchGate) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             context.json(BranchService.findById(branchId).toResponse())
         }

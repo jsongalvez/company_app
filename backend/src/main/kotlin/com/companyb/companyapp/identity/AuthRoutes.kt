@@ -1,6 +1,8 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.contracts.identity.AcceptInviteRequest
 import com.companyb.companyapp.contracts.identity.ForgotPasswordRequest
 import com.companyb.companyapp.contracts.identity.LoginRequest
@@ -77,8 +79,8 @@ import java.util.UUID
     ],
 )
 object AuthRoutes {
-    fun login(context: JavalinConfig) {
-        context.routes.post(ApiRoutes.AUTH_LOGIN) { context ->
+    fun login(config: JavalinConfig) {
+        config.post(ApiRoutes.AUTH_LOGIN, Gate.Open("sign-in")) { context ->
             val loginRequest = context.bodyAsClass<LoginRequest>()
             val loginResult: LoginResult =
                 AuthService.login(
@@ -130,7 +132,7 @@ object AuthRoutes {
      * distinct messages.
      */
     fun acceptInvite(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.AUTH_ACCEPT_INVITE) { context ->
+        config.post(ApiRoutes.AUTH_ACCEPT_INVITE, Gate.Open("the invite code is the key")) { context ->
             val request = context.bodyAsClass<AcceptInviteRequest>()
             AuthService.acceptInvite(
                 request.token,
@@ -146,7 +148,7 @@ object AuthRoutes {
      * nothing about identifier existence); 429 when the caller's IP exceeds its budget.
      */
     fun forgotPassword(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.AUTH_FORGOT_PASSWORD) { context ->
+        config.post(ApiRoutes.AUTH_FORGOT_PASSWORD, Gate.Open("asks for a reset email")) { context ->
             val request = context.bodyAsClass<ForgotPasswordRequest>()
             val accepted = AuthService.requestPasswordReset(request.identifier, ClientIp.of(context))
             if (accepted) {
@@ -162,7 +164,7 @@ object AuthRoutes {
      * [acceptInvite]. Failures are domain 400s with distinct messages.
      */
     fun resetPassword(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.AUTH_RESET_PASSWORD) { context ->
+        config.post(ApiRoutes.AUTH_RESET_PASSWORD, Gate.Open("the reset token is the key")) { context ->
             val request = context.bodyAsClass<ResetPasswordRequest>()
             AuthService.resetPassword(request.token, request.newPassword)
             context.status(HttpStatus.NO_CONTENT)
@@ -170,7 +172,7 @@ object AuthRoutes {
     }
 
     fun logout(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.AUTH_LOGOUT) { context ->
+        config.post(ApiRoutes.AUTH_LOGOUT, Gate.SignedIn("ends the caller's own sign-in")) { context ->
             AuthService.logout(context.callerUuid())
             context.status(HttpStatus.OK)
         }

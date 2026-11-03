@@ -1,6 +1,8 @@
 package com.companyb.companyapp.workforce
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -86,7 +88,10 @@ object AttendanceRoutes {
     ) = StartService.get(callerId, branchId, queryParam("withToday") == "true")
 
     fun clockOut(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_OUT) { context ->
+        config.post(
+            ApiRoutes.ATTENDANCE_CLOCK_OUT,
+            Gate.InHandler("AttendanceService: the caller's own attendance"),
+        ) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockOutRequest>()
 
@@ -112,7 +117,7 @@ object AttendanceRoutes {
     }
 
     fun clockIn(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_IN) { context ->
+        config.post(ApiRoutes.ATTENDANCE_CLOCK_IN, Gate.InHandler("WORK_DAY at the body's branch today")) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockInRequest>()
 
@@ -147,7 +152,7 @@ object AttendanceRoutes {
 
     /** member marks member present/absent at the branch today. */
     fun mark(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.BRANCH_ATTENDANCE_MARKS_PATH) { context ->
+        config.post(ApiRoutes.BRANCH_ATTENDANCE_MARKS_PATH, Gate.InHandler("AttendanceService.mark")) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<MarkAttendanceRequest>()

@@ -1,6 +1,9 @@
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
@@ -14,6 +17,7 @@ import com.companyb.companyapp.contracts.finance.CreateAllowanceRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -49,26 +53,13 @@ import java.util.UUID
 )
 object AllowanceRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.ALLOWANCES) { context ->
-            val branchDayId =
-                when (context.method()) {
-                    io.javalin.http.HandlerType.POST -> {
-                        val request = context.bodyAsClass<CreateAllowanceRequest>()
-                        uuidOrThrow(request.branchDayId, "branch day id")
-                    }
+        fun allowancesGate(branchDayIdOf: (Context) -> UUID) =
+            Gate.Before { Access.require(it, Act.PAY, Place.day(branchDayIdOf(it))) }
 
-                    io.javalin.http.HandlerType.GET -> {
-                        context.uuidFromQuery("branchDayId")
-                    }
-
-                    else -> {
-                        return@before
-                    }
-                }
-            Access.require(context, Act.PAY, Place.day(branchDayId))
-        }
-
-        config.routes.post(ApiRoutes.ALLOWANCES) { context ->
+        config.post(
+            ApiRoutes.ALLOWANCES,
+            allowancesGate { uuidOrThrow(it.bodyAsClass<CreateAllowanceRequest>().branchDayId, "branch day id") },
+        ) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateAllowanceRequest>()
 
@@ -93,7 +84,7 @@ object AllowanceRoutes {
             context.json(allowance.toResponse())
         }
 
-        config.routes.get(ApiRoutes.ALLOWANCES) { context ->
+        config.get(ApiRoutes.ALLOWANCES, allowancesGate { it.uuidFromQuery("branchDayId") }) { context ->
             val branchDayId = context.uuidFromQuery("branchDayId")
 
             val allowances = AllowanceService.findByBranchDayId(branchDayId)

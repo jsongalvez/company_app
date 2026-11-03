@@ -1,6 +1,9 @@
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -60,23 +63,25 @@ object ProductCategoryRoutes {
     private const val CATEGORY_ID_PARAM = "categoryId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.PRODUCT_CATEGORIES) { context ->
-            Access.require(
-                context,
-                Act.MANAGE_CATALOG,
-                message = "MANAGE_CATALOG capability required to manage product categories",
-            )
-        }
+        val productCategoriesGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.MANAGE_CATALOG,
+                    message = "MANAGE_CATALOG capability required to manage product categories",
+                )
+            }
 
-        config.routes.before(ApiRoutes.PRODUCT_CATEGORY_PATH) { context ->
-            Access.require(
-                context,
-                Act.MANAGE_CATALOG,
-                message = "MANAGE_CATALOG capability required to manage product categories",
-            )
-        }
+        val productCategoryGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.MANAGE_CATALOG,
+                    message = "MANAGE_CATALOG capability required to manage product categories",
+                )
+            }
 
-        config.routes.post(ApiRoutes.PRODUCT_CATEGORIES) { context ->
+        config.post(ApiRoutes.PRODUCT_CATEGORIES, productCategoriesGate) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductCategoryRequest>()
             val categoryId = uuidOrThrow(request.id, "category id")
@@ -93,11 +98,11 @@ object ProductCategoryRoutes {
             context.json(category.toResponse())
         }
 
-        config.routes.get(ApiRoutes.PRODUCT_CATEGORIES) { context ->
+        config.get(ApiRoutes.PRODUCT_CATEGORIES, productCategoriesGate) { context ->
             context.json(ProductCategoryService.findAll().map { it.toResponse() })
         }
 
-        config.routes.get(ApiRoutes.PRODUCT_CATEGORY_PATH) { context ->
+        config.get(ApiRoutes.PRODUCT_CATEGORY_PATH, productCategoryGate) { context ->
             val categoryId = context.pathParamAsUuid(CATEGORY_ID_PARAM)
             context.json(ProductCategoryService.findById(categoryId).toResponse())
         }

@@ -1,5 +1,7 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
@@ -46,13 +48,14 @@ object MonthlyRemittanceSummaryRoutes {
 
     fun register(config: JavalinConfig) {
         // 404 precedence for an unknown branch before the capability gate (precedent).
-        config.routes.before(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
-            val branchId = context.pathParamAsUuid("branchId")
-            BranchService.findById(branchId)
-            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-        }
+        val branchMonthlySummaryGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid("branchId")
+                BranchService.findById(branchId)
+                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
+            }
 
-        config.routes.get(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH, branchMonthlySummaryGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")
 
             val year = parseRequiredInt(context, "year")

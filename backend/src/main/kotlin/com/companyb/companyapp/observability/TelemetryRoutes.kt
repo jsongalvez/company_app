@@ -1,7 +1,9 @@
 package com.companyb.companyapp.observability
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.contracts.telemetry.TelemetryBatchRequest
 import com.companyb.companyapp.dto.ErrorResponse
@@ -43,7 +45,7 @@ object TelemetryRoutes {
 
     /** Anyone signed in uploads their own page's events; nobody reads them over the API. */
     fun register(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.TELEMETRY) { context ->
+        config.post(ApiRoutes.TELEMETRY, Gate.SignedIn("anyone signed in may send timings")) { context ->
             val callerId = context.callerUuid()
             val batch = context.bodyAsClass<TelemetryBatchRequest>()
             val sessionId = uuidOrThrow(batch.sessionId, "session id")

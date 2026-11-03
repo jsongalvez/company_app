@@ -1,7 +1,9 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.contracts.identity.StopViewAsRequest
 import com.companyb.companyapp.contracts.identity.ViewAsRequest
@@ -50,12 +52,12 @@ object ViewAsRoutes {
 
     /** SUPERUSER only: start viewing as someone (checked and logged), and log the stop. */
     fun register(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.VIEW_AS) { context ->
+        config.post(ApiRoutes.VIEW_AS, Gate.InHandler("ViewAs.start: Superuser only")) { context ->
             val request = context.bodyAsClass<ViewAsRequest>()
             val target = uuidOrThrow(request.userId, "user id")
             context.json(ViewAs.start(context.callerUuid(), target, request.allowChanges))
         }
-        config.routes.post(ApiRoutes.VIEW_AS_STOP) { context ->
+        config.post(ApiRoutes.VIEW_AS_STOP, Gate.InHandler("ViewAs.stop: logs the caller's own stop")) { context ->
             val request = context.bodyAsClass<StopViewAsRequest>()
             if (request.event !in EVENTS) throw BadRequestResponse("Unknown event")
             ViewAs.stop(context.callerUuid(), uuidOrThrow(request.userId, "user id"), request.event)

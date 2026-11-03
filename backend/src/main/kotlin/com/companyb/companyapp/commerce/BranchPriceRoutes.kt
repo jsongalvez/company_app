@@ -1,7 +1,9 @@
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.put
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
@@ -47,13 +49,14 @@ object BranchPriceRoutes {
 
     fun register(config: JavalinConfig) {
         // 503bf228 — any branch member who can edit the branch sets its prices (unknown branch 404s first).
-        config.routes.before(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH) { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            BranchService.findById(branchId)
-            Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-        }
+        val branchInventoryPriceGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+                BranchService.findById(branchId)
+                Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+            }
 
-        config.routes.put(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH) { context ->
+        config.put(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH, branchInventoryPriceGate) { context ->
             val request = context.bodyAsClass<SetBranchPriceRequest>()
             BranchPriceService.setPrice(
                 callerId = context.callerUuid(),

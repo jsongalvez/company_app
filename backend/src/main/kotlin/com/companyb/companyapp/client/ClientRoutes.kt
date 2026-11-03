@@ -1,6 +1,10 @@
 package com.companyb.companyapp.client
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
 import com.companyb.companyapp.authorization.Access
@@ -116,60 +120,63 @@ object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 
     fun register(config: JavalinConfig) {
-        // exact-segment lesson: before(CLIENTS) does NOT fire on child
-        // segments — item + anonymize routes need their own guards.
         // clients are global records with no branch context, so the gate accepts
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the concern-catalog
         // precedent and the any-context policy (AuditLogReadScope "client" agrees).
         // A GLOBAL-only gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never
         // derives GLOBAL). Relief day-grants satisfy for their windowed day (any day).
-        config.routes.before(ApiRoutes.CLIENTS) { context ->
-            Access.require(
-                context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
-            )
-        }
+        val clientsGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.WORK_ANYWHERE,
+                    message = "EDIT_BRANCH_DATA capability required to manage clients",
+                )
+            }
 
-        config.routes.before(ApiRoutes.CLIENT_DIRECTORY) { context ->
-            Access.require(
-                context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
-            )
-        }
+        val clientDirectoryGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.WORK_ANYWHERE,
+                    message = "EDIT_BRANCH_DATA capability required to manage clients",
+                )
+            }
 
-        config.routes.before(ApiRoutes.CLIENTS_RECENT) { context ->
-            Access.require(
-                context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
-            )
-        }
+        val clientsRecentGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.WORK_ANYWHERE,
+                    message = "EDIT_BRANCH_DATA capability required to manage clients",
+                )
+            }
 
-        config.routes.before(ApiRoutes.CLIENT_PATH) { context ->
-            Access.require(
-                context,
-                Act.WORK_ANYWHERE,
-                message = "EDIT_BRANCH_DATA capability required to manage clients",
-            )
-        }
+        val clientGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.WORK_ANYWHERE,
+                    message = "EDIT_BRANCH_DATA capability required to manage clients",
+                )
+            }
 
-        config.routes.before(ApiRoutes.CLIENT_ANONYMIZE_PATH) { context ->
-            Access.require(
-                context,
-                Act.ERASE_CLIENT,
-                message = "Only a Coordinator or above can erase personal details",
-            )
-        }
+        val clientAnonymizeGate =
+            Gate.Before { context ->
+                Access.require(
+                    context,
+                    Act.ERASE_CLIENT,
+                    message = "Only a Coordinator or above can erase personal details",
+                )
+            }
 
-        config.routes.post(ApiRoutes.CLIENTS, ::handleCreate)
-        config.routes.get(ApiRoutes.CLIENTS, ::handleSearch)
-        config.routes.get(ApiRoutes.CLIENT_DIRECTORY, ::handleDirectory)
-        config.routes.get(ApiRoutes.CLIENTS_RECENT, ::handleRecent)
-        config.routes.get(ApiRoutes.CLIENT_PATH, ::handleGetById)
-        config.routes.patch(ApiRoutes.CLIENT_PATH, ::handleUpdate)
-        config.routes.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, ::handleAnonymize)
+        config.post(ApiRoutes.CLIENTS, clientsGate, ::handleCreate)
+        config.get(ApiRoutes.CLIENTS, clientsGate, ::handleSearch)
+        config.get(ApiRoutes.CLIENT_DIRECTORY, clientDirectoryGate, ::handleDirectory)
+        config.get(ApiRoutes.CLIENTS_RECENT, clientsRecentGate, ::handleRecent)
+        config.get(ApiRoutes.CLIENT_PATH, clientGate, ::handleGetById)
+        config.patch(ApiRoutes.CLIENT_PATH, clientGate, ::handleUpdate)
+        config.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, clientAnonymizeGate, ::handleAnonymize)
     }
 
     private fun handleCreate(context: Context) {

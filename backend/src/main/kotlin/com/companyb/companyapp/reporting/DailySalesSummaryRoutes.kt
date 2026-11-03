@@ -1,5 +1,7 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.parseBrowseLimit
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
@@ -72,26 +74,28 @@ object DailySalesSummaryRoutes {
         // 404 precedence for an unknown branch before the capability gate
         //  (precedent): the ForBranchId gates alone conflate
         // "unknown branch" with "known but non-member".
-        config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
-            val branchId = context.pathParamAsUuid("branchId")
-            BranchService.findById(branchId)
-            val date = parseRequiredDate(context)
-            // the single-day read accepts the relief grant: a BRANCH_DAY
-            // `EDIT_BRANCH_DATA` holder reads the granted day's summary (the read mirror
-            // of the day-scoped write surface). The day resolves find-only — a
-            // missing day row means no day grant can exist for it, and the branch/global
-            // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
-            // a multi-day list cannot be authorized by a single-day grant.
-            Access.require(context, Act.SEE_DAY, Place.onDate(branchId, date))
-        }
+        val branchDailySummaryGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid("branchId")
+                BranchService.findById(branchId)
+                val date = parseRequiredDate(context)
+                // the single-day read accepts the relief grant: a BRANCH_DAY
+                // `EDIT_BRANCH_DATA` holder reads the granted day's summary (the read mirror
+                // of the day-scoped write surface). The day resolves find-only — a
+                // missing day row means no day grant can exist for it, and the branch/global
+                // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
+                // a multi-day list cannot be authorized by a single-day grant.
+                Access.require(context, Act.SEE_DAY, Place.onDate(branchId, date))
+            }
 
-        config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->
-            val branchId = context.pathParamAsUuid("branchId")
-            BranchService.findById(branchId)
-            Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-        }
+        val branchDailySummariesGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid("branchId")
+                BranchService.findById(branchId)
+                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
+            }
 
-        config.routes.get(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH, branchDailySummaryGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             val date = parseRequiredDate(context)
 
@@ -101,7 +105,7 @@ object DailySalesSummaryRoutes {
             context.json(summary.toResponse())
         }
 
-        config.routes.get(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->
+        config.get(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH, branchDailySummariesGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             val cursor = parseCursor(context.queryParam("cursor"))
             val limit = parseBrowseLimit(context.queryParam("limit"))

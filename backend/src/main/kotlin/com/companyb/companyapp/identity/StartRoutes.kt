@@ -1,7 +1,9 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.contracts.identity.StartResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
@@ -30,7 +32,7 @@ import java.util.UUID
 )
 object StartRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.START) { context ->
+        config.get(ApiRoutes.START, Gate.SignedIn("the caller's own start screen")) { context ->
             val asked = context.queryParam("branchId")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
             context.json(StartService.get(context.callerUuid(), asked, context.queryParam("withToday") == "true"))
         }

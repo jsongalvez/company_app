@@ -1,5 +1,7 @@
 package com.companyb.companyapp.branchday
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
@@ -50,25 +52,27 @@ object BranchDayRoutes {
     private const val BRANCH_DAY_ID_PARAM = "branchDayId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.BRANCH_TODAY_PATH) { context ->
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            // 404 precedence for an unknown branch before the today gate
-            //  (precedent): the access check alone conflates
-            // "unknown branch" with "known but non-member".
-            BranchService.findById(branchId)
-            // via the shared today gate: a BRANCH_DAY relief grant for today
-            // reads today's status for its granted day.
-            Access.require(context, Act.WORK_DAY, Place.today(branchId))
-        }
+        val branchTodayGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+                // 404 precedence for an unknown branch before the today gate
+                //  (precedent): the access check alone conflates
+                // "unknown branch" with "known but non-member".
+                BranchService.findById(branchId)
+                // via the shared today gate: a BRANCH_DAY relief grant for today
+                // reads today's status for its granted day.
+                Access.require(context, Act.WORK_DAY, Place.today(branchId))
+            }
 
-        config.routes.before(ApiRoutes.BRANCH_DAY_USERS_PATH) { context ->
-            val branchDayId = context.pathParamAsUuid(BRANCH_DAY_ID_PARAM)
-            Access.require(context, Act.PAY, Place.day(branchDayId))
-        }
+        val branchDayUsersGate =
+            Gate.Before { context ->
+                val branchDayId = context.pathParamAsUuid(BRANCH_DAY_ID_PARAM)
+                Access.require(context, Act.PAY, Place.day(branchDayId))
+            }
 
-        config.routes.get(ApiRoutes.BRANCH_TODAY_PATH, ::handleGetToday)
+        config.get(ApiRoutes.BRANCH_TODAY_PATH, branchTodayGate, ::handleGetToday)
 
-        config.routes.get(ApiRoutes.BRANCH_DAY_USERS_PATH, ::handleGetUsers)
+        config.get(ApiRoutes.BRANCH_DAY_USERS_PATH, branchDayUsersGate, ::handleGetUsers)
     }
 
     private fun handleGetToday(context: Context) {

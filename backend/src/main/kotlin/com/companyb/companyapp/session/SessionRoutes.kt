@@ -1,7 +1,12 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
+import com.companyb.companyapp.api.patch
+import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.bodyIfPresent
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -324,54 +329,48 @@ object SessionRoutes {
     private val logger = KotlinLogging.logger {}
 
     fun register(config: JavalinConfig) {
-        registerStatusPriceVoidGates(config)
-        registerPractitionerGates(config)
-        registerConcernGates(config)
         registerHandlers(config)
         registerPreview(config)
     }
 
     private fun registerHandlers(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
-        config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
-        // the practitioners list read (add-self refresh); the existing
-        // SESSION_PRACTITIONERS_PATH before-filter already gates GET on the same
-        // EDIT_BRANCH_DATA branch-or-branch-day check as the mutations.
-        config.routes.get(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleGetPractitioners)
-        config.routes.patch(ApiRoutes.SESSION_STATUS_PATH, ::handleUpdateStatus)
-        config.routes.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, ::handleUpdateFinalPrice)
-        config.routes.post(ApiRoutes.SESSION_VOID_PATH, ::handleVoidSession)
-        config.routes.post(ApiRoutes.SESSION_UNVOID_PATH, ::handleUnvoidSession)
-        config.routes.post(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleAddPractitioner)
-        config.routes.patch(
-            ApiRoutes.SESSION_PRACTITIONER_PATH,
-            ::handleUpdatePractitionerRemarks,
+        config.get(
+            ApiRoutes.SESSION_PATH,
+            Gate.InHandler("DashboardService.getSessionDetail: the session's day"),
+            ::handleGetSession,
         )
-        config.routes.delete(
-            ApiRoutes.SESSION_PRACTITIONER_PATH,
-            ::handleRemovePractitioner,
-        )
-        config.routes.get(ApiRoutes.CONCERNS, ::handleGetConcerns)
-        config.routes.delete(ApiRoutes.CONCERN_PATH, ::handleRemoveConcernFromList)
-        config.routes.get(ApiRoutes.SESSION_CONCERNS_PATH, ::handleGetSessionConcerns)
-        config.routes.post(ApiRoutes.SESSION_CONCERNS_PATH, ::handleAddSessionConcern)
-        config.routes.delete(ApiRoutes.SESSION_CONCERN_PATH, ::handleRemoveSessionConcern)
-        config.routes.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, ::handlePromoteConcern)
+        config.post(ApiRoutes.SESSIONS, Gate.InHandler("SessionSaveService: the body's day"), ::handleCreateSession)
+        // The practitioners list read (add-self refresh) takes the same gate as the mutations.
+        config.get(ApiRoutes.SESSION_PRACTITIONERS_PATH, sessionPractitionersGate, ::handleGetPractitioners)
+        config.patch(ApiRoutes.SESSION_STATUS_PATH, sessionStatusGate, ::handleUpdateStatus)
+        config.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, sessionFinalPriceGate, ::handleUpdateFinalPrice)
+        config.post(ApiRoutes.SESSION_VOID_PATH, sessionVoidGate, ::handleVoidSession)
+        config.post(ApiRoutes.SESSION_UNVOID_PATH, sessionUnvoidGate, ::handleUnvoidSession)
+        config.post(ApiRoutes.SESSION_PRACTITIONERS_PATH, sessionPractitionersGate, ::handleAddPractitioner)
+        config.patch(ApiRoutes.SESSION_PRACTITIONER_PATH, sessionPractitionerGate, ::handleUpdatePractitionerRemarks)
+        config.delete(ApiRoutes.SESSION_PRACTITIONER_PATH, sessionPractitionerGate, ::handleRemovePractitioner)
+        config.get(ApiRoutes.CONCERNS, concernsGate, ::handleGetConcerns)
+        config.delete(ApiRoutes.CONCERN_PATH, concernGate, ::handleRemoveConcernFromList)
+        config.get(ApiRoutes.SESSION_CONCERNS_PATH, sessionConcernsGate, ::handleGetSessionConcerns)
+        config.post(ApiRoutes.SESSION_CONCERNS_PATH, sessionConcernsGate, ::handleAddSessionConcern)
+        config.delete(ApiRoutes.SESSION_CONCERN_PATH, sessionConcernGate, ::handleRemoveSessionConcern)
+        config.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, sessionPromoteConcernGate, ::handlePromoteConcern)
     }
 
     private fun registerPreview(config: JavalinConfig) {
-        config.routes.before(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH) { context ->
-            val branchId = context.pathParamAsUuid("branchId")
-            // 404 precedence for an unknown branch before the today gate
-            //  (SessionBaseRateRoutes / BranchInventoryRoutes precedent):
-            // the access check alone conflates "unknown branch" with
-            // "known but non-member" (findToday is null for both).
-            BranchService.findById(branchId)
-            // Same gate as the create it previews: the preview passes exactly
-            // when the create would.
-            Access.require(context, Act.WORK_DAY, Place.today(branchId))
-        }
-        config.routes.get(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH, ::handleGetSessionPreview)
+        val branchSessionPreviewGate =
+            Gate.Before { context ->
+                val branchId = context.pathParamAsUuid("branchId")
+                // 404 precedence for an unknown branch before the today gate
+                //  (SessionBaseRateRoutes / BranchInventoryRoutes precedent):
+                // the access check alone conflates "unknown branch" with
+                // "known but non-member" (findToday is null for both).
+                BranchService.findById(branchId)
+                // Same gate as the create it previews: the preview passes exactly
+                // when the create would.
+                Access.require(context, Act.WORK_DAY, Place.today(branchId))
+            }
+        config.get(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH, branchSessionPreviewGate, ::handleGetSessionPreview)
     }
 
     private fun handleGetPractitioners(context: Context) {
@@ -742,56 +741,60 @@ object SessionRoutes {
         )
 }
 
-private fun registerStatusPriceVoidGates(config: JavalinConfig) {
-    config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
+private val sessionStatusGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
         SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
     }
 
-    config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
+private val sessionFinalPriceGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
-    config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
+private val sessionVoidGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.VOID)
     }
 
-    config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
+private val sessionUnvoidGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.VOID)
     }
-}
 
-private fun registerPractitionerGates(config: JavalinConfig) {
-    config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
+private val sessionPractitionersGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
-    config.routes.before(ApiRoutes.SESSION_PRACTITIONER_PATH) { context ->
-        val sessionId = context.pathParamAsUuid("sessionId")
-        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
-    }
-}
-
-private fun registerConcernGates(config: JavalinConfig) {
-    config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
+private val sessionPractitionerGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
-    // the DELETE child path needs its own gate: Javalin path filters match
-    // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
-    config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
+private val sessionConcernsGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
-    config.routes.before(ApiRoutes.CONCERNS) { context ->
+// the DELETE child path needs its own gate: Javalin path filters match
+// exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
+private val sessionConcernGate =
+    Gate.Before { context ->
+        val sessionId = context.pathParamAsUuid("sessionId")
+        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
+    }
+
+private val concernsGate =
+    Gate.Before { context ->
         // the catalog list is global with no branch context, so the gate accepts
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only
@@ -799,7 +802,8 @@ private fun registerConcernGates(config: JavalinConfig) {
         Access.require(context, Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
     }
 
-    config.routes.before(ApiRoutes.CONCERN_PATH) { context ->
+private val concernGate =
+    Gate.Before { context ->
         // the catalog list is global with no branch context, so the gate accepts
         // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
         // the session-anchored promote write requires at its session branch. A GLOBAL-only
@@ -807,8 +811,8 @@ private fun registerConcernGates(config: JavalinConfig) {
         Access.require(context, Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
     }
 
-    config.routes.before(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH) { context ->
+private val sessionPromoteConcernGate =
+    Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
-}

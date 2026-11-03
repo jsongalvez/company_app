@@ -1,7 +1,9 @@
 package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.contracts.session.TodayScreenResponse
 import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
@@ -30,7 +32,10 @@ import java.util.UUID
 )
 object TodayScreenRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.get(ApiRoutes.BRANCH_TODAY_SCREEN_PATH) { context ->
+        config.get(
+            ApiRoutes.BRANCH_TODAY_SCREEN_PATH,
+            Gate.InHandler("TodayScreenService: per part of the screen"),
+        ) { context ->
             context.json(response(TodayScreenService.get(context.callerUuid(), context.pathParamAsUuid("branchId"))))
         }
     }
