@@ -2,6 +2,7 @@
     import { viewSetting } from "../lib/router.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
+    import { today } from "../lib/today.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
@@ -106,8 +107,8 @@
         if (!i) return;
         await a.run(
             async () => {
-                if (!app.today) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
-                const dayId = app.today.branchDayId;
+                if (!today.day) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
+                const dayId = today.day.branchDayId;
                 const er = editReason.trim() || null;
                 if (mode === "restock") {
                     await ok(
@@ -323,7 +324,7 @@
         {/if}
         <label class="field"><span class="req">Quantity</span><input class="num" type="number" min="1" bind:value={qty} required /></label>
         {#if mode === "adjust"}<label class="field wide">Notes<input bind:value={notes} /></label>{/if}
-        {#if app.today?.status !== "OPEN"}<label class="field wide">Reason for edit<input bind:value={editReason} /></label>{/if}
+        {#if today.day?.status !== "OPEN"}<label class="field wide">Reason for edit<input bind:value={editReason} /></label>{/if}
     </div>
 </Dialog>
 

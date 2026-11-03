@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { app, can, canRead, selectBranch, signOut, clockIn, clockOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
+    import { app, can, canRead, signOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
+    import { today, selectBranch, clockIn, clockOut } from "../lib/today.svelte";
     import { route, go } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import FullIcon from "./FullIcon.svelte";
@@ -24,7 +25,7 @@
     // Today's Expenses & pay and Sales reports, as those pages read them when opened with no date.
     function financeReads(): Loader<unknown>[] {
         const d = operationalDate();
-        const dayId = app.today?.branchDayId;
+        const dayId = today.day?.branchDayId;
         if (!dayId) return [load.branchDay(bid, d)];
         const pay = can("PAY", { branch: bid, day: dayId });
         return [
@@ -153,8 +154,8 @@
     });
 
     const here = $derived(app.branches.find((b) => b.branchId === bid));
-    const clockedHere = $derived(app.shift?.branchId === bid);
-    const clockedElsewhere = $derived(!!app.shift && app.shift.branchId !== bid);
+    const clockedHere = $derived(today.shift?.branchId === bid);
+    const clockedElsewhere = $derived(!!today.shift && today.shift.branchId !== bid);
     let clockBusy = $state(false);
 
     async function doClockIn() {
@@ -260,20 +261,20 @@
 
         <span class="day nowrap" title="Business day. It ends at 4 AM.">
             {day(opDate)}
-            {#if app.today?.status && app.today.status !== "OPEN"}
-                <span class="mark {app.today.status === 'REMITTED' ? 'info' : 'plain'}">{label(app.today.status)}</span>
+            {#if today.day?.status && today.day.status !== "OPEN"}
+                <span class="mark {today.day.status === 'REMITTED' ? 'info' : 'plain'}">{label(today.day.status)}</span>
             {/if}
         </span>
 
         <span class="spacer"></span>
 
         {#if clockedHere}
-            <button class="clock ok" onclick={doClockOut} disabled={clockBusy} title="On duty here{app.shift?.isRelief ? ' (relief)' : ''}">Clock out</button>
+            <button class="clock ok" onclick={doClockOut} disabled={clockBusy} title="On duty here{today.shift?.isRelief ? ' (relief)' : ''}">Clock out</button>
         {:else if clockedElsewhere}
-            <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {app.shift?.branchName}"
-                >Clock out<span class="hide-sm">&nbsp;of {app.shift?.branchName}</span></button
+            <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {today.shift?.branchName}"
+                >Clock out<span class="hide-sm">&nbsp;of {today.shift?.branchName}</span></button
             >
-        {:else if bid && here && app.shiftKnown}
+        {:else if bid && here && today.shiftKnown}
             <button class="primary" onclick={doClockIn} disabled={clockBusy}>Clock in</button>
         {/if}
 

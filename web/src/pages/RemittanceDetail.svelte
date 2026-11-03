@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, ApiError, type S } from "../api/client";
-    import { can, branchName, refreshBranchDay, toast } from "../lib/app.svelte";
+    import { can, branchName, toast } from "../lib/app.svelte";
+    import { refreshDay } from "../lib/today.svelte";
     import { Query, wrote } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { remittable } from "../lib/remittable";
@@ -212,7 +213,7 @@
             sOpen = false;
             wrote("remitted");
             reload();
-            void refreshBranchDay();
+            void refreshDay();
         }
     }
 
@@ -228,7 +229,7 @@
         if (await ua.run(() => ok(api.POST("/api/remittances/{remittanceId}/undo", { params: { path: { remittanceId: id } }, body })), "Back to draft")) {
             uOpen = false;
             reload();
-            void refreshBranchDay();
+            void refreshDay();
         }
     }
 

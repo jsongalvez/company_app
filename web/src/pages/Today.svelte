@@ -5,8 +5,9 @@
 
 <script lang="ts">
     import { MediaQuery } from "svelte/reactivity";
-    import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
-    import { app, can, canRead, branchName, refreshBranchDay, clockIn, selectBranch, onDutyAt, showMark, applyStart } from "../lib/app.svelte";
+    import { api, ok, BASE_STATUS, type S } from "../api/client";
+    import { app, can, canRead, branchName } from "../lib/app.svelte";
+    import { today, refreshDay, clockIn, selectBranch, onDutyAt, markMember } from "../lib/today.svelte";
     import { Query, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
@@ -78,7 +79,7 @@
     const pastSumShown = $derived(pastSum.data ?? (pastSum.loading ? heldSum : undefined));
     const remitted = $derived(!isToday && pastDay.data?.status === "REMITTED");
     /** The day a sale is added to: today's, or the earlier day's when it has a row. */
-    const saleDay = $derived(isToday ? app.today?.branchDayId : pastDay.data?.id);
+    const saleDay = $derived(isToday ? today.day?.branchDayId : pastDay.data?.id);
     const dash = new Query(load.dashboard(app.branchId).key, load.dashboard(app.branchId).fn);
     /** The caller's own commission: today's from the dashboard, an earlier day's from its shares. */
     const ownCommission = $derived(
@@ -87,7 +88,7 @@
     type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
     const roster = new Query<Roster>();
     /** The roster with a just-confirmed mark shown before the server has answered. */
-    const rosterShown = $derived(roster.data?.map((m) => (app.marking?.userId === m.userId ? { ...m, present: app.marking.present } : m)));
+    const rosterShown = $derived(roster.data?.map((m) => (today.marking?.userId === m.userId ? { ...m, present: today.marking.present } : m)));
     const booked = new Query<Booking[]>();
     const earlierWaiting = new Query<string[]>();
     /** The on-duty list is for the branch's own staff; others get a note instead. */
@@ -201,13 +202,13 @@
     /** The Refresh button and key: everything on screen, including the day's status. */
     function refresh() {
         reloadLists();
-        void refreshBranchDay();
+        void refreshDay();
     }
 
     async function mark(s: S["DashboardSessionResponse"], to: Status) {
         const undo = to === "PENDING";
         // An earlier or closed day asks for the reason, which is also the confirmation.
-        const closed = !isToday || (!!app.today && app.today.status !== "OPEN");
+        const closed = !isToday || (!!today.day && today.day.status !== "OPEN");
         const reason = closed ? await askReason(undo ? "Undo" : `Mark ${label(to)}`) : "";
         if (reason === null) return;
         if (!reason && to !== "COMPLETED" && !undo && !confirm(`Mark ${s.clientName ?? "session"} as ${label(to)}?`)) return;
@@ -239,20 +240,7 @@
     async function setPresent(m: S["MemberAttendanceResponse"], present: boolean) {
         const mine = m.userId === app.me?.id;
         if (!confirm(`${present ? "Clock in" : "Clock out"} ${mine ? "yourself" : m.displayName}?`)) return;
-        const attendanceId = present ? uuid() : null;
-        const undo = showMark(m.userId, present, bid, attendanceId);
-        let answer: S["AttendanceMarkResponse"] | undefined;
-        const done = await act(async () => {
-            answer = await ok(
-                api.POST("/api/branches/{branchId}/attendance/marks", {
-                    params: { path: { branchId: bid }, query: { withToday: true } },
-                    body: { userId: m.userId, present, attendanceId },
-                }),
-            );
-        });
-        if (!done) return undo();
-        // The answer carries the shift, the day and the roster: the top bar and Today change with it.
-        await applyStart(answer?.start);
+        await markMember(m.userId, present, bid);
     }
 
     const needClockIn = $derived(!!dash.error && /clocked in/i.test(dash.error));
@@ -315,9 +303,9 @@
 
 {#if remitted}
     <div class="notice warn mb">{day(date)} is remitted. Changes need coordinator rights and a reason.</div>
-{:else if isToday && app.today && app.today.status !== "OPEN"}
+{:else if isToday && today.day && today.day.status !== "OPEN"}
     <div class="notice warn mb">
-        This day is {label(app.today.status)}. Edits need coordinator rights{app.today.status === "REMITTED" ? " and a reason" : ""}.
+        This day is {label(today.day.status)}. Edits need coordinator rights{today.day.status === "REMITTED" ? " and a reason" : ""}.
     </div>
 {/if}
 {#if isToday && earlierWaiting.data?.length}
@@ -378,16 +366,16 @@
         {#if isToday && edit && !needClockIn && !onDutyAt(bid)}
             <div class="notice row mb">
                 <span class="grow">Clock in at {branchName(bid)} to add new sessions.</span>
-                {#if !app.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={() => clockIn(bid)}>Clock in</button>{/if}
+                {#if !today.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={() => clockIn(bid)}>Clock in</button>{/if}
             </div>
         {/if}
         {#if isToday && needClockIn}
             <div class="notice row">
-                {#if app.shift && app.shift.branchId !== bid}
-                    <span class="grow">You're clocked in at {app.shift.branchName}. Clock out there before clocking in here.</span>
-                    <button onclick={() => selectBranch(app.shift!.branchId)}>Go to {app.shift.branchName}</button>
+                {#if today.shift && today.shift.branchId !== bid}
+                    <span class="grow">You're clocked in at {today.shift.branchName}. Clock out there before clocking in here.</span>
+                    <button onclick={() => selectBranch(today.shift!.branchId)}>Go to {today.shift.branchName}</button>
                 {:else}<span class="grow">Clock in at {branchName(bid)} to see and log today's sessions.</span>{/if}
-                {#if app.shift && app.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button
+                {#if today.shift && today.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button
                         class="primary"
                         onclick={() => clockIn(bid)}>Clock in</button
                     >{:else}<a href="#/relief">Request relief duty</a>{/if}

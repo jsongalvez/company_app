@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app } from "../lib/app.svelte";
+    import { today } from "../lib/today.svelte";
     import { wrote, fetchCached, peek } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { askReason } from "../lib/ask.svelte";
@@ -84,7 +85,7 @@
         if (sale) return change(sale);
         await a.run(async () => {
             if (!item) throw new Error("Choose a product");
-            const target = day ? day.id : (dayId ?? app.today?.branchDayId);
+            const target = day ? day.id : (dayId ?? today.day?.branchDayId);
             if (!target) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
             // Opened from a session's page, the sale is that session's, on whatever day it was.
             const linked = sessionId ?? sessions.find((x) => x.id === linkSession)?.id ?? null;

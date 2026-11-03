@@ -1,6 +1,7 @@
 <script lang="ts">
     import { api, ok, type S } from "../api/client";
-    import { app, refreshUnread, branchName, selectBranch } from "../lib/app.svelte";
+    import { app, refreshUnread, branchName } from "../lib/app.svelte";
+    import { selectBranch } from "../lib/today.svelte";
     import { Query, wrote } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";

@@ -3,6 +3,7 @@
     import { askReason, keepReason, lastReason } from "../lib/ask.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can, canRead } from "../lib/app.svelte";
+    import { today } from "../lib/today.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -22,7 +23,7 @@
     const isToday = $derived(date === operationalDate());
 
     // Resolve the branch day for the chosen date. Today's is already known, so it draws with no loading line.
-    const todayDay = $derived(isToday && app.today ? { id: app.today.branchDayId, date, status: app.today.status } : undefined);
+    const todayDay = $derived(isToday && today.day ? { id: today.day.branchDayId, date, status: today.day.status } : undefined);
     const dayQ = new Query<S["RemittanceDayPickerEntryResponse"] | null>();
     $effect(() => {
         if (todayDay) return;

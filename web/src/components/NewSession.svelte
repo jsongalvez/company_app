@@ -3,8 +3,9 @@
     import { guessPreview, rememberPrice } from "../lib/prices";
     import { rememberClient } from "../lib/clientdir.svelte";
     import { app, can } from "../lib/app.svelte";
+    import { today, takeLists } from "../lib/today.svelte";
     import { wrote, fetchCached } from "../lib/cache.svelte";
-    import { load, seedTodayScreen } from "../lib/data";
+    import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { label, peso, operationalDate, shortDay } from "../lib/format";
     import { createBody, emptyDraft } from "../lib/client-draft";
@@ -74,7 +75,7 @@
         );
         a.reset();
         // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
-        const day = (date ? dayId : app.today?.branchDayId) || undefined;
+        const day = (date ? dayId : today.day?.branchDayId) || undefined;
         const usersOf = day && can("PAY", { branch: app.branchId, day }) ? day : undefined;
         const l = usersOf ? load.dayUsers(usersOf) : null;
         const m = load.members(app.branchId);
@@ -196,7 +197,7 @@
                         : null,
                 ]);
                 wrote("bookings");
-                if (withToday && s.todayScreen) seedTodayScreen(app.branchId, Promise.resolve(s.todayScreen));
+                if (withToday && s.todayScreen) takeLists(app.branchId, s.todayScreen);
                 wrote("sessionAdded", c.id, s.id);
                 open = false;
                 onsaved();

@@ -4,6 +4,7 @@
     import { sortConcerns } from "../lib/concerns";
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
+    import { today } from "../lib/today.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act, Action } from "../lib/act.svelte";
@@ -47,7 +48,7 @@
     let staff = $state<{ id: string; name: string }[]>([]);
     $effect(() => {
         // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
-        const dayId = isToday && can("PAY") ? app.today?.branchDayId : undefined;
+        const dayId = isToday && can("PAY") ? today.day?.branchDayId : undefined;
         const du = dayId ? load.dayUsers(dayId) : null;
         const mem = load.members(app.branchId);
         Promise.all([du ? fetchCached(du.key, du.fn).catch(() => []) : Promise.resolve([]), fetchCached(mem.key, mem.fn).catch(() => [])]).then(([a, b]) => {
@@ -58,9 +59,9 @@
         });
     });
     /** The session's own day: the server checks edits and voids there (SessionAuthz). */
-    const sessionAt = $derived({ branch: app.branchId, day: s?.branchDayId ?? (isToday ? app.today?.branchDayId : undefined) });
+    const sessionAt = $derived({ branch: app.branchId, day: s?.branchDayId ?? (isToday ? today.day?.branchDayId : undefined) });
     const voided = $derived(s?.isVoided ?? false);
-    const dayStatus = $derived(s?.dayStatus ?? (isToday ? app.today?.status : "PAST"));
+    const dayStatus = $derived(s?.dayStatus ?? (isToday ? today.day?.status : "PAST"));
     /** A remitted day takes changes only from those who may change remitted days. */
     const locked = $derived(dayStatus === "REMITTED" && !can("CHANGE_CLOSED_DAY"));
     const edit = $derived(!locked && can("WORK_DAY", sessionAt));
