@@ -3,6 +3,7 @@ package com.companyb.companyapp.authorization
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -43,7 +44,7 @@ internal object GrantStore {
     fun grantReliefCapabilityInTransaction(params: GrantReliefCapabilityParams) {
         UserCapabilityTable.insertIgnore {
             it[UserCapabilityTable.userId] = params.userId
-            it[UserCapabilityTable.capabilityId] = editBranchDataCapabilityId()
+            it[UserCapabilityTable.capabilityId] = capabilityId(CapabilityCodes.EDIT_BRANCH_DATA)
             it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
             it[UserCapabilityTable.contextId] = params.branchDayId
             it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
@@ -85,17 +86,42 @@ internal object GrantStore {
         targetUserId: UUID,
         branchId: UUID,
         delegateId: UUID,
+        role: DelegateRole = DelegateRole.PRACTITIONER,
     ) {
-        UserCapabilityTable.insert {
-            it[UserCapabilityTable.userId] = targetUserId
-            it[UserCapabilityTable.capabilityId] = editBranchDataCapabilityId()
-            it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
-            it[UserCapabilityTable.contextId] = branchId
-            it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-            it[UserCapabilityTable.sourceId] = delegateId
-            it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
+        helperCodes(role).forEach { code ->
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = targetUserId
+                it[UserCapabilityTable.capabilityId] = capabilityId(code)
+                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
+                it[UserCapabilityTable.contextId] = branchId
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
+                it[UserCapabilityTable.sourceId] = delegateId
+                it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
+            }
         }
     }
+
+    /**
+     * EDIT_BRANCH_DATA carries a member's rights through active_user_capabilities; a
+     * Coordinator's branch rights come on top.
+     */
+    private fun helperCodes(role: DelegateRole): List<String> =
+        when (role) {
+            DelegateRole.PRACTITIONER -> {
+                listOf(CapabilityCodes.EDIT_BRANCH_DATA)
+            }
+
+            DelegateRole.COORDINATOR -> {
+                listOf(
+                    CapabilityCodes.EDIT_BRANCH_DATA,
+                    CapabilityCodes.EDIT_PAST_DAY,
+                    CapabilityCodes.SUBMIT_REMITTANCE,
+                    CapabilityCodes.ASSIGN_COMPENSATION,
+                    CapabilityCodes.MANAGE_PRODUCTS,
+                    CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS,
+                )
+            }
+        }
 
     /**
      * Delegate-grant close (moved): ends the capability window opened by
@@ -113,8 +139,6 @@ internal object GrantStore {
             }
     }
 
-    private fun editBranchDataCapabilityId(): UUID =
-        checkNotNull(
-            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
-        ) { "EDIT_BRANCH_DATA capability not found" }
+    private fun capabilityId(code: String): UUID =
+        checkNotNull(CapabilityRepository.findIdByCode(code)) { "$code capability not found" }
 }

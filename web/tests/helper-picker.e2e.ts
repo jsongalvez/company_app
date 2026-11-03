@@ -54,11 +54,14 @@ test("a mission helper finds the mission in their branch picker", { session: "ow
     await expect(nb).toBeHidden();
     await screen.getByRole("row").filter({ hasText: mission }).tap();
     await screen.getByRole("button", "Add helper").tap();
-    const add = screen.getByRole("dialog", "Add mission helper");
+    const add = screen.getByRole("dialog", "Add helper");
     await add.getByLabel("Search people").fill(tag);
     await add.getByRole("row").filter({ hasText: name }).tap();
+    await add.getByLabel("Role here").selectOption({ label: "Coordinator" });
     await add.getByRole("button", "Add").tap();
     await expect(add).toBeHidden();
+    await expect(screen.getByRole("row").filter({ hasText: name }).getByText("Coordinator")).toBeVisible();
+    await expect(screen.getByRole("button", "Add person")).toBeHidden();
 
     await signIn(app, screen, username, password);
     await expect(screen.getByLabel("Branch").getByRole("option", mission)).toBeAttached();

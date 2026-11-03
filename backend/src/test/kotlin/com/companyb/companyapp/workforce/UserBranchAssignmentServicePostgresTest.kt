@@ -3,6 +3,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -222,6 +223,22 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         }
 
         assertEquals(1L, auditEntryCount(assignmentId))
+    }
+
+    @Test
+    fun `a medical mission and a provincial tour take no staff, only helpers`() {
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
+        listOf(BranchType.MEDICAL_MISSION, BranchType.PROVINCIAL_TOUR).forEach { type ->
+            val away = TestFixtures.uuid()
+            BranchWorkforceFixtures.insertTestBranch(away, branchType = type)
+
+            val refused =
+                assertFailsWith<ValidationException>(type.name) {
+                    UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), away, userAId, 1)
+                }
+
+            assertEquals("Add them as a helper instead.", refused.message)
+        }
     }
 
     @Test

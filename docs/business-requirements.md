@@ -393,7 +393,9 @@ Each branch day has a status that governs edit permissions. Transition from OPEN
 ### Medical Mission
 
 - A free event — all sessions are `MEDICAL_MISSION` type and are always ₱0
-- Owner, Manager (or Superuser) assigns helpers (delegates) at a medical mission: any active staff member, not Onboarding-only and not an Accountant (user, message 13233: "A helper just means they're assigned"). A helper works there like a member until removed and can also receive transport allowances as practitioners.
+- Medical missions and provincial tours take no staff, only helpers (user, message 13324: "remove staff from medical mission and tour. Only helpers.").
+- Owner, Manager (or Superuser) assigns helpers (delegates) there: any active staff member, not Onboarding-only and not an Accountant (user, message 13233: "A helper just means they're assigned"). A helper works there like a member until removed and can also receive transport allowances as practitioners.
+- The assigner picks the helper's role there, Practitioner or Coordinator, and it decides what they can do there. A Coordinator helper also pays, remits, restocks and changes closed days at that branch.
 
 ---
 

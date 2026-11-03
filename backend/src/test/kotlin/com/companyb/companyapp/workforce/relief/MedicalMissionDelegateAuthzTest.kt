@@ -1,9 +1,13 @@
 package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.workforce.DelegateResponse
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -176,6 +180,75 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUser, missionBranch, managerUser)
         testServer.client.let { client ->
             assertEquals(403, client.delete("/api/delegates/$delegateId", null, asUser(noGrantUser)).code)
+        }
+    }
+
+    @Test
+    fun `a provincial tour takes helpers`() {
+        val tour = TestFixtures.uuid()
+        insertBranch(tour, BranchType.PROVINCIAL_TOUR)
+        val body =
+            mapOf(
+                "delegateId" to TestFixtures.uuid().toString(),
+                "targetUserId" to targetUser.toString(),
+                "branchId" to tour.toString(),
+                "role" to "PRACTITIONER",
+            )
+        testServer.client.let { client ->
+            assertEquals(201, client.post("/api/delegates", body, asUser(ownerUser)).code)
+            assertEquals(200, client.get("/api/branches/$tour/delegates", asUser(ownerUser)).code)
+        }
+    }
+
+    @Test
+    fun `a clinic takes no helpers`() {
+        val body =
+            mapOf(
+                "delegateId" to TestFixtures.uuid().toString(),
+                "targetUserId" to targetUser.toString(),
+                "branchId" to clinicBranch.toString(),
+            )
+        testServer.client.let { client ->
+            assertEquals(400, client.post("/api/delegates", body, asUser(ownerUser)).code)
+        }
+    }
+
+    @Test
+    fun `the role picked for a helper decides what they can do there and ends with them`() {
+        val practitioner = TestFixtures.uuid()
+        val coordinator = TestFixtures.uuid()
+        listOf(practitioner, coordinator).forEach {
+            IdentityFixtures.insertTestUser(it, "helper-${it.toString().take(6)}")
+            assignRole(it, "PRACTITIONER")
+        }
+        val here = Place.Branch(missionBranch)
+        val coordinatorActs = listOf(Act.CHANGE_CLOSED_DAY, Act.SUBMIT_REMITTANCE, Act.PAY, Act.MANAGE_STOCK)
+        val pick =
+            MedicalMissionDelegateService.assignDelegate(
+                TestFixtures.uuid(),
+                coordinator,
+                missionBranch,
+                ownerUser,
+                DelegateRole.COORDINATOR,
+            )
+        MedicalMissionDelegateService.assignDelegate(
+            TestFixtures.uuid(),
+            practitioner,
+            missionBranch,
+            ownerUser,
+            DelegateRole.PRACTITIONER,
+        )
+
+        assertEquals(DelegateRole.COORDINATOR, pick.role)
+        assertTrue(Access.allows(practitioner, Act.WORK_HOME_BRANCH, here))
+        coordinatorActs.forEach {
+            assertEquals(false, Access.allows(practitioner, it, here), "practitioner helper: $it")
+            assertEquals(true, Access.allows(coordinator, it, here), "coordinator helper: $it")
+        }
+
+        MedicalMissionDelegateService.revokeDelegate(pick.id, ownerUser)
+        coordinatorActs.forEach {
+            assertEquals(false, Access.allows(coordinator, it, here), "removed helper: $it")
         }
     }
 

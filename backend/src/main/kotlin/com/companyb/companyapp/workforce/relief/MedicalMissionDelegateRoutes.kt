@@ -85,7 +85,14 @@ object MedicalMissionDelegateRoutes {
             val targetUserId = uuidOrThrow(request.targetUserId, "target user id")
             val branchId = uuidOrThrow(request.branchId, "branch id")
 
-            val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
+            val result =
+                MedicalMissionDelegateService.assignDelegate(
+                    delegateId,
+                    targetUserId,
+                    branchId,
+                    callerId,
+                    request.role,
+                )
 
             context.status(HttpStatus.CREATED)
             context.json(result.toResponse())
@@ -116,5 +123,6 @@ object MedicalMissionDelegateRoutes {
             assignedBy = assignedBy.toString(),
             branchId = branchId.toString(),
             endedAt = endedAt?.toString(),
+            role = role,
         )
 }

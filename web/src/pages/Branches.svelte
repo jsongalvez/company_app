@@ -66,11 +66,12 @@
             const r = load.rates(sel);
             rates.load(r.key, r.fn);
         }
-        if (branch?.branchType === "MEDICAL_MISSION") {
+        if (takesHelpers) {
             const d = load.delegates(sel);
             helpers.load(d.key, d.fn);
         }
     });
+    const takesHelpers = $derived(!!branch && branch.branchType !== "CLINIC");
     const activeStaff = $derived((staff.data ?? []).filter((a) => !a.endedAt).sort((a, b) => a.slot - b.slot));
     const activeHelpers = $derived((helpers.data ?? []).filter((d) => !d.endedAt));
     const currentRates = $derived(
@@ -84,7 +85,7 @@
         invalidate(...keys);
         staff.refresh();
         if (seeRates) rates.refresh();
-        if (branch?.branchType === "MEDICAL_MISSION") helpers.refresh();
+        if (takesHelpers) helpers.refresh();
     }
 
     // New branch
@@ -208,12 +209,13 @@
         }
     }
 
-    // Mission helpers
+    // Helpers
     const ha = new Action();
     let hOpen = $state(false);
     let hUser = $state("");
+    let hRole = $state<"PRACTITIONER" | "COORDINATOR">("PRACTITIONER");
     async function addHelper() {
-        const body = { delegateId: uuid(), targetUserId: hUser, branchId: sel };
+        const body = { delegateId: uuid(), targetUserId: hUser, branchId: sel, role: hRole };
         if (await ha.run(() => ok(api.POST("/api/delegates", { body })), "Helper added")) {
             hOpen = false;
             refresh(`deleg:${sel}`);
@@ -251,10 +253,10 @@
                 <header>
                     <h2>Staff at {branch.name}</h2>
                     <span class="spacer"></span>
-                    {#if manageUsers}<button class="sm" onclick={openRename}>Rename branch</button><button class="sm" onclick={openStaff}>Add person</button
-                        >{/if}
+                    {#if manageUsers}<button class="sm" onclick={openRename}>Rename branch</button>{/if}
+                    {#if manageUsers && !takesHelpers}<button class="sm" onclick={openStaff}>Add person</button>{/if}
                 </header>
-                <State q={staff} empty={!!staff.data && activeStaff.length === 0} emptyText="No one works here yet." />
+                <State q={staff} empty={!!staff.data && activeStaff.length === 0 && !takesHelpers} emptyText="No one works here yet." />
                 {#if activeStaff.length}
                     <table class="grid">
                         <thead><tr><th class="num">Order</th><th>Name</th><th class="hide-sm">Since</th><th></th></tr></thead>
@@ -309,12 +311,14 @@
                 </section>
             {/if}
 
-            {#if branch.branchType === "MEDICAL_MISSION"}
+            {#if takesHelpers}
                 <section class="panel">
                     <header>
-                        <h2>Mission helpers</h2>
+                        <h2>Helpers</h2>
                         <span class="spacer"></span>
-                        {#if manageHelpers}<button class="sm" onclick={() => (ha.reset(), (hUser = ""), (hOpen = true))}>Add helper</button>{/if}
+                        {#if manageHelpers}<button class="sm" onclick={() => (ha.reset(), (hUser = ""), (hRole = "PRACTITIONER"), (hOpen = true))}
+                                >Add helper</button
+                            >{/if}
                     </header>
                     <State q={helpers} empty={!!helpers.data && activeHelpers.length === 0} emptyText="No helpers." />
                     {#if activeHelpers.length}
@@ -323,6 +327,7 @@
                                 {#each activeHelpers as d (d.id)}
                                     <tr>
                                         <td>{nameOf[d.targetUser] ?? "…"}</td>
+                                        <td>{label(d.role)}</td>
                                         <td class="muted">{dateTime(d.assignedAt)}</td>
                                         <td class="right"
                                             >{#if manageHelpers}<button class="sm" onclick={() => removeHelper(d)}>Remove</button>{/if}</td
@@ -380,13 +385,20 @@
     >
 </Dialog>
 
-<Dialog bind:open={hOpen} title="Add mission helper" width={400} onsubmit={addHelper} submitText="Add" busy={ha.busy || !hUser} error={ha.error}>
+<Dialog bind:open={hOpen} title="Add helper" width={400} onsubmit={addHelper} submitText="Add" busy={ha.busy || !hUser} error={ha.error}>
     <div class="field">
         <span class="req">Person</span><PersonPicker
             people={users.filter((u) => u.status !== "INACTIVE" && !activeHelpers.some((d) => d.targetUser === u.id))}
             bind:value={hUser}
         />
     </div>
+    <label class="field"
+        >Role here
+        <select bind:value={hRole}>
+            <option value="PRACTITIONER">{label("PRACTITIONER")}</option>
+            <option value="COORDINATOR">{label("COORDINATOR")}</option>
+        </select>
+    </label>
 </Dialog>
 
 <style>

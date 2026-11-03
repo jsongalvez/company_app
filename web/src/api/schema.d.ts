@@ -3194,6 +3194,8 @@ export interface components {
             delegateId: string;
             targetUserId: string;
             branchId: string;
+            /** @enum {string} */
+            role?: "PRACTITIONER" | "COORDINATOR";
         };
         AssignmentResponse: {
             id: string;
@@ -3384,6 +3386,8 @@ export interface components {
             assignedBy: string;
             branchId: string;
             endedAt?: string | null;
+            /** @enum {string} */
+            role: "PRACTITIONER" | "COORDINATOR";
         };
         DenyReliefAccessRequest: {
             reason?: string | null;

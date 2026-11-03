@@ -1,5 +1,6 @@
 package com.companyb.companyapp.authorization
 
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import java.util.UUID
 
 /**
@@ -33,7 +34,8 @@ object AuthorizationGrants {
         targetUserId: UUID,
         branchId: UUID,
         delegateId: UUID,
-    ) = GrantStore.grantDelegateCapabilityInTransaction(targetUserId, branchId, delegateId)
+        role: DelegateRole = DelegateRole.PRACTITIONER,
+    ) = GrantStore.grantDelegateCapabilityInTransaction(targetUserId, branchId, delegateId, role)
 
     /** Closes the delegate grant window for the delegate-revoke flow. Runs on the caller's transaction. */
     fun closeDelegateCapabilityInTransaction(delegateId: UUID) =

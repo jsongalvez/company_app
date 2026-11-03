@@ -6,6 +6,7 @@ import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -27,11 +28,9 @@ object MedicalMissionDelegateService {
         targetUserId: UUID,
         branchId: UUID,
         callerId: UUID,
+        role: DelegateRole = DelegateRole.PRACTITIONER,
     ): MedicalMissionDelegate {
-        val branch = BranchService.findById(branchId)
-        if (branch.branchType != BranchType.MEDICAL_MISSION) {
-            throw ValidationException("Medical mission delegate requires a medical mission Branch")
-        }
+        requireTakesHelpers(branchId)
         // unknown targets 404 before the eligibility 400 (precedent):
         // isActiveStaffInTransaction alone conflates "unknown user" with "known but ineligible".
         if (!AccountReads.userExists(targetUserId)) {
@@ -45,6 +44,7 @@ object MedicalMissionDelegateService {
                     targetUserId = targetUserId,
                     branchId = branchId,
                     callerId = callerId,
+                    role = role,
                 )
             }
 
@@ -58,6 +58,7 @@ object MedicalMissionDelegateService {
         targetUserId: UUID,
         branchId: UUID,
         callerId: UUID,
+        role: DelegateRole,
     ): MedicalMissionDelegate {
         val existingBeforeLock = MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
         if (existingBeforeLock != null) {
@@ -89,6 +90,7 @@ object MedicalMissionDelegateService {
                     targetUserId = targetUserId,
                     assignedBy = callerId,
                     branchId = branchId,
+                    role = role,
                 )
             if (!result.inserted) {
                 requireRequestOwnership(result.delegate, targetUserId, branchId, callerId)
@@ -98,10 +100,17 @@ object MedicalMissionDelegateService {
                     targetUserId = targetUserId,
                     branchId = branchId,
                     delegateId = delegateId,
+                    role = role,
                 )
                 MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
             }
             result.delegate
+        }
+    }
+
+    private fun requireTakesHelpers(branchId: UUID) {
+        if (BranchService.findById(branchId).branchType == BranchType.CLINIC) {
+            throw ValidationException("Only a medical mission or provincial tour takes helpers.")
         }
     }
 
@@ -120,10 +129,7 @@ object MedicalMissionDelegateService {
     }
 
     fun listDelegates(branchId: UUID): List<MedicalMissionDelegate> {
-        val branch = BranchService.findById(branchId)
-        if (branch.branchType != BranchType.MEDICAL_MISSION) {
-            throw ValidationException("Medical mission delegate requires a medical mission Branch")
-        }
+        requireTakesHelpers(branchId)
         return MedicalMissionDelegateRepository.findByBranchId(branchId)
     }
 

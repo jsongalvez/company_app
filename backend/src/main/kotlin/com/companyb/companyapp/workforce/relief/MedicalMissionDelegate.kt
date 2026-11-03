@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -15,6 +16,7 @@ data class MedicalMissionDelegate(
     val assignedBy: UUID,
     val branchId: UUID,
     val endedAt: OffsetDateTime?,
+    val role: DelegateRole,
 )
 
 internal object MedicalMissionDelegateTable : Table("medical_mission_delegate") {
@@ -24,6 +26,7 @@ internal object MedicalMissionDelegateTable : Table("medical_mission_delegate") 
     val assignedBy = javaUUID("assigned_by").references(AppUserTable.id)
     val branchId = javaUUID("branch_id").references(BranchTable.id)
     val endedAt = timestampWithTimeZone("ended_at").nullable()
+    val role = text("role")
 
     override val primaryKey = PrimaryKey(id)
 
@@ -35,5 +38,6 @@ internal object MedicalMissionDelegateTable : Table("medical_mission_delegate") 
             "assignedBy" to entity.assignedBy.toString(),
             "branchId" to entity.branchId.toString(),
             "endedAt" to entity.endedAt?.toString(),
+            "role" to entity.role.name,
         )
 }

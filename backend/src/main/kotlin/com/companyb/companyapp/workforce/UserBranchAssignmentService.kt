@@ -11,6 +11,7 @@ import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -54,10 +55,7 @@ object UserBranchAssignmentService {
         // Existence checks stay here for 404 precedence; ownership (same-ID replay vs
         // conflict, active-key guard) lives in the single transaction-local seam
         //  (UserBranchAssignmentRepository.createInTransaction).
-        val branchExists = BranchService.findByIdOrNull(branchId)
-        if (branchExists == null) {
-            throw NotFoundException("Branch not found")
-        }
+        requireTakesStaff(branchId)
 
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
@@ -87,6 +85,14 @@ object UserBranchAssignmentService {
         }
 
         return CreateResult(result.assignment, result.created)
+    }
+
+    /** A medical mission or provincial tour takes only helpers (user, message 13324). */
+    private fun requireTakesStaff(branchId: UUID) {
+        val branch = BranchService.findByIdOrNull(branchId) ?: throw NotFoundException("Branch not found")
+        if (branch.branchType != BranchType.CLINIC) {
+            throw ValidationException("Add them as a helper instead.")
+        }
     }
 
     /** "An accountant ... can't be a member of any branch" (user, message 13065). */

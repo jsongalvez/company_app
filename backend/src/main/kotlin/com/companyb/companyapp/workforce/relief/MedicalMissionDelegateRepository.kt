@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce.relief
 
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.exception.ConflictException
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -67,6 +68,7 @@ internal object MedicalMissionDelegateRepository {
         targetUserId: UUID,
         assignedBy: UUID,
         branchId: UUID,
+        role: DelegateRole,
     ): DelegateAssignResult {
         val inserted =
             MedicalMissionDelegateTable
@@ -75,6 +77,7 @@ internal object MedicalMissionDelegateRepository {
                     it[MedicalMissionDelegateTable.targetUser] = targetUserId
                     it[MedicalMissionDelegateTable.assignedBy] = assignedBy
                     it[MedicalMissionDelegateTable.branchId] = branchId
+                    it[MedicalMissionDelegateTable.role] = role.name
                     it[MedicalMissionDelegateTable.assignedAt] = CurrentTimestampWithTimeZone
                 }.insertedCount > 0
 
@@ -131,5 +134,6 @@ internal object MedicalMissionDelegateRepository {
             assignedBy = this[MedicalMissionDelegateTable.assignedBy],
             branchId = this[MedicalMissionDelegateTable.branchId],
             endedAt = this[MedicalMissionDelegateTable.endedAt],
+            role = DelegateRole.valueOf(this[MedicalMissionDelegateTable.role]),
         )
 }
