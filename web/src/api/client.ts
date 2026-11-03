@@ -68,7 +68,7 @@ const auth: Middleware = {
             if (response.status >= 400 && response.status !== 401) lastError.value = entry;
             track.captureApiFailure(entry);
         }
-        if (response.status === 401 && new URL(request.url).pathname.startsWith("/api/")) onUnauthorized();
+        if (response.status === 401 && path.startsWith("/api/")) onUnauthorized();
         return response;
     },
 };

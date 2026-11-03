@@ -46,10 +46,11 @@ export function day(d: string | null | undefined): string {
 export const now = (): Date => new Date();
 export const nowIso = (): string => now().toISOString();
 
+const isoDay = new Intl.DateTimeFormat("en-CA", { timeZone: TZ });
+
 /** Today's operational date in Manila (the day boundary is 04:00). */
 export function operationalDate(at = now()): string {
-    const shifted = new Date(at.getTime() - 4 * 3600_000);
-    return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(shifted);
+    return isoDay.format(new Date(at.getTime() - 4 * 3600_000));
 }
 export function addDays(d: string, n: number): string {
     const [y, m, dd] = d.split("-").map(Number);
@@ -58,6 +59,12 @@ export function addDays(d: string, n: number): string {
 }
 export function monthStart(d: string): string {
     return d.slice(0, 8) + "01";
+}
+const monthYear = new Intl.DateTimeFormat("en-PH", { month: "long", year: "numeric", timeZone: "UTC" });
+
+/** "October 2026" for year/month (month is 1-12). */
+export function monthTitle(year: number, month: number): string {
+    return monthYear.format(new Date(Date.UTC(year, month - 1, 1)));
 }
 /** First and last day of the month `shift` months from year/month (month is 1-12). */
 export function monthBounds(year: number, month: number, shift: number): { from: string; to: string } {
@@ -205,21 +212,25 @@ export function changeText(e: Entry): string {
     }
 }
 
+const wallClock = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+});
+
 /** Now (or a moment) as a Manila wall-clock time "2026-10-18T14:30:05". */
 export function manilaTime(at = new Date()): string {
-    return new Intl.DateTimeFormat("sv-SE", {
-        timeZone: TZ,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hourCycle: "h23",
-    })
-        .format(at)
-        .replace(" ", "T");
+    return wallClock.format(at).replace(" ", "T");
 }
+const wallOptions = { timeZone: "UTC", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" } as const;
+const wallMinutes = new Intl.DateTimeFormat("en-PH", wallOptions);
+const wallSeconds = new Intl.DateTimeFormat("en-PH", { ...wallOptions, second: "2-digit" });
+
 /** "2026-10-18T14:30:05" (Manila) shown as "Oct 18, 2026, 2:30:05 PM"; a plain day as day(). */
 export function wallTime(v: string): string {
     if (!v.includes("T")) return day(v);
@@ -227,15 +238,7 @@ export function wallTime(v: string): string {
     const [y, m, dd] = d!.split("-").map(Number);
     const [hh, mm, ss] = t!.split(":").map(Number);
     const at = new Date(Date.UTC(y!, m! - 1, dd!, hh!, mm!, ss ?? 0));
-    return new Intl.DateTimeFormat("en-PH", {
-        timeZone: "UTC",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        ...(ss ? { second: "2-digit" } : {}),
-    }).format(at);
+    return (ss ? wallSeconds : wallMinutes).format(at);
 }
 
 /** Server messages use code words; swap them for the app's words (see CONTEXT.md). */

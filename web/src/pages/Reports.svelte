@@ -5,7 +5,7 @@
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go, route, viewSetting } from "../lib/router.svelte";
-    import { peso, day, shortDay, sum, operationalDate, monthStart, monthBounds, addDays } from "../lib/format";
+    import { peso, day, shortDay, sum, operationalDate, monthStart, monthBounds, addDays, monthTitle } from "../lib/format";
     import PageHead from "../components/PageHead.svelte";
     import RangePicker, { type Preset } from "../components/RangePicker.svelte";
     import State from "../components/State.svelte";
@@ -55,7 +55,7 @@
         const { from, to } = monthBounds(year, month, n);
         setRange(from, to < today ? to : today);
     }
-    const monthName = $derived(new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-PH", { month: "long", year: "numeric", timeZone: "UTC" }));
+    const monthName = $derived(monthTitle(year, month));
 
     // Who the downloaded report covers: this branch, or every branch of a kind you can see.
     const scopeVs = viewSetting("scope", "branch");
