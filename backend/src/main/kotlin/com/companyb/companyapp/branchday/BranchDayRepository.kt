@@ -82,11 +82,7 @@ internal object BranchDayRepository {
             .singleOrNull()
             ?.toBranchDay()
 
-    /**
-     * Find-only branch-day lookup by (branch, date) — never creates. Used by gates that must
-     * resolve a day without mutating (the session-create day-scoped gate: a 403'd
-     * attempt must not leave a day row behind).
-     */
+    /** For gates: a refused session create must not leave a day row behind. */
     fun findByBranchAndDate(
         branchId: UUID,
         date: LocalDate,

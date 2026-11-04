@@ -92,36 +92,19 @@ object BranchDayService {
         BranchDayRepository.findByIdForBranch(branchDayId, branchId)
             ?: throw NotFoundException("Branch day not found for this branch")
 
-    /**
-     * Finds today's (Asia/Manila) branch day for [branchId] without creating it — the
-     * find-only mirror of [getToday]. Gates use this when a day-scoped check must not
-     * mutate: a missing day means no BRANCH_DAY grant can exist for it (a grant always
-     * references an existing day row).
-     */
+    /** A missing day means no BRANCH_DAY grant can exist for it: a grant always names an existing day row. */
     fun findToday(branchId: UUID): BranchDay? {
         val today = currentOperationalDate()
         return BranchDayRepository.findByBranchAndDate(branchId, today)
     }
 
-    /**
-     * Find-only branch-day lookup by explicit date — never creates. The read-side
-     * day gates use this to resolve the day a single-day summary read refers to.
-     */
     fun findByBranchAndDate(
         branchId: UUID,
         date: LocalDate,
     ): BranchDay? = BranchDayRepository.findByBranchAndDate(branchId, date)
 
-    /**
-     * Find-only branch-day lookup by id — never creates (seam for reads that
-     * tolerate a missing day, e.g. notification-bearer detail mapping).
-     */
     fun findById(branchDayId: UUID): BranchDay? = BranchDayRepository.findById(branchDayId)
 
-    /**
-     * In-transaction find-only read on the caller's open transaction (seam for
-     * remittance date-range validation — no lock, no create).
-     */
     fun findByIdInTransaction(branchDayId: UUID): BranchDay? = BranchDayRepository.findByIdInTransaction(branchDayId)
 
     /**
