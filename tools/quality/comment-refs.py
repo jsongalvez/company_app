@@ -41,7 +41,7 @@ def scan(path, fix):
         if fix:
             new = line
             for pat, rep in STRIP:
-                new = pat.sub(rep, new)
+                new = pat.sub(rep, new).rstrip()
             if new != line:
                 lines[i], changed = new, True
         if REF.search(lines[i]):
