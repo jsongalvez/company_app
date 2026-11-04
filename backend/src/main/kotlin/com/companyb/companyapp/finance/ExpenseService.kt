@@ -34,8 +34,6 @@ object ExpenseService {
         notes: String?,
         reason: String? = null,
     ): Expense {
-        // persisted-range pre-gate (the fail-closed class): expense.amount is
-        // NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
         return transaction {
             // in-tx replay classification before the day gate (mirrors): a same-id
@@ -95,7 +93,6 @@ object ExpenseService {
         expectedVersion: Int,
         reason: String? = null,
     ): Expense {
-        // same persisted-range pre-gate as create.
         validateMoneyAmount(amount, "amount")
         return transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction,

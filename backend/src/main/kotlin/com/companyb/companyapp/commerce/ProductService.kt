@@ -33,8 +33,6 @@ object ProductService {
             throw NotFoundException("Product category not found")
         }
 
-        // persisted-range pre-gate (the fail-closed class): product.unit_price
-        // and commission_amount are NUMERIC(10,2), so overflow must 400 before the write.
         validateMoneyAmount(unitPrice, "unitPrice")
         validateMoneyAmount(commissionAmount, "commissionAmount")
 
@@ -79,7 +77,6 @@ object ProductService {
             throw NotFoundException("Product category not found")
         }
 
-        // same persisted-range pre-gate as create (nullable legs only when present).
         unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
         commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
 

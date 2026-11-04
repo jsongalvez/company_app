@@ -79,12 +79,7 @@ object RemittanceService {
 
                     val insertedSnapshot =
                         if (RemittancePolicy.requiresSnapshot(before.type)) {
-                            // aggregate persisted-range pre-gate (SESSION snapshots only;
-                            // PRODUCT remittances freeze nothing, so their sums stay ungated):
-                            // individually legal rows can still sum past NUMERIC(10,2), so the
-                            // frozen snapshot must 400 here instead of 500ing on the insert
-                            // below (widening the snapshot columns is a separate migration
-                            // decision for chief/human).
+                            // Rows legal one by one can still sum past NUMERIC(10,2).
                             validateMoneyAmount(grossIncome, "grossIncome")
                             validateMoneyAmount(totalCompensation, "totalCompensation")
                             validateMoneyAmount(totalExpenses, "totalExpenses")
@@ -328,8 +323,6 @@ object RemittanceService {
         productSaleId: UUID?,
         amount: BigDecimal,
     ): RemittanceLine {
-        // persisted-range pre-gate (the fail-closed class): remittance_line.amount
-        // is NUMERIC(10,2) and caller-chosen, so overflow must 400 before the write.
         validateMoneyAmount(amount, "amount")
         val line =
             transaction {

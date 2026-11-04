@@ -77,10 +77,7 @@ object ProductSaleService {
 
                 val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
 
-                // persisted-range pre-gate (the fail-closed class): the sale
-                // snapshots unit_price_at_time and the computed total_amount_at_time into
-                // NUMERIC(10,2) columns, so a max-legal product price times quantity can
-                // still overflow the total — 400 before the insert, never 500 from Postgres.
+                // A legal unit price times quantity can still overflow the NUMERIC(10,2) total.
                 validateMoneyAmount(product.unitPrice, "unitPrice")
                 validateMoneyAmount(
                     product.unitPrice.multiply(BigDecimal.valueOf(quantity.toLong())),

@@ -124,9 +124,7 @@ object SessionService {
             val effectiveFinalPrice =
                 if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
 
-            // persisted-range pre-gate on the normalized price (a mission
-            // create normalizes to ₱0 above, so raw-input validation would wrongly
-            // reject there; the write below must never see an overflow amount).
+            // After the mission ₱0 normalization: checking the raw input would refuse a mission.
             validateSessionMoney(effectiveFinalPrice, "finalPrice")
 
             val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
@@ -442,7 +440,6 @@ object SessionService {
             val effectivePrice =
                 if (session.sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else newFinalPrice
 
-            // same persisted-range pre-gate as create (mission normalization first).
             validateSessionMoney(effectivePrice, "finalPrice")
 
             val updated =

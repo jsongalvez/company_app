@@ -67,8 +67,6 @@ object CompensationService {
             throw NotFoundException("User not found")
         }
 
-        // persisted-range pre-gate (the fail-closed class): compensation.amount
-        // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
         val params =
             CompensationCreateParams(
@@ -170,7 +168,6 @@ object CompensationService {
         expectedVersion: Int,
         reason: String? = null,
     ): Compensation {
-        // same persisted-range pre-gate as create.
         validateMoneyAmount(amount, "amount")
         return transaction {
             // Transaction-local before-state (ADR-0019): read inside the command's transaction.

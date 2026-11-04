@@ -35,8 +35,6 @@ object AllowanceService {
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
-        // persisted-range pre-gate (the fail-closed class): allowance.amount
-        // is NUMERIC(10,2), so overflow must 400 before the write, never 500 from Postgres.
         validateMoneyAmount(amount, "amount")
         return transaction {
             // In-tx replay classification before the day gate (mirrors):
