@@ -395,7 +395,8 @@ internal object UserRepository {
 
     /**
      * Who may be a helper (medical-mission delegate): an active account holding a working role.
-     * Onboarding-only people have no access yet, and an Accountant never works a branch. Locks the target for pair uniqueness.
+     * Onboarding-only people have no access yet, and an Accountant never works a branch.
+     * Locks the target for pair uniqueness.
      */
     fun isActiveStaffInTransaction(userId: UUID): Boolean {
         if (!acquireLockInTransaction(userId)) return false

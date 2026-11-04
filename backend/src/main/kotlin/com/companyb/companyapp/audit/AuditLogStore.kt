@@ -550,7 +550,8 @@ internal object AuditLogStore {
 
 /**
  * Client audit keys whose values are nullified on anonymize (BR §Privacy and
- * Cleanup) and therefore must never survive in a retained payload. Gender/age/id are retained aggregates/identifiers and stay out.
+ * Cleanup) and therefore must never survive in a retained payload. Gender, age and id are
+ * retained aggregates or identifiers and stay out.
  */
 private val CLIENT_IDENTIFYING_KEYS =
     setOf(
