@@ -3,6 +3,8 @@
 // Flows: sign-in (to the first Today), Finance open, Today again after 20s, Today -> Finance -> Today twice,
 // tab hidden then visible, window blur then focus, save one session, mark it Done, reload the app, idle.
 // Prints calls, rounds (calls that could not start before an earlier one ended) and the endpoint list per flow.
+// POST /api/telemetry is left out of calls and rounds and shown as "telemetry": the recorder uploads on its own
+// 15s timer (FLUSH_MS in web/src/lib/telemetry.ts), so it lands in whichever flow is running, not the one that caused it.
 // Saving a session writes one session for a client named "Probe" (made on first use): use a test or probe account.
 import { createRequire } from "node:module";
 import { writeFileSync } from "node:fs";
@@ -54,6 +56,7 @@ async function oneRun() {
     page.on("dialog", (d) => d.accept());
 
     let calls = [];
+    let telemetry = 0;
     let open = 0;
     let lastActivity = Date.now();
     const byReq = new Map();
@@ -61,6 +64,10 @@ async function oneRun() {
         const u = new URL(r.url());
         if (!u.pathname.startsWith("/api/") && u.pathname !== "/auth/login")
             return;
+        if (u.pathname === "/api/telemetry") {
+            telemetry++;
+            return;
+        }
         const c = {
             what: `${r.method()} ${route(u)}`,
             start: Date.now(),
@@ -102,6 +109,7 @@ async function oneRun() {
     const flows = {};
     const flow = async (name, act) => {
         calls = [];
+        telemetry = 0;
         const t0 = Date.now();
         await act();
         const cs = calls.slice();
@@ -111,6 +119,7 @@ async function oneRun() {
             rounds: rounds(cs),
             lastMs: last,
             list: cs.map((c) => c.what),
+            telemetry,
         };
     };
     const go = async (hash) => {
@@ -255,7 +264,8 @@ for (let i = 1; i <= RUNS; i++) {
     console.log(`\n== run ${i}  (${BASE}, rtt ${RTT}ms)`);
     for (const [name, v] of Object.entries(f)) {
         console.log(
-            `${name}: ${v.calls} calls, ${v.rounds} rounds, last answer ${v.lastMs} ms`,
+            `${name}: ${v.calls} calls, ${v.rounds} rounds, last answer ${v.lastMs} ms` +
+                (v.telemetry ? ` (+${v.telemetry} telemetry upload, timer, not counted)` : ""),
         );
         const counts = new Map();
         for (const w of v.list) counts.set(w, (counts.get(w) ?? 0) + 1);
