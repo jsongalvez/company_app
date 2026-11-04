@@ -185,10 +185,11 @@ export function pendingSales(branchDayId: string | undefined): number {
     return pendingTo("POST", /^\/api\/product-sales$/).filter((x) => x.body.branchDayId === branchDayId).length;
 }
 
-/** A session's mark still waiting to send, so lists can show it straight away. */
-export function heldMark(sessionId: string): string | undefined {
-    const m = waitingBodies("PATCH", /^\/api\/sessions\/[^/]+\/status$/).filter((x) => x.item.path === `/api/sessions/${sessionId}/status`);
-    return m.length ? String(m[m.length - 1]!.body.status) : undefined;
+/** Each session's latest mark still waiting to send, by session id, so lists can show it straight away. */
+export function heldMarks(): Map<string, string> {
+    const marks = new Map<string, string>();
+    for (const x of waitingBodies("PATCH", /^\/api\/sessions\/[^/]+\/status$/)) marks.set(x.item.path.split("/")[3]!, String(x.body.status));
+    return marks;
 }
 
 /** Was the last waiting clock action a clock-in (its body), a clock-out ("out"), or none? */

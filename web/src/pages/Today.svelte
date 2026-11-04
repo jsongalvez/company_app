@@ -15,7 +15,7 @@
     import { go, route, viewSetting } from "../lib/router.svelte";
     import { peso, time, label, sum, day, clientName, operationalDate, addDays } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
-    import { discard, heldMark, outbox, pendingSales, pendingSessions, retry, sessionsSeen, type Standing } from "../lib/outbox.svelte";
+    import { discard, heldMarks, outbox, pendingSales, pendingSessions, retry, sessionsSeen, type Standing } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
@@ -123,8 +123,9 @@
     const sessions = $derived.by(() => {
         void outbox.items.length;
         const rows = isToday ? dash.data?.sessions : (pastList.data ?? (switching ? heldRows : undefined));
+        const marks = heldMarks();
         const fromServer = (rows ?? []).map((s) => {
-            const h = heldMark(s.id);
+            const h = marks.get(s.id);
             return h && h !== s.sessionStatus
                 ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true, local: null }
                 : { ...s, held: false, local: null };
