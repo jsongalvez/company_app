@@ -36,7 +36,7 @@ object ExpenseService {
     ): Expense {
         validateMoneyAmount(amount, "amount")
         return transaction {
-            // in-tx replay classification before the day gate (mirrors): a same-id
+            // in-tx replay classification before the day gate: a same-id
             // row already committed acks without gating so retries landing after a day transition
             // still ack; ownership matches createInTransaction below.
             ExpenseRepository.findByIdInTransaction(id)?.let { existing ->

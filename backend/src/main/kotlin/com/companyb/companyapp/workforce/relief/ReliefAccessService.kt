@@ -421,7 +421,7 @@ object ReliefAccessService {
     }
 
     /**
-     * grant-path sibling guard (ThrowsCount split): the requester must not
+     * grant-path sibling guard: the requester must not
      * already hold a GRANTED row for the day under a different request id.
      */
     private fun requireNoSiblingGrantedInTransaction(
@@ -437,7 +437,7 @@ object ReliefAccessService {
     }
 
     /**
-     * grant-path invite guard (ThrowsCount split): the requester must not
+     * grant-path invite guard: the requester must not
      * already hold the day through the invite path (an ACCEPTED invite writes the
      * same day-scoped capability under another table, invisible to the sibling
      * guard above).
@@ -452,7 +452,7 @@ object ReliefAccessService {
     }
 
     /**
-     * creation-path duty guard (ThrowsCount split): the requester must hold
+     * creation-path duty guard: the requester must hold
      * neither a GRANTED request nor an active day grant (either path's grant writes
      * the same day-scoped capability) for the day.
      */

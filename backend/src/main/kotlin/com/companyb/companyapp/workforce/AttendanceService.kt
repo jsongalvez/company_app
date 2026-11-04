@@ -161,7 +161,7 @@ object AttendanceService {
 
     /**
      * The absent leg: closes the target's open window (a clock-out on behalf). Find-only
-     * day resolution (discipline) — an absent-mark never creates a branch day; with no
+     * day resolution — an absent-mark never creates a branch day; with no
      * day row or no open window it is an idempotent no-op. The audit attributes the marker
      * via changedBy and the recalculation joins the same transaction.
      */

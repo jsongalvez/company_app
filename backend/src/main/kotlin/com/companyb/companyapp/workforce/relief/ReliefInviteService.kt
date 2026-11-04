@@ -438,7 +438,7 @@ object ReliefInviteService {
     }
 
     /**
-     * accept-path duty guard (ThrowsCount split): mirrors the
+     * accept-path duty guard: mirrors the
      * request creation guard — the invitee must hold neither a GRANTED request
      * nor an active day grant (either path's grant writes the same day-scoped
      * capability) for the day.

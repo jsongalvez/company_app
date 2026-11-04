@@ -56,7 +56,7 @@ internal object SessionPractitionerService {
         return transaction {
             val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
 
-            // status-only INACTIVE guard (parity): unknown users 404 above,
+            // status-only INACTIVE guard: unknown users 404 above,
             // deactivated users 400 here before the slot snapshot. Never a membership
             // check — ACTIVE outsiders (relief) stay eligible for the 999 fallback.
             requireActivePractitionerInTransaction(practitionerId)

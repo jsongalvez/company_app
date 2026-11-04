@@ -132,7 +132,7 @@ object CompensationService {
     )
 
     /**
-     * in-tx replay classification before the day gate (mirrors):
+     * in-tx replay classification before the day gate:
      * a same-id row already committed acks without gating so retries landing
      * after a day transition still ack; a foreign row fails closed.
      * Extracted so [create] stays under the ThrowsCount gate (repair).

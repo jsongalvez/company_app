@@ -37,7 +37,7 @@ object AllowanceService {
         }
         validateMoneyAmount(amount, "amount")
         return transaction {
-            // In-tx replay classification before the day gate (mirrors):
+            // In-tx replay classification before the day gate:
             // a same-id row already committed acks without gating so retries landing
             // after a day transition still ack; ownership matches createInTransaction below.
             AllowanceRepository.findByIdInTransaction(id)?.let { existing ->

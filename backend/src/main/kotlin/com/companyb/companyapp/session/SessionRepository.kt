@@ -230,7 +230,7 @@ internal object SessionRepository {
     }
 
     /**
-     * In-transaction store operation (ADR-0024). Count-0 misfire guard (the lesson):
+     * In-transaction store operation (ADR-0024). Count-0 misfire guard:
      * 0 affected rows = a concurrent commit won the version — the caller must 409, never read
      * back the other writer's row.
      */

@@ -53,7 +53,7 @@ internal val SESSION_MONEY_MAX: BigDecimal = BigDecimal(SESSION_MONEY_MAX_PLAIN)
 /**
  * Persisted-range pre-gate: every NUMERIC(10,2) session money write is
  * checked before the insert/update so overflow returns 400 instead of a Postgres
- * numeric overflow 500 + auto-file (the fail-closed class).
+ * numeric overflow 500 + auto-file.
  * Callers validate the mission-normalized effective amount, never the raw input —
  * a MEDICAL_MISSION ₱0 normalization must not reject (invariant).
  */
