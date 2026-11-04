@@ -54,6 +54,7 @@ object TelemetryRoutes {
                 context.status(HttpStatus.TOO_MANY_REQUESTS)
             } else {
                 TelemetryService.record(callerId, sessionId, events)
+                WebErrorAlerts.notice(sessionId, events)
                 context.status(HttpStatus.NO_CONTENT)
             }
         }

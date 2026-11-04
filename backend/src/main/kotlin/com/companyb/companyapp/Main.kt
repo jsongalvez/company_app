@@ -54,6 +54,7 @@ import com.companyb.companyapp.observability.ServerErrorReport
 import com.companyb.companyapp.observability.TelemetryRoutes
 import com.companyb.companyapp.observability.Tracing
 import com.companyb.companyapp.observability.UserFeedbackRoutes
+import com.companyb.companyapp.observability.WebErrorAlerts
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
 import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.reporting.ClientHistoryRoutes
@@ -400,6 +401,7 @@ fun main(config: AppConfig) {
     Password.init(config.authDummyPassword)
     PasswordResetDelivery.configure(config.smtp, config.passwordResetDevRelay)
     IncidentDelivery.configure(config.githubIssue, config.ntfy)
+    WebErrorAlerts.configure(config.ntfy)
     ErrorTracker.configure(config.errorTracker)
 
     DatabaseConfig.initialize(config)
