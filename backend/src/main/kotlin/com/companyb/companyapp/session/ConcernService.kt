@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
@@ -16,12 +17,14 @@ object ConcernService {
         callerId: UUID,
         concernId: UUID,
     ) {
-        transaction {
-            val concern =
-                ConcernRepository.findByIdInTransaction(concernId)
-                    ?: throw NotFoundException("Illness not found")
-            if (ConcernRepository.removeFromListInTransaction(concernId)) {
-                SessionConcernAudit.concernRemovedFromList(callerId, concern)
+        traced("ConcernService.removeFromList") {
+            transaction {
+                val concern =
+                    ConcernRepository.findByIdInTransaction(concernId)
+                        ?: throw NotFoundException("Illness not found")
+                if (ConcernRepository.removeFromListInTransaction(concernId)) {
+                    SessionConcernAudit.concernRemovedFromList(callerId, concern)
+                }
             }
         }
     }

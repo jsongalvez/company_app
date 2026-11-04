@@ -12,6 +12,7 @@ import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.SessionReads
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -52,85 +53,87 @@ object RemittanceService {
         remittanceId: UUID,
         expectedVersion: Int,
     ): RemittanceSubmissionResult {
-        val result =
-            try {
-                transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
-                    val before =
-                        RemittanceRepository.lockByIdInTransaction(remittanceId)
-                            ?: return@transaction null
+        return traced("RemittanceService.submit") {
+            val result =
+                try {
+                    transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                        val before =
+                            RemittanceRepository.lockByIdInTransaction(remittanceId)
+                                ?: return@transaction null
 
-                    RemittancePolicy.assertSubmittable(before.status, before.version, expectedVersion, remittanceId)
+                        RemittancePolicy.assertSubmittable(before.status, before.version, expectedVersion, remittanceId)
 
-                    val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
-                    // lock covered days before the aggregate reads so a concurrent
-                    // day-gated write cannot commit between the sums and the REMITTED
-                    // transition (same sorted order as undo; the later
-                    // markDaysRemittedInTransaction re-lock is a no-op).
-                    BranchDayService.lockDaysInTransaction(breakdownIds)
-                    // lines and breakdowns must describe the same days before the
-                    // immutable snapshot freezes gross (lines) with comp/expenses
-                    // (breakdowns); all reads stay `*InTransaction` on this SERIALIZABLE
-                    // transaction and run before any state change.
-                    assertSubmitCoverageInTransaction(remittanceId, breakdownIds)
-                    val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
-                    val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
-                    val totalExpenses = RemittanceRepository.sumExpensesInTransaction(breakdownIds)
-                    val netIncome = RemittancePolicy.netOf(grossIncome, totalCompensation, totalExpenses)
+                        val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
+                        // lock covered days before the aggregate reads so a concurrent
+                        // day-gated write cannot commit between the sums and the REMITTED
+                        // transition (same sorted order as undo; the later
+                        // markDaysRemittedInTransaction re-lock is a no-op).
+                        BranchDayService.lockDaysInTransaction(breakdownIds)
+                        // lines and breakdowns must describe the same days before the
+                        // immutable snapshot freezes gross (lines) with comp/expenses
+                        // (breakdowns); all reads stay `*InTransaction` on this SERIALIZABLE
+                        // transaction and run before any state change.
+                        assertSubmitCoverageInTransaction(remittanceId, breakdownIds)
+                        val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
+                        val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
+                        val totalExpenses = RemittanceRepository.sumExpensesInTransaction(breakdownIds)
+                        val netIncome = RemittancePolicy.netOf(grossIncome, totalCompensation, totalExpenses)
 
-                    val insertedSnapshot =
-                        if (RemittancePolicy.requiresSnapshot(before.type)) {
-                            // Rows legal one by one can still sum past NUMERIC(10,2).
-                            validateMoneyAmount(grossIncome, "grossIncome")
-                            validateMoneyAmount(totalCompensation, "totalCompensation")
-                            validateMoneyAmount(totalExpenses, "totalExpenses")
-                            validateMoneyAmount(netIncome, "netIncome")
-                            RemittanceFinancialSnapshotRepository.insertInTransaction(
-                                RemittanceFinancialSnapshotCreateParams(
-                                    remittanceId = remittanceId,
-                                    grossIncome = grossIncome,
-                                    totalCompensation = totalCompensation,
-                                    totalExpenses = totalExpenses,
-                                    netIncome = netIncome,
-                                ),
-                            )
-                        } else {
-                            null
+                        val insertedSnapshot =
+                            if (RemittancePolicy.requiresSnapshot(before.type)) {
+                                // Rows legal one by one can still sum past NUMERIC(10,2).
+                                validateMoneyAmount(grossIncome, "grossIncome")
+                                validateMoneyAmount(totalCompensation, "totalCompensation")
+                                validateMoneyAmount(totalExpenses, "totalExpenses")
+                                validateMoneyAmount(netIncome, "netIncome")
+                                RemittanceFinancialSnapshotRepository.insertInTransaction(
+                                    RemittanceFinancialSnapshotCreateParams(
+                                        remittanceId = remittanceId,
+                                        grossIncome = grossIncome,
+                                        totalCompensation = totalCompensation,
+                                        totalExpenses = totalExpenses,
+                                        netIncome = netIncome,
+                                    ),
+                                )
+                            } else {
+                                null
+                            }
+
+                        RemittanceRepository.markSubmittedInTransaction(
+                            remittanceId,
+                            expectedVersion,
+                            callerId,
+                            submittedDate = BranchDayService.currentOperationalDate(),
+                        )
+                        BranchDayService.markDaysRemittedInTransaction(breakdownIds, changedBy = callerId)
+
+                        val after =
+                            RemittanceRepository.findByIdInTransaction(remittanceId)
+                                ?: error("remittance not found after submit for $remittanceId")
+
+                        RemittanceAudit.remittanceUpdated(callerId, before, after)
+                        insertedSnapshot?.let { snapshot ->
+                            RemittanceAudit.snapshotInserted(callerId, after.branchId, snapshot)
                         }
 
-                    RemittanceRepository.markSubmittedInTransaction(
-                        remittanceId,
-                        expectedVersion,
-                        callerId,
-                        submittedDate = BranchDayService.currentOperationalDate(),
-                    )
-                    BranchDayService.markDaysRemittedInTransaction(breakdownIds, changedBy = callerId)
-
-                    val after =
-                        RemittanceRepository.findByIdInTransaction(remittanceId)
-                            ?: error("remittance not found after submit for $remittanceId")
-
-                    RemittanceAudit.remittanceUpdated(callerId, before, after)
-                    insertedSnapshot?.let { snapshot ->
-                        RemittanceAudit.snapshotInserted(callerId, after.branchId, snapshot)
+                        RemittanceSubmissionResult(
+                            remittance = after,
+                            grossIncome = grossIncome,
+                            totalCompensation = totalCompensation,
+                            totalExpenses = totalExpenses,
+                            netIncome = netIncome,
+                        )
                     }
+                } catch (error: ExposedSQLException) {
+                    throw RemittanceRepository.remittanceOverlapError(error) ?: error
+                } ?: throw NotFoundException("Remittance not found")
 
-                    RemittanceSubmissionResult(
-                        remittance = after,
-                        grossIncome = grossIncome,
-                        totalCompensation = totalCompensation,
-                        totalExpenses = totalExpenses,
-                        netIncome = netIncome,
-                    )
-                }
-            } catch (error: ExposedSQLException) {
-                throw RemittanceRepository.remittanceOverlapError(error) ?: error
-            } ?: throw NotFoundException("Remittance not found")
-
-        logger.info {
-            "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
-                "Net=${result.netIncome}"
+            logger.info {
+                "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
+                    "Net=${result.netIncome}"
+            }
+            return@traced result
         }
-        return result
     }
 
     @Suppress("LongParameterList") // #595
@@ -143,31 +146,33 @@ object RemittanceService {
         dateRangeStart: LocalDate,
         dateRangeEnd: LocalDate,
     ): Remittance {
-        BranchService.findById(branchId)
+        return traced("RemittanceService.createDraft") {
+            BranchService.findById(branchId)
 
-        val today = BranchDayService.currentOperationalDate()
-        val result =
-            transaction {
-                val createResult =
-                    RemittanceRepository.createDraftInTransaction(
-                        CreateDraftParams(
-                            id = id,
-                            type = type,
-                            branchId = branchId,
-                            method = method,
-                            dateRangeStart = dateRangeStart,
-                            dateRangeEnd = dateRangeEnd,
-                            submittedDate = today,
-                            submittedBy = callerId,
-                        ),
-                    )
-                if (createResult.created) {
-                    RemittanceAudit.draftInserted(callerId, createResult.remittance)
+            val today = BranchDayService.currentOperationalDate()
+            val result =
+                transaction {
+                    val createResult =
+                        RemittanceRepository.createDraftInTransaction(
+                            CreateDraftParams(
+                                id = id,
+                                type = type,
+                                branchId = branchId,
+                                method = method,
+                                dateRangeStart = dateRangeStart,
+                                dateRangeEnd = dateRangeEnd,
+                                submittedDate = today,
+                                submittedBy = callerId,
+                            ),
+                        )
+                    if (createResult.created) {
+                        RemittanceAudit.draftInserted(callerId, createResult.remittance)
+                    }
+                    createResult
                 }
-                createResult
-            }
-        logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
-        return result.remittance
+            logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
+            return@traced result.remittance
+        }
     }
 
     fun undo(
@@ -202,62 +207,64 @@ object RemittanceService {
         reason: String,
         now: OffsetDateTime? = null,
     ): Remittance {
-        val remittance =
-            transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
-                val before =
-                    RemittanceRepository.lockByIdInTransaction(remittanceId)
-                        ?: return@transaction null
+        return traced("RemittanceService.undoAt") {
+            val remittance =
+                transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                    val before =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: return@transaction null
 
-                RemittancePolicy.assertUndoable(before.status, before.version, expectedVersion, remittanceId)
+                    RemittancePolicy.assertUndoable(before.status, before.version, expectedVersion, remittanceId)
 
-                val submissionInstant =
-                    before.submittedAt
-                        ?: RemittanceFinancialSnapshotRepository
-                            .findByRemittanceIdInTransaction(remittanceId)
-                            ?.snapshottedAt
-                        ?: throw ValidationException("No submission timestamp — cannot undo this remittance")
-                RemittancePolicy.assertWithinUndoWindow(
-                    submissionInstant,
-                    comparisonInstant = now ?: RemittanceRepository.currentDatabaseTimeInTransaction(),
-                )
-
-                val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
-
-                RemittanceRepository.markRevertedToDraftInTransaction(remittanceId, expectedVersion)
-                val snapshotBefore =
-                    RemittanceFinancialSnapshotRepository.deleteByRemittanceIdInTransaction(remittanceId)
-                // surviving SUBMITTED coverage keeps REMITTED. Lock days in stable
-                // order before the coverage read so cross-type submit/undo serialize.
-                BranchDayService.lockDaysInTransaction(breakdownIds)
-                val retainRemitted =
-                    RemittanceRepository.findDaysCoveredByOtherSubmittedInTransaction(
-                        breakdownIds,
-                        remittanceId,
+                    val submissionInstant =
+                        before.submittedAt
+                            ?: RemittanceFinancialSnapshotRepository
+                                .findByRemittanceIdInTransaction(remittanceId)
+                                ?.snapshottedAt
+                            ?: throw ValidationException("No submission timestamp — cannot undo this remittance")
+                    RemittancePolicy.assertWithinUndoWindow(
+                        submissionInstant,
+                        comparisonInstant = now ?: RemittanceRepository.currentDatabaseTimeInTransaction(),
                     )
-                BranchDayService.releaseDaysFromRemittanceInTransaction(
-                    breakdownIds,
-                    today = BranchDayService.currentOperationalDate(),
-                    retainRemitted = retainRemitted,
-                    changedBy = callerId,
-                    reason = reason,
-                )
 
-                val after =
-                    RemittanceRepository.findByIdInTransaction(remittanceId)
-                        ?: error("remittance not found after undo for $remittanceId")
+                    val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
 
-                RemittanceAudit.remittanceUpdated(callerId, before, after, reason)
-                snapshotBefore?.let { snapshot ->
-                    RemittanceAudit.snapshotDeleted(callerId, after.branchId, snapshot, reason)
-                }
+                    RemittanceRepository.markRevertedToDraftInTransaction(remittanceId, expectedVersion)
+                    val snapshotBefore =
+                        RemittanceFinancialSnapshotRepository.deleteByRemittanceIdInTransaction(remittanceId)
+                    // surviving SUBMITTED coverage keeps REMITTED. Lock days in stable
+                    // order before the coverage read so cross-type submit/undo serialize.
+                    BranchDayService.lockDaysInTransaction(breakdownIds)
+                    val retainRemitted =
+                        RemittanceRepository.findDaysCoveredByOtherSubmittedInTransaction(
+                            breakdownIds,
+                            remittanceId,
+                        )
+                    BranchDayService.releaseDaysFromRemittanceInTransaction(
+                        breakdownIds,
+                        today = BranchDayService.currentOperationalDate(),
+                        retainRemitted = retainRemitted,
+                        changedBy = callerId,
+                        reason = reason,
+                    )
 
-                after
-            } ?: throw NotFoundException("Remittance not found")
+                    val after =
+                        RemittanceRepository.findByIdInTransaction(remittanceId)
+                            ?: error("remittance not found after undo for $remittanceId")
 
-        logger.info {
-            "[UNDO-REMITTANCE] Remittance ${remittanceId.toString().maskUUID()} undone"
+                    RemittanceAudit.remittanceUpdated(callerId, before, after, reason)
+                    snapshotBefore?.let { snapshot ->
+                        RemittanceAudit.snapshotDeleted(callerId, after.branchId, snapshot, reason)
+                    }
+
+                    after
+                } ?: throw NotFoundException("Remittance not found")
+
+            logger.info {
+                "[UNDO-REMITTANCE] Remittance ${remittanceId.toString().maskUUID()} undone"
+            }
+            return@traced remittance
         }
-        return remittance
     }
 
     @Suppress("LongParameterList") // #595
@@ -270,47 +277,49 @@ object RemittanceService {
         dateRangeEnd: LocalDate,
         expectedVersion: Int,
     ): Remittance {
-        val remittance =
-            transaction {
-                // parent lock first, then draft + content checks under it so a
-                // concurrent breakdown insert cannot orphan content outside the new range.
-                val locked =
-                    RemittanceRepository.lockByIdInTransaction(remittanceId)
-                        ?: throw NotFoundException("Remittance not found")
+        return traced("RemittanceService.updateHeader") {
+            val remittance =
+                transaction {
+                    // parent lock first, then draft + content checks under it so a
+                    // concurrent breakdown insert cannot orphan content outside the new range.
+                    val locked =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(locked.status, "update header of")
-                if (type != locked.type &&
-                    RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).isNotEmpty()
-                ) {
-                    throw ValidationException("Remove the included items before changing the kind.")
-                }
+                    RemittancePolicy.assertDraft(locked.status, "update header of")
+                    if (type != locked.type &&
+                        RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).isNotEmpty()
+                    ) {
+                        throw ValidationException("Remove the included items before changing the kind.")
+                    }
 
-                assertExistingContentInRange(
-                    remittanceId = remittanceId,
-                    rangeStart = dateRangeStart,
-                    rangeEnd = dateRangeEnd,
-                )
-
-                val after =
-                    RemittanceRepository.updateHeaderInTransaction(
-                        UpdateHeaderParams(
-                            remittanceId = remittanceId,
-                            expectedVersion = expectedVersion,
-                            type = type,
-                            method = method,
-                            dateRangeStart = dateRangeStart,
-                            dateRangeEnd = dateRangeEnd,
-                        ),
+                    assertExistingContentInRange(
+                        remittanceId = remittanceId,
+                        rangeStart = dateRangeStart,
+                        rangeEnd = dateRangeEnd,
                     )
 
-                RemittanceAudit.remittanceUpdated(callerId, locked, after)
-                after
-            }
+                    val after =
+                        RemittanceRepository.updateHeaderInTransaction(
+                            UpdateHeaderParams(
+                                remittanceId = remittanceId,
+                                expectedVersion = expectedVersion,
+                                type = type,
+                                method = method,
+                                dateRangeStart = dateRangeStart,
+                                dateRangeEnd = dateRangeEnd,
+                            ),
+                        )
 
-        logger.info {
-            "[UPDATE-REMITTANCE-HEADER] Remittance ${remittanceId.toString().maskUUID()} header updated"
+                    RemittanceAudit.remittanceUpdated(callerId, locked, after)
+                    after
+                }
+
+            logger.info {
+                "[UPDATE-REMITTANCE-HEADER] Remittance ${remittanceId.toString().maskUUID()} header updated"
+            }
+            return@traced remittance
         }
-        return remittance
     }
 
     @Suppress("LongParameterList") // #595
@@ -323,42 +332,44 @@ object RemittanceService {
         productSaleId: UUID?,
         amount: BigDecimal,
     ): RemittanceLine {
-        validateMoneyAmount(amount, "amount")
-        val line =
-            transaction {
-                // parent lock first so the draft check, range check, and version
-                // bump serialize with submit/undo and sibling mutations.
-                val locked =
-                    RemittanceRepository.lockByIdInTransaction(remittanceId)
-                        ?: throw NotFoundException("Remittance not found")
+        return traced("RemittanceService.addLine") {
+            validateMoneyAmount(amount, "amount")
+            val line =
+                transaction {
+                    // parent lock first so the draft check, range check, and version
+                    // bump serialize with submit/undo and sibling mutations.
+                    val locked =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(locked.status, "add lines to")
+                    RemittancePolicy.assertDraft(locked.status, "add lines to")
 
-                val params =
-                    AddLineParams(
-                        id = id,
-                        remittanceId = remittanceId,
-                        type = type,
-                        sessionId = sessionId,
-                        productSaleId = productSaleId,
-                        amount = amount,
-                        createdBy = callerId,
-                        expectedVersion = locked.version,
-                    )
-                RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
-                RemittancePolicy.assertLineFitsKind(locked.type, type)
+                    val params =
+                        AddLineParams(
+                            id = id,
+                            remittanceId = remittanceId,
+                            type = type,
+                            sessionId = sessionId,
+                            productSaleId = productSaleId,
+                            amount = amount,
+                            createdBy = callerId,
+                            expectedVersion = locked.version,
+                        )
+                    RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
+                    RemittancePolicy.assertLineFitsKind(locked.type, type)
 
-                requireSourceInRange(type, sessionId, productSaleId, locked)
+                    requireSourceInRange(type, sessionId, productSaleId, locked)
 
-                val addResult = RemittanceLineRepository.addLineInTransaction(params)
-                if (addResult.created) {
-                    RemittanceAudit.lineInserted(callerId, locked.branchId, addResult.line)
+                    val addResult = RemittanceLineRepository.addLineInTransaction(params)
+                    if (addResult.created) {
+                        RemittanceAudit.lineInserted(callerId, locked.branchId, addResult.line)
+                    }
+                    addResult.line
                 }
-                addResult.line
-            }
 
-        logger.info { "[ADD-REMITTANCE-LINE] Line ${line.id} added to remittance $remittanceId" }
-        return line
+            logger.info { "[ADD-REMITTANCE-LINE] Line ${line.id} added to remittance $remittanceId" }
+            return@traced line
+        }
     }
 
     private fun requireSourceInRange(
@@ -428,33 +439,35 @@ object RemittanceService {
         remittanceId: UUID,
         lineId: UUID,
     ): RemittanceLine {
-        val line =
-            transaction {
-                // parent lock first so the draft check and version bump join the
-                // same serialization order as every other aggregate mutation.
-                val locked =
-                    RemittanceRepository.lockByIdInTransaction(remittanceId)
-                        ?: throw NotFoundException("Remittance not found")
+        return traced("RemittanceService.removeLine") {
+            val line =
+                transaction {
+                    // parent lock first so the draft check and version bump join the
+                    // same serialization order as every other aggregate mutation.
+                    val locked =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(locked.status, "delete lines from")
+                    RemittancePolicy.assertDraft(locked.status, "delete lines from")
 
-                val (before, after) =
-                    RemittanceLineRepository.softDeleteLineInTransaction(
-                        lineId,
-                        remittanceId,
-                        callerId,
-                        locked.version,
-                    ) ?: throw NotFoundException("Remittance line not found")
+                    val (before, after) =
+                        RemittanceLineRepository.softDeleteLineInTransaction(
+                            lineId,
+                            remittanceId,
+                            callerId,
+                            locked.version,
+                        ) ?: throw NotFoundException("Remittance line not found")
 
-                // An idempotent retry of an already-deleted line returns it unchanged, no new audit.
-                if (before.deletedAt == null) {
-                    RemittanceAudit.lineUpdated(callerId, locked.branchId, before, after)
+                    // An idempotent retry of an already-deleted line returns it unchanged, no new audit.
+                    if (before.deletedAt == null) {
+                        RemittanceAudit.lineUpdated(callerId, locked.branchId, before, after)
+                    }
+                    after
                 }
-                after
-            }
 
-        logger.info { "[DELETE-REMITTANCE-LINE] Line $lineId deleted from remittance $remittanceId" }
-        return line
+            logger.info { "[DELETE-REMITTANCE-LINE] Line $lineId deleted from remittance $remittanceId" }
+            return@traced line
+        }
     }
 
     fun addDayBreakdown(
@@ -463,41 +476,43 @@ object RemittanceService {
         id: UUID,
         branchDayId: UUID,
     ): RemittanceDayBreakdown {
-        val breakdown =
-            transaction {
-                // parent lock first, then draft + range checks; the version bump
-                // makes this content change visible to submit/header stale-version guards.
-                val locked =
-                    RemittanceRepository.lockByIdInTransaction(remittanceId)
-                        ?: throw NotFoundException("Remittance not found")
+        return traced("RemittanceService.addDayBreakdown") {
+            val breakdown =
+                transaction {
+                    // parent lock first, then draft + range checks; the version bump
+                    // makes this content change visible to submit/header stale-version guards.
+                    val locked =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(locked.status, "add day breakdowns to")
+                    RemittancePolicy.assertDraft(locked.status, "add day breakdowns to")
 
-                // same range contract as lines: the day picker only offers the loaded
-                // range, so an out-of-range day is a stale-client or forged write (400).
-                val day = BranchDayService.requireBranchDayForBranch(branchDayId, locked.branchId)
-                RemittancePolicy.assertDateInRange(
-                    day.date,
-                    locked.dateRangeStart,
-                    locked.dateRangeEnd,
-                    "Branch day",
-                )
-
-                val addResult =
-                    RemittanceDayBreakdownRepository.addDayBreakdownInTransaction(
-                        id = id,
-                        remittanceId = remittanceId,
-                        branchDayId = branchDayId,
+                    // same range contract as lines: the day picker only offers the loaded
+                    // range, so an out-of-range day is a stale-client or forged write (400).
+                    val day = BranchDayService.requireBranchDayForBranch(branchDayId, locked.branchId)
+                    RemittancePolicy.assertDateInRange(
+                        day.date,
+                        locked.dateRangeStart,
+                        locked.dateRangeEnd,
+                        "Branch day",
                     )
-                if (addResult.created) {
-                    RemittanceRepository.bumpVersionInTransaction(remittanceId, locked.version)
-                    RemittanceAudit.breakdownInserted(callerId, locked.branchId, addResult.breakdown)
-                }
-                addResult.breakdown
-            }
 
-        logger.info { "[ADD-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id} added to remittance $remittanceId" }
-        return breakdown
+                    val addResult =
+                        RemittanceDayBreakdownRepository.addDayBreakdownInTransaction(
+                            id = id,
+                            remittanceId = remittanceId,
+                            branchDayId = branchDayId,
+                        )
+                    if (addResult.created) {
+                        RemittanceRepository.bumpVersionInTransaction(remittanceId, locked.version)
+                        RemittanceAudit.breakdownInserted(callerId, locked.branchId, addResult.breakdown)
+                    }
+                    addResult.breakdown
+                }
+
+            logger.info { "[ADD-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id} added to remittance $remittanceId" }
+            return@traced breakdown
+        }
     }
 
     fun removeDayBreakdown(
@@ -505,29 +520,33 @@ object RemittanceService {
         remittanceId: UUID,
         breakdownId: UUID,
     ): RemittanceDayBreakdown {
-        val breakdown =
-            transaction {
-                // parent lock first; the version bump keeps submit/header guards
-                // honest about this content change. No-op misses bump nothing.
-                val locked =
-                    RemittanceRepository.lockByIdInTransaction(remittanceId)
-                        ?: throw NotFoundException("Remittance not found")
+        return traced("RemittanceService.removeDayBreakdown") {
+            val breakdown =
+                transaction {
+                    // parent lock first; the version bump keeps submit/header guards
+                    // honest about this content change. No-op misses bump nothing.
+                    val locked =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: throw NotFoundException("Remittance not found")
 
-                RemittancePolicy.assertDraft(locked.status, "remove day breakdowns from")
+                    RemittancePolicy.assertDraft(locked.status, "remove day breakdowns from")
 
-                val deleted =
-                    RemittanceDayBreakdownRepository.deleteDayBreakdownInTransaction(
-                        breakdownId = breakdownId,
-                        remittanceId = remittanceId,
-                    ) ?: throw NotFoundException("Day breakdown not found")
+                    val deleted =
+                        RemittanceDayBreakdownRepository.deleteDayBreakdownInTransaction(
+                            breakdownId = breakdownId,
+                            remittanceId = remittanceId,
+                        ) ?: throw NotFoundException("Day breakdown not found")
 
-                RemittanceRepository.bumpVersionInTransaction(remittanceId, locked.version)
-                RemittanceAudit.breakdownDeleted(callerId, locked.branchId, deleted)
-                deleted
+                    RemittanceRepository.bumpVersionInTransaction(remittanceId, locked.version)
+                    RemittanceAudit.breakdownDeleted(callerId, locked.branchId, deleted)
+                    deleted
+                }
+
+            logger.info {
+                "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown $breakdownId removed from remittance $remittanceId"
             }
-
-        logger.info { "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown $breakdownId removed from remittance $remittanceId" }
-        return breakdown
+            return@traced breakdown
+        }
     }
 
     /**

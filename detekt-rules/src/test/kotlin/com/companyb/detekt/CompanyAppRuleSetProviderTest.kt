@@ -13,7 +13,7 @@ class CompanyAppRuleSetProviderTest {
         val provider = CompanyAppRuleSetProvider()
         assertEquals("CompanyApp", provider.ruleSetId)
         val rules = provider.instance(Config.empty).rules
-        assertEquals(6, rules.size)
+        assertEquals(7, rules.size)
         assertTrue(
             rules.map { it::class.simpleName }.containsAll(
                 listOf(

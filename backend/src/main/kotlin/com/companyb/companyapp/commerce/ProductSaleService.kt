@@ -8,6 +8,7 @@ import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.SessionReads
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -42,117 +43,118 @@ object ProductSaleService {
         // DB range violation as a 500 (auto-file). Widening the column to
         // INT is a separate migration decision (chief/human).
         if (quantity > Short.MAX_VALUE) throw ValidationException("Quantity exceeds maximum supported value")
-
-        val retryParams =
-            RetryProductSaleParams(
-                id = id,
-                branchDayId = branchDayId,
-                sessionId = sessionId,
-                clientId = clientId,
-                isWalkIn = isWalkIn,
-                productId = productId,
-                quantity = quantity,
-                handledBy = callerId,
-            )
-
-        var createdBranchId: UUID? = null
-
-        val result =
-            transaction {
-                // Fast path: same-day idempotent retry. A day-mismatched id returns null here so
-                // it falls through to the gate below (gate-beats-NotFound precedence preserved).
-                ProductSaleRepository.findSameDaySaleInTransaction(retryParams)?.let {
-                    return@transaction SellProductResult(it, created = false)
-                }
-                // Locked day read: serializes this sale with remittance's
-                // REMITTED transition inside the same command transaction. The day row
-                // is locked before the product row (day → product → card order,
-                // shared with InventoryService.recordMovement).
-                val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
-
-                // precedence preserved via findById (throws the same 404):
-                // an unknown branch fails closed before the product/session gates.
-                BranchService.findById(branchDay.branchId)
-
-                val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
-
-                // A legal unit price times quantity can still overflow the NUMERIC(10,2) total.
-                validateMoneyAmount(product.unitPrice, "unitPrice")
-                validateMoneyAmount(
-                    product.unitPrice.multiply(BigDecimal.valueOf(quantity.toLong())),
-                    "totalAmount",
+        return traced("ProductSaleService.sell") {
+            val retryParams =
+                RetryProductSaleParams(
+                    id = id,
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = clientId,
+                    isWalkIn = isWalkIn,
+                    productId = productId,
+                    quantity = quantity,
+                    handledBy = callerId,
                 )
 
-                requireSessionInDay(sessionId, branchDayId)
+            var createdBranchId: UUID? = null
 
-                requireClientExistsInTransaction(clientId)
+            val result =
+                transaction {
+                    // Fast path: same-day idempotent retry. A day-mismatched id returns null here so
+                    // it falls through to the gate below (gate-beats-NotFound precedence preserved).
+                    ProductSaleRepository.findSameDaySaleInTransaction(retryParams)?.let {
+                        return@transaction SellProductResult(it, created = false)
+                    }
+                    // Locked day read: serializes this sale with remittance's
+                    // REMITTED transition inside the same command transaction. The day row
+                    // is locked before the product row (day → product → card order,
+                    // shared with InventoryService.recordMovement).
+                    val (branchDay, isRemitted) =
+                        BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
 
-                val params =
-                    SellProductParams(
-                        id = id,
-                        branchDayId = branchDayId,
-                        sessionId = sessionId,
-                        clientId = clientId,
-                        isWalkIn = isWalkIn,
-                        productId = productId,
-                        branchId = branchDay.branchId,
-                        quantity = quantity,
-                        expectedVersion = expectedVersion,
-                        handledBy = callerId,
-                        product = product,
+                    // precedence preserved via findById (throws the same 404):
+                    // an unknown branch fails closed before the product/session gates.
+                    BranchService.findById(branchDay.branchId)
+
+                    val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
+
+                    // A legal unit price times quantity can still overflow the NUMERIC(10,2) total.
+                    validateMoneyAmount(product.unitPrice, "unitPrice")
+                    validateMoneyAmount(
+                        product.unitPrice.multiply(BigDecimal.valueOf(quantity.toLong())),
+                        "totalAmount",
                     )
 
-                if (!ProductSaleRepository.insertSaleInTransaction(params)) {
-                    // Lost the idempotent-insert race: validate full ownership of the winner.
-                    val concurrentSale =
+                    requireSessionInDay(sessionId, branchDayId)
+
+                    requireClientExistsInTransaction(clientId)
+
+                    val params =
+                        SellProductParams(
+                            id = id,
+                            branchDayId = branchDayId,
+                            sessionId = sessionId,
+                            clientId = clientId,
+                            isWalkIn = isWalkIn,
+                            productId = productId,
+                            branchId = branchDay.branchId,
+                            quantity = quantity,
+                            expectedVersion = expectedVersion,
+                            handledBy = callerId,
+                            product = product,
+                        )
+
+                    if (!ProductSaleRepository.insertSaleInTransaction(params)) {
+                        // Lost the idempotent-insert race: validate full ownership of the winner.
+                        val concurrentSale =
+                            ProductSaleRepository.findByIdInTransaction(params.id)
+                                ?: error("product sale missing after idempotent insert for ${params.id}")
+                        ProductSaleRepository.validateRetryOwnership(concurrentSale, retryParams)
+                        return@transaction SellProductResult(concurrentSale, created = false)
+                    }
+
+                    val beforeCard =
+                        BranchInventoryRepository.findCardForUpdateInTransaction(params.branchId, params.productId)
+                            ?: throw NotFoundException("Inventory card not found")
+
+                    if (beforeCard.currentStock < params.quantity) throw ValidationException("Insufficient stock")
+
+                    val newCard =
+                        BranchInventoryRepository.requireCardForUpdateInTransaction(
+                            beforeCard,
+                            params.expectedVersion ?: beforeCard.version,
+                            -params.quantity,
+                        )
+
+                    ProductSaleRepository.insertSaleMovementInTransaction(params)
+
+                    val sale =
                         ProductSaleRepository.findByIdInTransaction(params.id)
-                            ?: error("product sale missing after idempotent insert for ${params.id}")
-                    ProductSaleRepository.validateRetryOwnership(concurrentSale, retryParams)
-                    return@transaction SellProductResult(concurrentSale, created = false)
+                            ?: error("product sale not found after insert for ${params.id}")
+
+                    val context = AuditContext(callerId, branchDay.branchId, isRemitted, reason)
+                    ProductSaleAudit.inserted(context, sale)
+                    ProductSaleAudit.updated(context, beforeCard, newCard)
+
+                    // PAST/REMITTED sales force the recalc: joining the splits in this
+                    // transaction keeps persisted commission_split equal to liveCommissions
+                    // instead of stale-until-manual (daily_sales_summary.total_commission).
+                    // OPEN-day behavior is unchanged (force is a no-op there).
+                    CommissionService.recalculateInTransaction(branchDayId, force = true)
+
+                    createdBranchId = params.branchId
+                    SellProductResult(sale, created = true)
                 }
 
-                val beforeCard =
-                    BranchInventoryRepository.findCardForUpdateInTransaction(params.branchId, params.productId)
-                        ?: throw NotFoundException("Inventory card not found")
-
-                if (beforeCard.currentStock < params.quantity) throw ValidationException("Insufficient stock")
-
-                val newCard =
-                    BranchInventoryRepository.requireCardForUpdateInTransaction(
-                        beforeCard,
-                        params.expectedVersion ?: beforeCard.version,
-                        -params.quantity,
-                    )
-
-                ProductSaleRepository.insertSaleMovementInTransaction(params)
-
-                val sale =
-                    ProductSaleRepository.findByIdInTransaction(params.id)
-                        ?: error("product sale not found after insert for ${params.id}")
-
-                val context = AuditContext(callerId, branchDay.branchId, isRemitted, reason)
-                ProductSaleAudit.inserted(context, sale)
-                ProductSaleAudit.updated(context, beforeCard, newCard)
-
-                // PAST/REMITTED sales force the recalc: joining the splits in this
-                // transaction keeps persisted commission_split equal to liveCommissions
-                // instead of stale-until-manual (daily_sales_summary.total_commission).
-                // OPEN-day behavior is unchanged (force is a no-op there).
-                CommissionService.recalculateInTransaction(branchDayId, force = true)
-
-                createdBranchId = params.branchId
-                SellProductResult(sale, created = true)
+            if (result.created) {
+                logger.info {
+                    "[PRODUCT-SALE] Sale ${result.sale.id} created " +
+                        "product=$productId branch=$createdBranchId qty=$quantity " +
+                        "total=${result.sale.totalAmountAtTime}"
+                }
             }
-
-        if (result.created) {
-            logger.info {
-                "[PRODUCT-SALE] Sale ${result.sale.id} created " +
-                    "product=$productId branch=$createdBranchId qty=$quantity " +
-                    "total=${result.sale.totalAmountAtTime}"
-            }
+            return@traced result.sale
         }
-        return result.sale
     }
 
     private fun requireActiveProduct(productId: UUID): Product {

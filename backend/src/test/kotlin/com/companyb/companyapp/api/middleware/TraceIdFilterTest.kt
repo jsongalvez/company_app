@@ -68,6 +68,8 @@ class TraceIdFilterTest {
             assertNotNull(first)
             assertNotNull(second)
             assertNotEquals(first, second)
+            val realTraceId = first.matches(Regex("[0-9a-f]{32}")) && first != "0".repeat(32)
+            assertTrue(realTraceId, "a real W3C trace id, was $first")
         }
     }
 

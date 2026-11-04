@@ -2,6 +2,7 @@ package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.Concern
 import com.companyb.companyapp.session.ConcernTable
@@ -40,120 +41,132 @@ data class ConcernWithSessionId(
 
 internal object DashboardRepository {
     fun findSessionsByBranchDay(branchDayId: UUID): List<Session> =
-        transaction {
-            SessionTable
-                .selectAll()
-                .where { SessionTable.branchDayId eq branchDayId }
-                .orderBy(
-                    SessionTable.bookedAt to SortOrder.ASC,
-                    SessionTable.createdAt to SortOrder.ASC,
-                ).map { it.toDashboardSession() }
+        traced("DashboardRepository.findSessionsByBranchDay") {
+            transaction {
+                SessionTable
+                    .selectAll()
+                    .where { SessionTable.branchDayId eq branchDayId }
+                    .orderBy(
+                        SessionTable.bookedAt to SortOrder.ASC,
+                        SessionTable.createdAt to SortOrder.ASC,
+                    ).map { it.toDashboardSession() }
+            }
         }
 
     fun findClientNames(clientIds: List<UUID>): Map<UUID, ClientNames> =
-        if (clientIds.isEmpty()) {
-            emptyMap()
-        } else {
-            transaction {
-                Slice(ClientTable, listOf(ClientTable.id, ClientTable.firstName, ClientTable.lastName))
-                    .selectAll()
-                    .where { ClientTable.id inList clientIds }
-                    .associate {
-                        it[ClientTable.id] to
-                            ClientNames(
-                                firstName = it[ClientTable.firstName],
-                                lastName = it[ClientTable.lastName],
-                            )
-                    }
+        traced("DashboardRepository.findClientNames") {
+            if (clientIds.isEmpty()) {
+                emptyMap()
+            } else {
+                transaction {
+                    Slice(ClientTable, listOf(ClientTable.id, ClientTable.firstName, ClientTable.lastName))
+                        .selectAll()
+                        .where { ClientTable.id inList clientIds }
+                        .associate {
+                            it[ClientTable.id] to
+                                ClientNames(
+                                    firstName = it[ClientTable.firstName],
+                                    lastName = it[ClientTable.lastName],
+                                )
+                        }
+                }
             }
         }
 
     /** display names for requested-practitioner ids (dashboard + session detail enrichment). */
     fun findUserDisplayNames(userIds: List<UUID>): Map<UUID, String> =
-        if (userIds.isEmpty()) {
-            emptyMap()
-        } else {
-            transaction {
-                Slice(AppUserTable, listOf(AppUserTable.id, AppUserTable.displayName))
-                    .selectAll()
-                    .where { AppUserTable.id inList userIds }
-                    .associate { it[AppUserTable.id] to it[AppUserTable.displayName] }
+        traced("DashboardRepository.findUserDisplayNames") {
+            if (userIds.isEmpty()) {
+                emptyMap()
+            } else {
+                transaction {
+                    Slice(AppUserTable, listOf(AppUserTable.id, AppUserTable.displayName))
+                        .selectAll()
+                        .where { AppUserTable.id inList userIds }
+                        .associate { it[AppUserTable.id] to it[AppUserTable.displayName] }
+                }
             }
         }
 
     fun findVoidedSessionIds(sessionIds: List<UUID>): Set<UUID> =
-        if (sessionIds.isEmpty()) {
-            emptySet()
-        } else {
-            transaction {
-                ActiveSessionVoidsView
-                    .selectAll()
-                    .where { ActiveSessionVoidsView.sessionId inList sessionIds }
-                    .map { it[ActiveSessionVoidsView.sessionId] }
-                    .toSet()
+        traced("DashboardRepository.findVoidedSessionIds") {
+            if (sessionIds.isEmpty()) {
+                emptySet()
+            } else {
+                transaction {
+                    ActiveSessionVoidsView
+                        .selectAll()
+                        .where { ActiveSessionVoidsView.sessionId inList sessionIds }
+                        .map { it[ActiveSessionVoidsView.sessionId] }
+                        .toSet()
+                }
             }
         }
 
     fun findPractitioners(sessionIds: List<UUID>): List<SessionPractitionerWithName> =
-        if (sessionIds.isEmpty()) {
-            emptyList()
-        } else {
-            transaction {
-                val join =
-                    SessionPractitionerTable.innerJoin(
-                        AppUserTable,
-                        { SessionPractitionerTable.practitionerId },
-                        { AppUserTable.id },
-                    )
-                Slice(
-                    join,
-                    listOf(
-                        SessionPractitionerTable.sessionId,
-                        SessionPractitionerTable.practitionerId,
-                        AppUserTable.displayName,
-                        SessionPractitionerTable.remarks,
-                        SessionPractitionerTable.slotAtTime,
-                    ),
-                ).selectAll()
-                    .where { SessionPractitionerTable.sessionId inList sessionIds }
-                    .orderBy(SessionPractitionerTable.slotAtTime to SortOrder.ASC)
-                    .map { row ->
-                        SessionPractitionerWithName(
-                            sessionId = row[SessionPractitionerTable.sessionId],
-                            practitionerId = row[SessionPractitionerTable.practitionerId],
-                            displayName = row[AppUserTable.displayName],
-                            remarks = row[SessionPractitionerTable.remarks],
-                            slotAtTime = row[SessionPractitionerTable.slotAtTime].toInt(),
+        traced("DashboardRepository.findPractitioners") {
+            if (sessionIds.isEmpty()) {
+                emptyList()
+            } else {
+                transaction {
+                    val join =
+                        SessionPractitionerTable.innerJoin(
+                            AppUserTable,
+                            { SessionPractitionerTable.practitionerId },
+                            { AppUserTable.id },
                         )
-                    }
+                    Slice(
+                        join,
+                        listOf(
+                            SessionPractitionerTable.sessionId,
+                            SessionPractitionerTable.practitionerId,
+                            AppUserTable.displayName,
+                            SessionPractitionerTable.remarks,
+                            SessionPractitionerTable.slotAtTime,
+                        ),
+                    ).selectAll()
+                        .where { SessionPractitionerTable.sessionId inList sessionIds }
+                        .orderBy(SessionPractitionerTable.slotAtTime to SortOrder.ASC)
+                        .map { row ->
+                            SessionPractitionerWithName(
+                                sessionId = row[SessionPractitionerTable.sessionId],
+                                practitionerId = row[SessionPractitionerTable.practitionerId],
+                                displayName = row[AppUserTable.displayName],
+                                remarks = row[SessionPractitionerTable.remarks],
+                                slotAtTime = row[SessionPractitionerTable.slotAtTime].toInt(),
+                            )
+                        }
+                }
             }
         }
 
     fun findConcernsForSessionIds(sessionIds: List<UUID>): List<ConcernWithSessionId> =
-        if (sessionIds.isEmpty()) {
-            emptyList()
-        } else {
-            transaction {
-                ConcernTable
-                    .join(
-                        SessionConcernTable,
-                        JoinType.INNER,
-                        ConcernTable.id,
-                        SessionConcernTable.concernId,
-                    ).selectAll()
-                    .where { SessionConcernTable.sessionId inList sessionIds }
-                    .map { row ->
-                        ConcernWithSessionId(
-                            sessionId = row[SessionConcernTable.sessionId],
-                            concern =
-                                Concern(
-                                    id = row[ConcernTable.id],
-                                    label = row[ConcernTable.label],
-                                    createdBy = row[ConcernTable.createdBy],
-                                    createdAt = row[ConcernTable.createdAt],
-                                ),
-                        )
-                    }
+        traced("DashboardRepository.findConcernsForSessionIds") {
+            if (sessionIds.isEmpty()) {
+                emptyList()
+            } else {
+                transaction {
+                    ConcernTable
+                        .join(
+                            SessionConcernTable,
+                            JoinType.INNER,
+                            ConcernTable.id,
+                            SessionConcernTable.concernId,
+                        ).selectAll()
+                        .where { SessionConcernTable.sessionId inList sessionIds }
+                        .map { row ->
+                            ConcernWithSessionId(
+                                sessionId = row[SessionConcernTable.sessionId],
+                                concern =
+                                    Concern(
+                                        id = row[ConcernTable.id],
+                                        label = row[ConcernTable.label],
+                                        createdBy = row[ConcernTable.createdBy],
+                                        createdAt = row[ConcernTable.createdAt],
+                                    ),
+                            )
+                        }
+                }
             }
         }
 

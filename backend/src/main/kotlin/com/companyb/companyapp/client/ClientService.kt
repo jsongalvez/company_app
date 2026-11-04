@@ -10,6 +10,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.SessionReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -43,37 +44,39 @@ object ClientService {
         diastolicBp: Short?,
         medicalConditions: String?,
     ): ClientCreateResult =
-        transaction {
-            // range pre-gate (mirrors the client CHECKs / varchar width) —
-            // fail closed with 400 before the insert instead of surfacing the DB
-            // violation as a 500 (auto-file).
-            validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
-            validateEarlierVisits(earlierVisits)
-            val result =
-                ClientRepository.createInTransaction(
-                    ClientCreateParams(
-                        id = id,
-                        firstName = firstName,
-                        lastName = lastName,
-                        middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
-                        suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
-                        phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
-                        address = address?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CLIENT_ADDRESS,
-                        gender = gender,
-                        age = age,
-                        earlierVisits = earlierVisits,
-                        systolicBp = systolicBp,
-                        diastolicBp = diastolicBp,
-                        medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
-                        changedBy = callerId,
-                    ),
-                )
-            if (result.created) {
-                ClientAudit.inserted(callerId, result.client)
+        traced("ClientService.create") {
+            transaction {
+                // range pre-gate (mirrors the client CHECKs / varchar width) —
+                // fail closed with 400 before the insert instead of surfacing the DB
+                // violation as a 500 (auto-file).
+                validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
+                validateEarlierVisits(earlierVisits)
+                val result =
+                    ClientRepository.createInTransaction(
+                        ClientCreateParams(
+                            id = id,
+                            firstName = firstName,
+                            lastName = lastName,
+                            middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
+                            suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
+                            phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
+                            address = address?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CLIENT_ADDRESS,
+                            gender = gender,
+                            age = age,
+                            earlierVisits = earlierVisits,
+                            systolicBp = systolicBp,
+                            diastolicBp = diastolicBp,
+                            medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
+                            changedBy = callerId,
+                        ),
+                    )
+                if (result.created) {
+                    ClientAudit.inserted(callerId, result.client)
+                }
+                result
+            }.also {
+                logger.info { "[CREATE-CLIENT] Client ${it.client.id.toString().maskUUID()} created=${it.created}" }
             }
-            result
-        }.also {
-            logger.info { "[CREATE-CLIENT] Client ${it.client.id.toString().maskUUID()} created=${it.created}" }
         }
 
     fun search(query: String): List<Client> = ClientRepository.search(query)
@@ -105,100 +108,104 @@ object ClientService {
         medicalConditions: String?,
         clearFields: Set<String> = emptySet(),
     ): Client =
-        transaction {
-            // same range pre-gate as create — age/BP/phone bypass patch
-            // shape resolution as raw values, so the update command owns the
-            // bounds for direct callers too (route mirrors with BadRequestResponse).
-            validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
-            validateEarlierVisits(earlierVisits)
-            // Locked before-state: SELECT FOR UPDATE serializes concurrent
-            // writers so the audit diff attributes only this actor's changes.
-            val before =
-                ClientRepository.acquireLockInTransaction(clientId)
-                    ?: throw NotFoundException("Client not found")
+        traced("ClientService.update") {
+            transaction {
+                // same range pre-gate as create — age/BP/phone bypass patch
+                // shape resolution as raw values, so the update command owns the
+                // bounds for direct callers too (route mirrors with BadRequestResponse).
+                validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
+                validateEarlierVisits(earlierVisits)
+                // Locked before-state: SELECT FOR UPDATE serializes concurrent
+                // writers so the audit diff attributes only this actor's changes.
+                val before =
+                    ClientRepository.acquireLockInTransaction(clientId)
+                        ?: throw NotFoundException("Client not found")
 
-            val patch =
-                resolveClientPatch(
-                    firstName = firstName,
-                    lastName = lastName,
-                    middleName = middleName,
-                    suffix = suffix,
-                    phoneNumber = phoneNumber,
-                    address = address,
-                    systolicBp = systolicBp,
-                    diastolicBp = diastolicBp,
-                    medicalConditions = medicalConditions,
-                    clearFields = clearFields,
-                )
+                val patch =
+                    resolveClientPatch(
+                        firstName = firstName,
+                        lastName = lastName,
+                        middleName = middleName,
+                        suffix = suffix,
+                        phoneNumber = phoneNumber,
+                        address = address,
+                        systolicBp = systolicBp,
+                        diastolicBp = diastolicBp,
+                        medicalConditions = medicalConditions,
+                        clearFields = clearFields,
+                    )
 
-            val (updatedCount, after) =
-                ClientRepository.updateInTransaction(
-                    ClientUpdateParams(
-                        clientId = clientId,
-                        firstName = patch.firstName,
-                        lastName = patch.lastName,
-                        middleName = patch.middleName,
-                        suffix = patch.suffix,
-                        phoneNumber = patch.phoneNumber,
-                        address = patch.address,
-                        gender = gender,
-                        age = age,
-                        earlierVisits = earlierVisits,
-                        systolicBp = patch.systolicBp,
-                        diastolicBp = patch.diastolicBp,
-                        medicalConditions = patch.medicalConditions,
-                        clearMiddleName = patch.clearMiddleName,
-                        clearSuffix = patch.clearSuffix,
-                        clearPhoneNumber = patch.clearPhoneNumber,
-                        clearAddress = patch.clearAddress,
-                        clearMedicalConditions = patch.clearMedicalConditions,
-                        clearBp = patch.clearBp,
-                    ),
-                )
+                val (updatedCount, after) =
+                    ClientRepository.updateInTransaction(
+                        ClientUpdateParams(
+                            clientId = clientId,
+                            firstName = patch.firstName,
+                            lastName = patch.lastName,
+                            middleName = patch.middleName,
+                            suffix = patch.suffix,
+                            phoneNumber = patch.phoneNumber,
+                            address = patch.address,
+                            gender = gender,
+                            age = age,
+                            earlierVisits = earlierVisits,
+                            systolicBp = patch.systolicBp,
+                            diastolicBp = patch.diastolicBp,
+                            medicalConditions = patch.medicalConditions,
+                            clearMiddleName = patch.clearMiddleName,
+                            clearSuffix = patch.clearSuffix,
+                            clearPhoneNumber = patch.clearPhoneNumber,
+                            clearAddress = patch.clearAddress,
+                            clearMedicalConditions = patch.clearMedicalConditions,
+                            clearBp = patch.clearBp,
+                        ),
+                    )
 
-            if (updatedCount > 0 && after != null) {
-                ClientAudit.updated(callerId, before, after, patch.clearedFields)
+                if (updatedCount > 0 && after != null) {
+                    ClientAudit.updated(callerId, before, after, patch.clearedFields)
+                }
+                after ?: throw NotFoundException("Client not found")
             }
-            after ?: throw NotFoundException("Client not found")
         }
 
     fun anonymize(
         callerId: UUID,
         clientId: UUID,
     ) {
-        transaction {
-            val before =
-                ClientRepository.acquireLockInTransaction(clientId)
-                    ?: throw NotFoundException("Client not found")
+        traced("ClientService.anonymize") {
+            transaction {
+                val before =
+                    ClientRepository.acquireLockInTransaction(clientId)
+                        ?: throw NotFoundException("Client not found")
 
-            // Atomic check+write guards (CR-018 C2): lock the client row, then reject when an
-            // active PENDING session exists — both inside this command transaction.
-            if (SessionReads.hasActivePendingSessionInTransaction(clientId)) {
-                throw ConflictException(
-                    "Client has an active PENDING session; complete or cancel it before anonymizing",
-                )
-            }
+                // Atomic check+write guards (CR-018 C2): lock the client row, then reject when an
+                // active PENDING session exists — both inside this command transaction.
+                if (SessionReads.hasActivePendingSessionInTransaction(clientId)) {
+                    throw ConflictException(
+                        "Client has an active PENDING session; complete or cancel it before anonymizing",
+                    )
+                }
 
-            val updatedCount = ClientRepository.anonymizeInTransaction(clientId)
+                val updatedCount = ClientRepository.anonymizeInTransaction(clientId)
 
-            if (updatedCount > 0) {
-                val after =
-                    ClientRepository.findByIdInTransaction(clientId)
-                        ?: error("client not found after anonymize")
-                // Redact-then-record (extended): session free text
-                // and void/unvoid reasons are in-scope anonymization residue, so
-                // the live rows are scrubbed and the matching audit payloads
-                // (plus the duplicated audit reason column on void rows) are
-                // rewritten before the anonymization event lands — the removed
-                // text never sits in a new payload and the whole command stays
-                // atomic.
-                val scrub = SessionReads.scrubSessionTextForClientInTransaction(clientId)
-                AuditLog.redactSessionTextInTransaction(scrub.sessionIds, scrub.practitionerIds)
-                AuditLog.redactVoidReasonInTransaction(scrub.voidIds)
-                AuditLog.redactClientNamesInTransaction(clientId)
-                ClientAudit.anonymized(callerId, before, after)
-            } else {
-                throw NotFoundException("Client not found")
+                if (updatedCount > 0) {
+                    val after =
+                        ClientRepository.findByIdInTransaction(clientId)
+                            ?: error("client not found after anonymize")
+                    // Redact-then-record (extended): session free text
+                    // and void/unvoid reasons are in-scope anonymization residue, so
+                    // the live rows are scrubbed and the matching audit payloads
+                    // (plus the duplicated audit reason column on void rows) are
+                    // rewritten before the anonymization event lands — the removed
+                    // text never sits in a new payload and the whole command stays
+                    // atomic.
+                    val scrub = SessionReads.scrubSessionTextForClientInTransaction(clientId)
+                    AuditLog.redactSessionTextInTransaction(scrub.sessionIds, scrub.practitionerIds)
+                    AuditLog.redactVoidReasonInTransaction(scrub.voidIds)
+                    AuditLog.redactClientNamesInTransaction(clientId)
+                    ClientAudit.anonymized(callerId, before, after)
+                } else {
+                    throw NotFoundException("Client not found")
+                }
             }
         }
     }

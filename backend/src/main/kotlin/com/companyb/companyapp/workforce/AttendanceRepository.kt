@@ -5,6 +5,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Slice
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -81,8 +82,10 @@ internal object AttendanceRepository {
         userId: UUID,
         branchDayId: UUID,
     ): Boolean =
-        transaction {
-            hasActiveClockInInTransaction(userId, branchDayId)
+        traced("AttendanceRepository.hasActiveClockIn") {
+            transaction {
+                hasActiveClockInInTransaction(userId, branchDayId)
+            }
         }
 
     /** Serializes concurrent clock-ins of one user across branches (row lock on app_user). */
@@ -181,14 +184,16 @@ internal object AttendanceRepository {
         branchDayId: UUID,
         userId: UUID,
     ): Boolean? =
-        transaction {
-            BranchDayAssignmentTable
-                .selectAll()
-                .where {
-                    (BranchDayAssignmentTable.branchDayId eq branchDayId) and
-                        (BranchDayAssignmentTable.userId eq userId)
-                }.singleOrNull()
-                ?.let { it[BranchDayAssignmentTable.isRelief] }
+        traced("AttendanceRepository.branchDayAssignmentIsRelief") {
+            transaction {
+                BranchDayAssignmentTable
+                    .selectAll()
+                    .where {
+                        (BranchDayAssignmentTable.branchDayId eq branchDayId) and
+                            (BranchDayAssignmentTable.userId eq userId)
+                    }.singleOrNull()
+                    ?.let { it[BranchDayAssignmentTable.isRelief] }
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
@@ -263,14 +268,16 @@ internal object AttendanceRepository {
 
     /** user ids with an open clock-in at the branch day (roster presence flags). */
     fun activeClockInUserIds(branchDayId: UUID): Set<UUID> =
-        transaction {
-            AttendanceTable
-                .selectAll()
-                .where {
-                    (AttendanceTable.branchDayId eq branchDayId) and
-                        (AttendanceTable.clockOut.isNull())
-                }.map { it[AttendanceTable.userId] }
-        }.toSet()
+        traced("AttendanceRepository.activeClockInUserIds") {
+            transaction {
+                AttendanceTable
+                    .selectAll()
+                    .where {
+                        (AttendanceTable.branchDayId eq branchDayId) and
+                            (AttendanceTable.clockOut.isNull())
+                    }.map { it[AttendanceTable.userId] }
+            }.toSet()
+        }
 
     /**
      * lock the distinct participant set in stable user-ID order, then evaluate
@@ -341,14 +348,16 @@ internal object AttendanceRepository {
         branchDayId: UUID,
         atTime: OffsetDateTime,
     ): List<UUID> =
-        transaction {
-            AttendanceTable
-                .selectAll()
-                .where {
-                    (AttendanceTable.branchDayId eq branchDayId) and
-                        (AttendanceTable.clockIn lessEq atTime) and
-                        (AttendanceTable.clockOut.isNull() or (AttendanceTable.clockOut greaterEq atTime))
-                }.map { it[AttendanceTable.userId] }
+        traced("AttendanceRepository.findUsersClockedInAt") {
+            transaction {
+                AttendanceTable
+                    .selectAll()
+                    .where {
+                        (AttendanceTable.branchDayId eq branchDayId) and
+                            (AttendanceTable.clockIn lessEq atTime) and
+                            (AttendanceTable.clockOut.isNull() or (AttendanceTable.clockOut greaterEq atTime))
+                    }.map { it[AttendanceTable.userId] }
+            }
         }
 
     /**
@@ -362,21 +371,23 @@ internal object AttendanceRepository {
             .map { it.toAttendance() }
 
     fun findUsersByBranchDayId(branchDayId: UUID): List<BranchDayUser> =
-        transaction {
-            val join =
-                AttendanceTable.innerJoin(AppUserTable, { AttendanceTable.userId }, { AppUserTable.id })
-            Slice(join, listOf(AttendanceTable.userId, AppUserTable.displayName))
-                .selectAll()
-                .withDistinct()
-                .where { AttendanceTable.branchDayId eq branchDayId }
-                .orderBy(AppUserTable.displayName to SortOrder.ASC)
-                .map { row ->
-                    BranchDayUser(
-                        userId = row[AttendanceTable.userId],
-                        displayName = row[AppUserTable.displayName],
-                    )
-                }
-        }.also { logger.info { "[FIND-BRANCH-DAY-USERS] Found ${it.size} users for branch_day $branchDayId" } }
+        traced("AttendanceRepository.findUsersByBranchDayId") {
+            transaction {
+                val join =
+                    AttendanceTable.innerJoin(AppUserTable, { AttendanceTable.userId }, { AppUserTable.id })
+                Slice(join, listOf(AttendanceTable.userId, AppUserTable.displayName))
+                    .selectAll()
+                    .withDistinct()
+                    .where { AttendanceTable.branchDayId eq branchDayId }
+                    .orderBy(AppUserTable.displayName to SortOrder.ASC)
+                    .map { row ->
+                        BranchDayUser(
+                            userId = row[AttendanceTable.userId],
+                            displayName = row[AppUserTable.displayName],
+                        )
+                    }
+            }.also { logger.info { "[FIND-BRANCH-DAY-USERS] Found ${it.size} users for branch_day $branchDayId" } }
+        }
 
     /**
      * the branch's ACTIVE home members with names and Branch Slots, ordered slot
@@ -384,38 +395,40 @@ internal object AttendanceRepository {
      * flags are applied by the caller.
      */
     fun rosterRows(branchId: UUID): List<RosterMember> =
-        transaction {
-            val join =
-                UserBranchAssignmentTable.innerJoin(
-                    AppUserTable,
-                    { UserBranchAssignmentTable.userId },
-                    { AppUserTable.id },
-                )
-            Slice(
-                join,
-                listOf(
-                    UserBranchAssignmentTable.id,
-                    UserBranchAssignmentTable.userId,
-                    AppUserTable.displayName,
-                    UserBranchAssignmentTable.slot,
-                ),
-            ).selectAll()
-                .where {
-                    (UserBranchAssignmentTable.branchId eq branchId) and
-                        (UserBranchAssignmentTable.endedAt.isNull()) and
-                        (AppUserTable.status eq UserStatus.ACTIVE)
-                }.orderBy(
-                    UserBranchAssignmentTable.slot to SortOrder.ASC,
-                    AppUserTable.displayName to SortOrder.ASC,
-                    UserBranchAssignmentTable.userId to SortOrder.ASC,
-                ).map { row ->
-                    RosterMember(
-                        assignmentId = row[UserBranchAssignmentTable.id],
-                        userId = row[UserBranchAssignmentTable.userId],
-                        displayName = row[AppUserTable.displayName],
-                        slot = row[UserBranchAssignmentTable.slot],
+        traced("AttendanceRepository.rosterRows") {
+            transaction {
+                val join =
+                    UserBranchAssignmentTable.innerJoin(
+                        AppUserTable,
+                        { UserBranchAssignmentTable.userId },
+                        { AppUserTable.id },
                     )
-                }
+                Slice(
+                    join,
+                    listOf(
+                        UserBranchAssignmentTable.id,
+                        UserBranchAssignmentTable.userId,
+                        AppUserTable.displayName,
+                        UserBranchAssignmentTable.slot,
+                    ),
+                ).selectAll()
+                    .where {
+                        (UserBranchAssignmentTable.branchId eq branchId) and
+                            (UserBranchAssignmentTable.endedAt.isNull()) and
+                            (AppUserTable.status eq UserStatus.ACTIVE)
+                    }.orderBy(
+                        UserBranchAssignmentTable.slot to SortOrder.ASC,
+                        AppUserTable.displayName to SortOrder.ASC,
+                        UserBranchAssignmentTable.userId to SortOrder.ASC,
+                    ).map { row ->
+                        RosterMember(
+                            assignmentId = row[UserBranchAssignmentTable.id],
+                            userId = row[UserBranchAssignmentTable.userId],
+                            displayName = row[AppUserTable.displayName],
+                            slot = row[UserBranchAssignmentTable.slot],
+                        )
+                    }
+            }
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toAttendance(): Attendance =

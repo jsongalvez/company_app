@@ -10,6 +10,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -49,29 +50,31 @@ internal object SessionSaveService {
         callerId: UUID,
         new: NewSession,
     ): SavedSession =
-        transaction {
-            val branch = BranchService.findById(new.branchId)
-            val day = dayToAddTo(callerId, new)
-            val result =
-                SessionService.create(
-                    callerId = callerId,
-                    id = new.id,
-                    clientId = new.clientId,
-                    branchId = new.branchId,
-                    isWalkIn = new.isWalkIn,
-                    requestedPractitionerId = new.requestedPractitionerId,
-                    finalPrice = new.finalPrice,
-                    remarks = new.remarks,
-                    otherConcerns = new.otherConcerns,
-                    nextAppointmentDate = new.nextAppointmentDate,
-                    gatedBranchDayId = day?.id,
-                    reason = new.reason,
-                    knownBranchType = branch.branchType,
-                    knownGatedBranchDay = day,
-                )
-            // A session just written has no concerns yet; only a repeat of an earlier save reads them.
-            val concerns = if (result.created) emptyList() else concernsOfEarlierSave(callerId, new.id)
-            SavedSession(result, concerns)
+        traced("SessionSaveService.save") {
+            transaction {
+                val branch = BranchService.findById(new.branchId)
+                val day = dayToAddTo(callerId, new)
+                val result =
+                    SessionService.create(
+                        callerId = callerId,
+                        id = new.id,
+                        clientId = new.clientId,
+                        branchId = new.branchId,
+                        isWalkIn = new.isWalkIn,
+                        requestedPractitionerId = new.requestedPractitionerId,
+                        finalPrice = new.finalPrice,
+                        remarks = new.remarks,
+                        otherConcerns = new.otherConcerns,
+                        nextAppointmentDate = new.nextAppointmentDate,
+                        gatedBranchDayId = day?.id,
+                        reason = new.reason,
+                        knownBranchType = branch.branchType,
+                        knownGatedBranchDay = day,
+                    )
+                // A session just written has no concerns yet; only a repeat of an earlier save reads them.
+                val concerns = if (result.created) emptyList() else concernsOfEarlierSave(callerId, new.id)
+                SavedSession(result, concerns)
+            }
         }
 
     /** Today's row (null when nothing happened yet today), or the earlier day the session goes to, made if missing. */

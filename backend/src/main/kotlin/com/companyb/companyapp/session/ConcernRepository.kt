@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -22,11 +23,13 @@ data class PromoteConcernResult(
 
 internal object ConcernRepository {
     fun findAll(): List<Concern> =
-        transaction {
-            ConcernTable
-                .selectAll()
-                .where { ConcernTable.removedAt.isNull() }
-                .map { it.toConcern() }
+        traced("ConcernRepository.findAll") {
+            transaction {
+                ConcernTable
+                    .selectAll()
+                    .where { ConcernTable.removedAt.isNull() }
+                    .map { it.toConcern() }
+            }
         }
 
     /** Takes a concern off the shared list; sessions that used it keep it. True if it was listed. */
@@ -64,16 +67,18 @@ internal object ConcernRepository {
             } > 0
 
     fun getConcernsForSession(sessionId: UUID): List<Concern> =
-        transaction {
-            ConcernTable
-                .join(
-                    SessionConcernTable,
-                    JoinType.INNER,
-                    ConcernTable.id,
-                    SessionConcernTable.concernId,
-                ).selectAll()
-                .where { SessionConcernTable.sessionId eq sessionId }
-                .map { it.toConcern() }
+        traced("ConcernRepository.getConcernsForSession") {
+            transaction {
+                ConcernTable
+                    .join(
+                        SessionConcernTable,
+                        JoinType.INNER,
+                        ConcernTable.id,
+                        SessionConcernTable.concernId,
+                    ).selectAll()
+                    .where { SessionConcernTable.sessionId eq sessionId }
+                    .map { it.toConcern() }
+            }
         }
 
     /**

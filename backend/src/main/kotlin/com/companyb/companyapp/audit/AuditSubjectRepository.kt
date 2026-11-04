@@ -7,6 +7,7 @@ import com.companyb.companyapp.commerce.ProductCategoryTable
 import com.companyb.companyapp.commerce.ProductTable
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ConcernTable
 import com.companyb.companyapp.session.SessionTable
 import kotlinx.serialization.json.Json
@@ -45,29 +46,34 @@ internal object AuditSubjectRepository {
 
     fun describe(entries: List<AuditLogEntry>): Map<UUID, Context> {
         if (entries.isEmpty()) return emptyMap()
-        return transaction {
-            val inserted = insertedValues(entries.filter { it.action != AuditAction.INSERT })
-            val fields =
-                entries.associate { e ->
-                    e.id to inserted[e.tableName to e.recordId].orEmpty() + parse(e.oldValue) + parse(e.newValue)
-                }
-            val ids = entries.flatMap { e -> idsIn(fields.getValue(e.id)) + e.recordId }.toSet()
-            val names = Names.load(ids)
-            // A remittance's own INSERT row describes it, so its lines and days can name it too.
-            val remittances =
-                insertedRows("remittance", ids).mapNotNull { (id, f) -> remittanceLabel(f)?.let { id to it } }.toMap()
-            entries.associate { e ->
-                val f = fields.getValue(e.id)
-                val subject =
-                    listOfNotNull(
-                        uuidOrNull(f["remittanceId"])?.let(remittances::get),
-                        Subject(e.recordId, f, names).of(e.tableName),
-                    ).joinToString(" · ").ifEmpty { null }
-                val shown =
-                    (idsIn(f) + e.recordId).mapNotNull { id ->
-                        (names.any(id) ?: remittances[id])?.let { id.toString() to it }
+        return traced("AuditSubjectRepository.describe") {
+            return@traced transaction {
+                val inserted = insertedValues(entries.filter { it.action != AuditAction.INSERT })
+                val fields =
+                    entries.associate { e ->
+                        e.id to inserted[e.tableName to e.recordId].orEmpty() + parse(e.oldValue) + parse(e.newValue)
                     }
-                e.id to Context(subject, shown.toMap())
+                val ids = entries.flatMap { e -> idsIn(fields.getValue(e.id)) + e.recordId }.toSet()
+                val names = Names.load(ids)
+                // A remittance's own INSERT row describes it, so its lines and days can name it too.
+                val remittances =
+                    insertedRows("remittance", ids)
+                        .mapNotNull { (id, f) ->
+                            remittanceLabel(f)?.let { id to it }
+                        }.toMap()
+                entries.associate { e ->
+                    val f = fields.getValue(e.id)
+                    val subject =
+                        listOfNotNull(
+                            uuidOrNull(f["remittanceId"])?.let(remittances::get),
+                            Subject(e.recordId, f, names).of(e.tableName),
+                        ).joinToString(" · ").ifEmpty { null }
+                    val shown =
+                        (idsIn(f) + e.recordId).mapNotNull { id ->
+                            (names.any(id) ?: remittances[id])?.let { id.toString() to it }
+                        }
+                    e.id to Context(subject, shown.toMap())
+                }
             }
         }
     }

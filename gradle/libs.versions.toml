@@ -21,6 +21,7 @@ kotlinx-serialization-json = "1.10.0"
 ktlint = "14.1.0"
 logback-classic = "1.5.32"
 openpdf = "3.0.5"
+opentelemetry = "1.67.0"
 fastexcel = "0.20.2"
 postgresql = "42.7.10"
 
@@ -52,6 +53,8 @@ kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json"}
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback-classic"}
+opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api", version.ref = "opentelemetry" }
+opentelemetry-sdk-trace = { module = "io.opentelemetry:opentelemetry-sdk-trace", version.ref = "opentelemetry" }
 openpdf = { module = "com.github.librepdf:openpdf", version.ref = "openpdf" }
 fastexcel = { module = "org.dhatim:fastexcel", version.ref = "fastexcel" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }

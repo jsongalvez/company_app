@@ -13,6 +13,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -100,8 +101,10 @@ data class RemittanceProductSalePickerEntry(
  */
 internal object RemittanceRepository {
     fun findById(id: UUID): Remittance? =
-        transaction {
-            findByIdInTransaction(id)
+        traced("RemittanceRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
@@ -340,11 +343,15 @@ internal object RemittanceRepository {
 
     /** Read wrapper for drift reads — delegates to the in-transaction sum. */
     fun calculateCompensationSum(breakdownIds: List<UUID>): BigDecimal =
-        transaction { sumCompensationsInTransaction(breakdownIds) }
+        traced("RemittanceRepository.calculateCompensationSum") {
+            transaction { sumCompensationsInTransaction(breakdownIds) }
+        }
 
     /** Read wrapper for drift reads — delegates to the in-transaction sum. */
     fun calculateExpenseSum(breakdownIds: List<UUID>): BigDecimal =
-        transaction { sumExpensesInTransaction(breakdownIds) }
+        traced("RemittanceRepository.calculateExpenseSum") {
+            transaction { sumExpensesInTransaction(breakdownIds) }
+        }
 
     fun sumCompensationsInTransaction(breakdownIds: List<UUID>): BigDecimal {
         if (breakdownIds.isEmpty()) return BigDecimal.ZERO
@@ -402,32 +409,34 @@ internal object RemittanceRepository {
         branchId: UUID,
         status: RemittanceStatus?,
     ): List<RemittanceWithNet> =
-        transaction {
-            val query =
-                RemittanceTable
-                    .leftJoin(
-                        RemittanceFinancialSnapshotTable,
-                        { RemittanceTable.id },
-                        { RemittanceFinancialSnapshotTable.remittanceId },
-                    ).selectAll()
-            val rows =
-                if (status == null) {
-                    query.where { RemittanceTable.branchId eq branchId }
-                } else {
-                    query.where {
-                        (RemittanceTable.branchId eq branchId) and (RemittanceTable.status eq status)
+        traced("RemittanceRepository.findByBranchId") {
+            transaction {
+                val query =
+                    RemittanceTable
+                        .leftJoin(
+                            RemittanceFinancialSnapshotTable,
+                            { RemittanceTable.id },
+                            { RemittanceFinancialSnapshotTable.remittanceId },
+                        ).selectAll()
+                val rows =
+                    if (status == null) {
+                        query.where { RemittanceTable.branchId eq branchId }
+                    } else {
+                        query.where {
+                            (RemittanceTable.branchId eq branchId) and (RemittanceTable.status eq status)
+                        }
                     }
-                }
-            rows
-                .orderBy(
-                    RemittanceTable.createdAt to SortOrder.DESC,
-                    RemittanceTable.id to SortOrder.DESC,
-                ).map { row ->
-                    RemittanceWithNet(
-                        remittance = row.toRemittance(),
-                        netIncome = row.getOrNull(RemittanceFinancialSnapshotTable.netIncome),
-                    )
-                }
+                rows
+                    .orderBy(
+                        RemittanceTable.createdAt to SortOrder.DESC,
+                        RemittanceTable.id to SortOrder.DESC,
+                    ).map { row ->
+                        RemittanceWithNet(
+                            remittance = row.toRemittance(),
+                            netIncome = row.getOrNull(RemittanceFinancialSnapshotTable.netIncome),
+                        )
+                    }
+            }
         }
 
     /**
@@ -440,37 +449,39 @@ internal object RemittanceRepository {
         from: LocalDate,
         to: LocalDate,
     ): List<RemittanceSessionPickerEntry> =
-        transaction {
-            SessionTable
-                .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
-                .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
-                .leftJoin(ActiveSessionVoidsView, { SessionTable.id }, { ActiveSessionVoidsView.sessionId })
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date greaterEq from) and
-                        (BranchDayTable.date lessEq to) and
-                        (SessionTable.sessionStatus eq SessionStatus.COMPLETED) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.orderBy(
-                    BranchDayTable.date to SortOrder.ASC,
-                    SessionTable.createdAt to SortOrder.ASC,
-                    SessionTable.id to SortOrder.ASC,
-                ).map { row ->
-                    RemittanceSessionPickerEntry(
-                        id = row[SessionTable.id],
-                        clientName =
-                            buildClientName(
-                                firstName = row[ClientTable.firstName],
-                                middleName = row[ClientTable.middleName],
-                                lastName = row[ClientTable.lastName],
-                                suffix = row[ClientTable.suffix],
-                            ),
-                        bookedAt = row[SessionTable.bookedAt],
-                        sessionStatus = row[SessionTable.sessionStatus],
-                        finalPrice = row[SessionTable.finalPrice],
-                    )
-                }
+        traced("RemittanceRepository.findSessionsInRange") {
+            transaction {
+                SessionTable
+                    .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
+                    .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
+                    .leftJoin(ActiveSessionVoidsView, { SessionTable.id }, { ActiveSessionVoidsView.sessionId })
+                    .selectAll()
+                    .where {
+                        (BranchDayTable.branchId eq branchId) and
+                            (BranchDayTable.date greaterEq from) and
+                            (BranchDayTable.date lessEq to) and
+                            (SessionTable.sessionStatus eq SessionStatus.COMPLETED) and
+                            (ActiveSessionVoidsView.sessionId.isNull())
+                    }.orderBy(
+                        BranchDayTable.date to SortOrder.ASC,
+                        SessionTable.createdAt to SortOrder.ASC,
+                        SessionTable.id to SortOrder.ASC,
+                    ).map { row ->
+                        RemittanceSessionPickerEntry(
+                            id = row[SessionTable.id],
+                            clientName =
+                                buildClientName(
+                                    firstName = row[ClientTable.firstName],
+                                    middleName = row[ClientTable.middleName],
+                                    lastName = row[ClientTable.lastName],
+                                    suffix = row[ClientTable.suffix],
+                                ),
+                            bookedAt = row[SessionTable.bookedAt],
+                            sessionStatus = row[SessionTable.sessionStatus],
+                            finalPrice = row[SessionTable.finalPrice],
+                        )
+                    }
+            }
         }
 
     fun findProductSalesInRange(
@@ -478,34 +489,39 @@ internal object RemittanceRepository {
         from: LocalDate,
         to: LocalDate,
     ): List<RemittanceProductSalePickerEntry> =
-        transaction {
-            ProductSaleTable
-                .innerJoin(BranchDayTable, { ProductSaleTable.branchDayId }, { BranchDayTable.id })
-                // voided-session sales are excluded from all financial
-                // calculations: a null session link never joins, so walk-in sales
-                // without a session pass the IS NULL filter; an unvoided session
-                // drops out of the view and its sales return to the picker.
-                .leftJoin(ActiveSessionVoidsView, { ProductSaleTable.sessionId }, { ActiveSessionVoidsView.sessionId })
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date greaterEq from) and
-                        (BranchDayTable.date lessEq to) and
-                        ProductSaleTable.deletedAt.isNull() and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.orderBy(
-                    BranchDayTable.date to SortOrder.ASC,
-                    ProductSaleTable.soldAt to SortOrder.ASC,
-                    ProductSaleTable.id to SortOrder.ASC,
-                ).map { row ->
-                    RemittanceProductSalePickerEntry(
-                        id = row[ProductSaleTable.id],
-                        productName = row[ProductSaleTable.productName],
-                        quantity = row[ProductSaleTable.quantity],
-                        totalAmountAtTime = row[ProductSaleTable.totalAmountAtTime],
-                        soldAt = row[ProductSaleTable.soldAt],
-                    )
-                }
+        traced("RemittanceRepository.findProductSalesInRange") {
+            transaction {
+                ProductSaleTable
+                    .innerJoin(BranchDayTable, { ProductSaleTable.branchDayId }, { BranchDayTable.id })
+                    // voided-session sales are excluded from all financial
+                    // calculations: a null session link never joins, so walk-in sales
+                    // without a session pass the IS NULL filter; an unvoided session
+                    // drops out of the view and its sales return to the picker.
+                    .leftJoin(
+                        ActiveSessionVoidsView,
+                        { ProductSaleTable.sessionId },
+                        { ActiveSessionVoidsView.sessionId },
+                    ).selectAll()
+                    .where {
+                        (BranchDayTable.branchId eq branchId) and
+                            (BranchDayTable.date greaterEq from) and
+                            (BranchDayTable.date lessEq to) and
+                            ProductSaleTable.deletedAt.isNull() and
+                            (ActiveSessionVoidsView.sessionId.isNull())
+                    }.orderBy(
+                        BranchDayTable.date to SortOrder.ASC,
+                        ProductSaleTable.soldAt to SortOrder.ASC,
+                        ProductSaleTable.id to SortOrder.ASC,
+                    ).map { row ->
+                        RemittanceProductSalePickerEntry(
+                            id = row[ProductSaleTable.id],
+                            productName = row[ProductSaleTable.productName],
+                            quantity = row[ProductSaleTable.quantity],
+                            totalAmountAtTime = row[ProductSaleTable.totalAmountAtTime],
+                            soldAt = row[ProductSaleTable.soldAt],
+                        )
+                    }
+            }
         }
 
     fun findBranchDaysInRange(
@@ -513,17 +529,19 @@ internal object RemittanceRepository {
         from: LocalDate,
         to: LocalDate,
     ): List<BranchDay> =
-        transaction {
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date greaterEq from) and
-                        (BranchDayTable.date lessEq to)
-                }.orderBy(
-                    BranchDayTable.date to SortOrder.ASC,
-                    BranchDayTable.id to SortOrder.ASC,
-                ).map { it.toBranchDay() }
+        traced("RemittanceRepository.findBranchDaysInRange") {
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where {
+                        (BranchDayTable.branchId eq branchId) and
+                            (BranchDayTable.date greaterEq from) and
+                            (BranchDayTable.date lessEq to)
+                    }.orderBy(
+                        BranchDayTable.date to SortOrder.ASC,
+                        BranchDayTable.id to SortOrder.ASC,
+                    ).map { it.toBranchDay() }
+            }
         }
 
     private fun buildClientName(

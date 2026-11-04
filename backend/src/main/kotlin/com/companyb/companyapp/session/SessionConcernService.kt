@@ -9,6 +9,7 @@ import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -38,22 +39,24 @@ internal object SessionConcernService {
         reason: String? = null,
         write: DayWrite = DayWrite.FIX,
     ) {
-        transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
+        traced("SessionConcernService.addToSession") {
+            transaction {
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
 
-            val concern =
-                ConcernRepository.findByIdInTransaction(concernId) ?: throw NotFoundException("Concern not found")
+                val concern =
+                    ConcernRepository.findByIdInTransaction(concernId) ?: throw NotFoundException("Concern not found")
 
-            val created = ConcernRepository.addToSessionInTransaction(sessionId, concernId)
-            if (created) {
-                SessionConcernAudit.linkInserted(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                    sessionId,
-                    concernId,
-                )
+                val created = ConcernRepository.addToSessionInTransaction(sessionId, concernId)
+                if (created) {
+                    SessionConcernAudit.linkInserted(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        sessionId,
+                        concernId,
+                    )
+                }
+
+                logger.info { "[ADD-CONCERN] Added concern ${concern.label} to session $sessionId" }
             }
-
-            logger.info { "[ADD-CONCERN] Added concern ${concern.label} to session $sessionId" }
         }
     }
 
@@ -63,22 +66,24 @@ internal object SessionConcernService {
         concernId: UUID,
         reason: String? = null,
     ) {
-        transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+        traced("SessionConcernService.removeFromSession") {
+            transaction {
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
 
-            val concern =
-                ConcernRepository.findByIdInTransaction(concernId) ?: throw NotFoundException("Concern not found")
+                val concern =
+                    ConcernRepository.findByIdInTransaction(concernId) ?: throw NotFoundException("Concern not found")
 
-            val deleted = ConcernRepository.removeFromSessionInTransaction(sessionId, concernId)
-            if (deleted) {
-                SessionConcernAudit.linkDeleted(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                    sessionId,
-                    concernId,
-                )
+                val deleted = ConcernRepository.removeFromSessionInTransaction(sessionId, concernId)
+                if (deleted) {
+                    SessionConcernAudit.linkDeleted(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        sessionId,
+                        concernId,
+                    )
+                }
+
+                logger.info { "[REMOVE-CONCERN] Removed concern ${concern.label} from session $sessionId" }
             }
-
-            logger.info { "[REMOVE-CONCERN] Removed concern ${concern.label} from session $sessionId" }
         }
     }
 
@@ -90,8 +95,10 @@ internal object SessionConcernService {
         label: String,
         reason: String? = null,
     ): Concern =
-        transaction {
-            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, true, DayWrite.FIX)
+        traced("SessionConcernService.promoteConcern") {
+            transaction {
+                promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, true, DayWrite.FIX)
+            }
         }
 
     /** Adds a brand-new concern to the shared list and to this session; leaves "other concerns" alone. */
@@ -102,8 +109,10 @@ internal object SessionConcernService {
         label: String,
         reason: String? = null,
     ): Concern =
-        transaction {
-            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.FIX)
+        traced("SessionConcernService.addNewConcern") {
+            transaction {
+                promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.FIX)
+            }
         }
 
     /** [addNewConcern] as part of saving a new session: an add to its day, not a change. */
@@ -114,8 +123,10 @@ internal object SessionConcernService {
         label: String,
         reason: String?,
     ): Concern =
-        transaction {
-            promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.ADD)
+        traced("SessionConcernService.addNewConcernToNewSession") {
+            transaction {
+                promoteInTransaction(callerId, NewConcern(sessionId, concernId, label), reason, false, DayWrite.ADD)
+            }
         }
 
     private data class NewConcern(

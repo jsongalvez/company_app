@@ -17,6 +17,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.validation.EmailPolicy
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -36,18 +37,20 @@ object MeService {
     private const val EMAIL_MAX = 50
 
     fun getMe(userId: UUID): MeResponse =
-        transaction {
-            val user = requireActiveUserInTransaction(userId)
-            MeResponse(
-                id = user.id.toString(),
-                username = user.username,
-                displayName = user.displayName,
-                email = user.email,
-                status = user.status,
-                createdAt = user.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                canViewAs = ViewAs.SUPERUSER_ROLE in RoleRepository.findRoleNamesForUserInTransaction(userId),
-            )
-        }.also { logger.info { "[GET-ME] Fetched user $userId" } }
+        traced("MeService.getMe") {
+            transaction {
+                val user = requireActiveUserInTransaction(userId)
+                MeResponse(
+                    id = user.id.toString(),
+                    username = user.username,
+                    displayName = user.displayName,
+                    email = user.email,
+                    status = user.status,
+                    createdAt = user.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                    canViewAs = ViewAs.SUPERUSER_ROLE in RoleRepository.findRoleNamesForUserInTransaction(userId),
+                )
+            }.also { logger.info { "[GET-ME] Fetched user $userId" } }
+        }
 
     /** Self-service edit of the caller's own name and email, audited as a user update. */
     fun updateProfile(
@@ -55,59 +58,63 @@ object MeService {
         displayName: String,
         email: String,
     ): MeResponse {
-        val name = displayName.trim()
-        val mail = email.trim()
-        val problem =
-            when {
-                name.isEmpty() || name.length > NAME_MAX -> "Name must be 1 to $NAME_MAX characters"
-                mail.length > EMAIL_MAX || !EmailPolicy.isValid(mail) -> "Email is invalid"
-                else -> null
-            }
-        if (problem != null) throw ValidationException(problem)
-        val updated =
-            transaction {
-                val before = requireActiveUserInTransaction(userId)
-                if (MeRepository.emailTakenByOther(userId, mail)) {
-                    throw ConflictException("Another account already uses this email")
+        return traced("MeService.updateProfile") {
+            val name = displayName.trim()
+            val mail = email.trim()
+            val problem =
+                when {
+                    name.isEmpty() || name.length > NAME_MAX -> "Name must be 1 to $NAME_MAX characters"
+                    mail.length > EMAIL_MAX || !EmailPolicy.isValid(mail) -> "Email is invalid"
+                    else -> null
                 }
-                MeRepository.updateProfileInTransaction(userId, name, mail)
-                ProfileAudit.updated(userId, before, name, mail)
-                before.copy(displayName = name, email = mail)
-            }
-        logger.info { "[UPDATE-ME] Updated profile for user $userId" }
-        return MeResponse(
-            id = updated.id.toString(),
-            username = updated.username,
-            displayName = updated.displayName,
-            email = updated.email,
-            status = updated.status,
-            createdAt = updated.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-        )
+            if (problem != null) throw ValidationException(problem)
+            val updated =
+                transaction {
+                    val before = requireActiveUserInTransaction(userId)
+                    if (MeRepository.emailTakenByOther(userId, mail)) {
+                        throw ConflictException("Another account already uses this email")
+                    }
+                    MeRepository.updateProfileInTransaction(userId, name, mail)
+                    ProfileAudit.updated(userId, before, name, mail)
+                    before.copy(displayName = name, email = mail)
+                }
+            logger.info { "[UPDATE-ME] Updated profile for user $userId" }
+            return@traced MeResponse(
+                id = updated.id.toString(),
+                username = updated.username,
+                displayName = updated.displayName,
+                email = updated.email,
+                status = updated.status,
+                createdAt = updated.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+            )
+        }
     }
 
     fun getBranches(userId: UUID): List<MeBranchResponse> {
-        val today = BranchDayService.currentOperationalDate()
-        return transaction {
-            requireActiveUserInTransaction(userId)
-            val rows = MeRepository.findBranchRows(userId, today)
-            val anyClockInToday = rows.any { it.clockedInHereToday }
-            rows.map { row ->
-                MeBranchResponse(
-                    branchId = row.branchId.toString(),
-                    branchName = row.branchName,
-                    branchType = row.branchType,
-                    clockInStatus =
-                        when {
-                            row.clockedInHereToday -> BranchClockInStatus.CLOCKED_IN_HERE
-                            anyClockInToday -> BranchClockInStatus.CLOCKED_IN_ELSEWHERE
-                            else -> BranchClockInStatus.NOT_CLOCKED_IN
-                        },
-                    isRelief = !row.assigned,
-                    assignmentId = row.assignmentId?.toString(),
-                    slot = row.slot,
-                )
-            }
-        }.also { logger.info { "[GET-ME-BRANCHES] Fetched ${it.size} branch(es) for user $userId" } }
+        return traced("MeService.getBranches") {
+            val today = BranchDayService.currentOperationalDate()
+            return@traced transaction {
+                requireActiveUserInTransaction(userId)
+                val rows = MeRepository.findBranchRows(userId, today)
+                val anyClockInToday = rows.any { it.clockedInHereToday }
+                rows.map { row ->
+                    MeBranchResponse(
+                        branchId = row.branchId.toString(),
+                        branchName = row.branchName,
+                        branchType = row.branchType,
+                        clockInStatus =
+                            when {
+                                row.clockedInHereToday -> BranchClockInStatus.CLOCKED_IN_HERE
+                                anyClockInToday -> BranchClockInStatus.CLOCKED_IN_ELSEWHERE
+                                else -> BranchClockInStatus.NOT_CLOCKED_IN
+                            },
+                        isRelief = !row.assigned,
+                        assignmentId = row.assignmentId?.toString(),
+                        slot = row.slot,
+                    )
+                }
+            }.also { logger.info { "[GET-ME-BRANCHES] Fetched ${it.size} branch(es) for user $userId" } }
+        }
     }
 
     fun getCapabilities(userId: UUID): List<UserCapabilityResponse> = CapabilityService.getCapabilitiesForUser(userId)
@@ -119,24 +126,26 @@ object MeService {
      * open window — resume is an attendance fact; access stays capability-gated.
      */
     fun getActiveAttendance(userId: UUID): ActiveAttendanceResponse {
-        val today = BranchDayService.currentOperationalDate()
-        return transaction {
-            requireActiveUserInTransaction(userId)
-            val shift = WorkforceReads.findActiveShiftInTransaction(userId, today)
-            ActiveAttendanceResponse(
-                shift =
-                    shift?.let {
-                        ActiveShiftResponse(
-                            attendanceId = it.attendanceId.toString(),
-                            branchId = it.branchId.toString(),
-                            branchName = it.branchName,
-                            branchDayId = it.branchDayId.toString(),
-                            date = it.date.toString(),
-                            isRelief = it.isRelief,
-                        )
-                    },
-            )
-        }.also { logger.info { "[GET-ME-ACTIVE-ATTENDANCE] Fetched active shift for user $userId" } }
+        return traced("MeService.getActiveAttendance") {
+            val today = BranchDayService.currentOperationalDate()
+            return@traced transaction {
+                requireActiveUserInTransaction(userId)
+                val shift = WorkforceReads.findActiveShiftInTransaction(userId, today)
+                ActiveAttendanceResponse(
+                    shift =
+                        shift?.let {
+                            ActiveShiftResponse(
+                                attendanceId = it.attendanceId.toString(),
+                                branchId = it.branchId.toString(),
+                                branchName = it.branchName,
+                                branchDayId = it.branchDayId.toString(),
+                                date = it.date.toString(),
+                                isRelief = it.isRelief,
+                            )
+                        },
+                )
+            }.also { logger.info { "[GET-ME-ACTIVE-ATTENDANCE] Fetched active shift for user $userId" } }
+        }
     }
 
     private fun requireActiveUserInTransaction(userId: UUID): MeRepository.MeUser {

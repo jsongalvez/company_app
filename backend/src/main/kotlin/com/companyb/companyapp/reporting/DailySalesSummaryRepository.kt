@@ -1,5 +1,6 @@
 package com.companyb.companyapp.reporting
 
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.decodeOpaqueCursor
 import com.companyb.companyapp.utils.encodeOpaqueCursor
 import org.jetbrains.exposed.v1.core.Op
@@ -42,14 +43,16 @@ internal object DailySalesSummaryRepository {
         branchId: UUID,
         date: LocalDate,
     ): DailySalesSummary? =
-        transaction {
-            DailySalesSummaryView
-                .selectAll()
-                .where {
-                    (DailySalesSummaryView.branchId eq branchId) and
-                        (DailySalesSummaryView.date eq date)
-                }.singleOrNull()
-                ?.toDailySalesSummary()
+        traced("DailySalesSummaryRepository.findByBranchAndDate") {
+            transaction {
+                DailySalesSummaryView
+                    .selectAll()
+                    .where {
+                        (DailySalesSummaryView.branchId eq branchId) and
+                            (DailySalesSummaryView.date eq date)
+                    }.singleOrNull()
+                    ?.toDailySalesSummary()
+            }
         }
 
     /**
@@ -67,18 +70,20 @@ internal object DailySalesSummaryRepository {
         from: LocalDate? = null,
         to: LocalDate? = null,
     ): List<DailySalesSummary> =
-        transaction {
-            DailySalesSummaryView
-                .selectAll()
-                .where {
-                    (DailySalesSummaryView.branchId eq branchId) and
-                        window(from, to) and
-                        keyset(cursor)
-                }.orderBy(
-                    DailySalesSummaryView.date to SortOrder.DESC,
-                    DailySalesSummaryView.branchDayId to SortOrder.DESC,
-                ).limit(limit)
-                .map { it.toDailySalesSummary() }
+        traced("DailySalesSummaryRepository.findPagedByBranch") {
+            transaction {
+                DailySalesSummaryView
+                    .selectAll()
+                    .where {
+                        (DailySalesSummaryView.branchId eq branchId) and
+                            window(from, to) and
+                            keyset(cursor)
+                    }.orderBy(
+                        DailySalesSummaryView.date to SortOrder.DESC,
+                        DailySalesSummaryView.branchDayId to SortOrder.DESC,
+                    ).limit(limit)
+                    .map { it.toDailySalesSummary() }
+            }
         }
 
     private fun window(

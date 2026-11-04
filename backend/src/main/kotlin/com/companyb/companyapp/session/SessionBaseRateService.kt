@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -35,43 +36,45 @@ internal object SessionBaseRateService {
         sessionType: SessionType,
         rate: BigDecimal,
     ): SetRateResult =
-        transaction {
-            // MEDICAL_MISSION is always ₱0 (BR invariant) — normalize instead of constraining,
-            // mirroring the session-price decision.
-            val effectiveRate = if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else rate
-            validateSessionMoney(effectiveRate, "rate")
-            val result =
-                SessionBaseRateRepository.setRateInTransaction(
-                    SessionBaseRateCreateParams(
-                        id = id,
-                        setBy = callerId,
-                        branchId = branchId,
-                        sessionType = sessionType,
-                        rate = effectiveRate,
-                        effectiveUntil = FAR_FUTURE,
-                    ),
-                )
-            if (result.created) {
-                // Preserve the original order: close-audit on the rotated previous rate, then
-                // the insert audit on the new rate.
-                result.previousAfter?.let { after ->
-                    SessionBaseRateAudit.updated(
-                        AuditContext(callerId),
-                        result.previousBefore ?: after,
-                        after,
+        traced("SessionBaseRateService.setRate") {
+            transaction {
+                // MEDICAL_MISSION is always ₱0 (BR invariant) — normalize instead of constraining,
+                // mirroring the session-price decision.
+                val effectiveRate = if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else rate
+                validateSessionMoney(effectiveRate, "rate")
+                val result =
+                    SessionBaseRateRepository.setRateInTransaction(
+                        SessionBaseRateCreateParams(
+                            id = id,
+                            setBy = callerId,
+                            branchId = branchId,
+                            sessionType = sessionType,
+                            rate = effectiveRate,
+                            effectiveUntil = FAR_FUTURE,
+                        ),
+                    )
+                if (result.created) {
+                    // Preserve the original order: close-audit on the rotated previous rate, then
+                    // the insert audit on the new rate.
+                    result.previousAfter?.let { after ->
+                        SessionBaseRateAudit.updated(
+                            AuditContext(callerId),
+                            result.previousBefore ?: after,
+                            after,
+                        )
+                    }
+                    SessionBaseRateAudit.inserted(
+                        AuditContext(callerId, branchId),
+                        result.rate,
                     )
                 }
-                SessionBaseRateAudit.inserted(
-                    AuditContext(callerId, branchId),
-                    result.rate,
-                )
-            }
 
-            logger.info {
-                "[SET-RATE] Rate ${result.rate.id} created=${result.created}"
-            }
+                logger.info {
+                    "[SET-RATE] Rate ${result.rate.id} created=${result.created}"
+                }
 
-            result
+                result
+            }
         }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> {

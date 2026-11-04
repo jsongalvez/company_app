@@ -1,21 +1,16 @@
 package com.companyb.companyapp.logging
 
 import com.companyb.companyapp.api.middleware.TraceIdFilter
+import com.companyb.companyapp.observability.RequestOutcome
+import com.companyb.companyapp.observability.RequestSpan
 import com.companyb.companyapp.observability.RouteLabels
+import com.companyb.companyapp.observability.className
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.Context
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.MDC
-
-@Serializable
-data class RequestStartedEvent(
-    val event: String,
-    val traceId: String,
-    val method: String,
-    val route: String,
-)
 
 @Serializable
 data class RequestCompletedEvent(
@@ -28,13 +23,16 @@ data class RequestCompletedEvent(
     val elapsedMs: Long,
     val dbMs: Long,
     val queries: Int,
+    val user: String? = null,
+    val branch: String? = null,
+    val outcome: String? = null,
+    val error: String? = null,
 )
 
 /**
- * Machine-readable per-request logs. Emission-shape decision made
- * in-ticket: manual JSON via kotlinx-serialization (already a dependency)
- * instead of an encoder library — zero new deps, all other log lines keep
- * their human-readable text pattern, and the per-request completed line is
+ * One wide line per request, written when it is answered: route, status, outcome, masked user,
+ * branch, statement count and time, and the error class behind a 500. The same fields close the
+ * request's root span ([RequestSpan]), stored in `trace_span`. The line is
  * field-filterable (`... | jq 'select(.route == "/api/clients/search")
  * | select(.elapsedMs >= 2000)'`). `route` is the concrete request path
  * (query string excluded, so search terms stay out of the logs); ID-bearing
@@ -48,24 +46,14 @@ object RequestLog {
     const val COMPLETED_ATTRIBUTE = "requestLogCompleted"
 
     private const val SERVER_TIMING_HEADER = "Server-Timing"
-    private const val EVENT_STARTED = "request_started"
+
+    /** The exception behind a 500, set by the catch-all handler in `Main.kt`. */
+    const val SERVER_ERROR_ATTRIBUTE = "serverError"
     private const val EVENT_COMPLETED = "request_completed"
     private const val TRACE_UNKNOWN = "unknown"
     private const val STATUS_UNKNOWN = 0
 
     private val logger = KotlinLogging.logger {}
-
-    fun formatStart(
-        traceId: String,
-        method: String,
-        route: String,
-    ): String = Json.encodeToString(RequestStartedEvent(EVENT_STARTED, traceId, method, route))
-
-    fun start(context: Context) {
-        val traceId =
-            MDC.get(TraceIdFilter.ATTRIBUTE) ?: context.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN
-        logger.info { formatStart(traceId, context.method().name, context.path()) }
-    }
 
     /**
      * Logs the completed line exactly once per request: exception handlers
@@ -88,19 +76,38 @@ object RequestLog {
         if (context.attribute<String>("userId") != null) {
             context.header(SERVER_TIMING_HEADER, "db;dur=${db.dbMs}, app;dur=${(elapsedMs - db.dbMs).coerceAtLeast(0)}")
         }
-        val event =
-            RequestCompletedEvent(
-                event = EVENT_COMPLETED,
-                traceId = traceId,
+        val error = context.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE)
+        val outcome =
+            RequestOutcome(
                 method = context.method().name,
-                route = route,
                 template = RouteLabels.routeLabel(context),
                 status = status,
                 elapsedMs = elapsedMs,
                 dbMs = db.dbMs,
                 queries = db.queries,
+                user = context.attribute<String>("userId")?.maskUUID(),
+                branch = runCatching { context.pathParamMap()["branchId"] }.getOrNull(),
+                viewAs = context.header("X-View-As") != null,
+                error = error,
+            )
+        val event =
+            RequestCompletedEvent(
+                event = EVENT_COMPLETED,
+                traceId = traceId,
+                method = outcome.method,
+                route = route,
+                template = outcome.template,
+                status = status,
+                elapsedMs = elapsedMs,
+                dbMs = db.dbMs,
+                queries = db.queries,
+                user = outcome.user,
+                branch = outcome.branch,
+                outcome = outcome.label,
+                error = error?.className(),
             )
         logger.info { Json.encodeToString(event) }
+        RequestSpan.end(context, outcome)
         RequestElapsedConverter.endRequest()
         DeltaTimeConverter.endRequest()
         MDC.clear()

@@ -48,9 +48,11 @@ import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.LabelSeal
+import com.companyb.companyapp.observability.PostgresSpanExporter
 import com.companyb.companyapp.observability.RouteLabels
 import com.companyb.companyapp.observability.ServerErrorReport
 import com.companyb.companyapp.observability.TelemetryRoutes
+import com.companyb.companyapp.observability.Tracing
 import com.companyb.companyapp.observability.UserFeedbackRoutes
 import com.companyb.companyapp.remittance.RemittancePickerRoutes
 import com.companyb.companyapp.remittance.RemittanceRoutes
@@ -89,7 +91,6 @@ private const val HTTP_NOT_FOUND = 404
 private const val HTTP_CONFLICT = 409
 private const val HTTP_INTERNAL_ERROR = 500
 private const val TRACE_UNKNOWN = "unknown"
-private const val SERVER_ERROR_ATTRIBUTE = "serverError"
 
 fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
@@ -167,7 +168,6 @@ private fun configureFilters(
         RequestElapsedConverter.startRequest()
         DeltaTimeConverter.startRequest()
         TraceIdFilter.before(it)
-        RequestLog.start(it)
         NulCharFilter.before(it)
     }
     config.routes.after {
@@ -304,7 +304,7 @@ internal fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig)
     // only takes what Javalin would have answered as an uncaught 500, to keep the exception for the tracker.
     config.routes.exception(Exception::class.java) { e, ctx ->
         logger.error(e) { "[UNHANDLED] ${ctx.method().name} ${RouteLabels.routeLabel(ctx)}" }
-        ctx.attribute(SERVER_ERROR_ATTRIBUTE, e)
+        ctx.attribute(RequestLog.SERVER_ERROR_ATTRIBUTE, e)
         ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
     }
     config.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
@@ -315,7 +315,7 @@ internal fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig)
                 method = RouteLabels.normalizeMethod(ctx.method().name),
                 route = RouteLabels.routeLabel(ctx),
                 status = HTTP_INTERNAL_ERROR,
-                error = ctx.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE),
+                error = ctx.attribute<Throwable>(RequestLog.SERVER_ERROR_ATTRIBUTE),
             ),
         )
         IncidentService.fileAuto5xx(
@@ -378,6 +378,7 @@ private fun shutdownLifecycle(
     PasswordResetDelivery.shutdown()
     IncidentDelivery.shutdown()
     ErrorTracker.shutdown()
+    Tracing.stop()
     if (closeDb) DatabaseConfig.close()
 }
 
@@ -402,6 +403,7 @@ fun main(config: AppConfig) {
     ErrorTracker.configure(config.errorTracker)
 
     DatabaseConfig.initialize(config)
+    Tracing.start(PostgresSpanExporter())
     runCatching {
         initializeScheduler()
         initializeJavalin(config)

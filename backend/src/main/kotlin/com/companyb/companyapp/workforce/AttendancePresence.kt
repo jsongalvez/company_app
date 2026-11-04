@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce
 
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
@@ -33,10 +34,12 @@ object AttendancePresence {
         branchId: UUID,
         branchDayId: UUID?,
     ): DayPresence =
-        transaction {
-            DayPresence(
-                roster = AttendanceRepository.rosterRows(branchId),
-                clockedInUserIds = branchDayId?.let { AttendanceRepository.activeClockInUserIds(it) } ?: emptySet(),
-            )
+        traced("AttendancePresence.read") {
+            transaction {
+                DayPresence(
+                    roster = AttendanceRepository.rosterRows(branchId),
+                    clockedInUserIds = branchDayId?.let { AttendanceRepository.activeClockInUserIds(it) } ?: emptySet(),
+                )
+            }
         }
 }

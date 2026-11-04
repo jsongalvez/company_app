@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -33,15 +34,17 @@ internal object MedicalMissionDelegateRepository {
             ?.toMedicalMissionDelegate()
 
     fun findByBranchId(branchId: UUID): List<MedicalMissionDelegate> =
-        transaction {
-            MedicalMissionDelegateTable
-                .selectAll()
-                .where { MedicalMissionDelegateTable.branchId eq branchId }
-                .orderBy(
-                    MedicalMissionDelegateTable.endedAt to SortOrder.DESC,
-                    MedicalMissionDelegateTable.assignedAt to SortOrder.DESC,
-                    MedicalMissionDelegateTable.id to SortOrder.ASC,
-                ).map { it.toMedicalMissionDelegate() }
+        traced("MedicalMissionDelegateRepository.findByBranchId") {
+            transaction {
+                MedicalMissionDelegateTable
+                    .selectAll()
+                    .where { MedicalMissionDelegateTable.branchId eq branchId }
+                    .orderBy(
+                        MedicalMissionDelegateTable.endedAt to SortOrder.DESC,
+                        MedicalMissionDelegateTable.assignedAt to SortOrder.DESC,
+                        MedicalMissionDelegateTable.id to SortOrder.ASC,
+                    ).map { it.toMedicalMissionDelegate() }
+            }
         }
 
     fun findActiveByTargetAndBranchInTransaction(

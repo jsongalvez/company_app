@@ -11,6 +11,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -59,46 +60,48 @@ object CompensationService {
         note: String?,
         reason: String? = null,
     ): Compensation {
-        // Fast-fail existence check before the transaction; the in-transaction locked
-        // gate below re-reads the work day for editability.
-        BranchDayService.requireBranchDayExists(workBranchDayId)
+        return traced("CompensationService.create") {
+            // Fast-fail existence check before the transaction; the in-transaction locked
+            // gate below re-reads the work day for editability.
+            BranchDayService.requireBranchDayExists(workBranchDayId)
 
-        if (!AccountReads.userExists(userId)) {
-            throw NotFoundException("User not found")
-        }
-
-        validateMoneyAmount(amount, "amount")
-        val params =
-            CompensationCreateParams(
-                id = id,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = userId,
-                amount = amount,
-                assignedBy = callerId,
-                note = note,
-            )
-        return transaction {
-            replayIfExistsInTransaction(params)?.let {
-                return@transaction it
+            if (!AccountReads.userExists(userId)) {
+                throw NotFoundException("User not found")
             }
-            // gate BOTH legs — the work day carries the duty being priced, so a
-            // REMITTED work day needs the same reason discipline even when the paying day is OPEN.
-            val gate =
-                checkWorkAndPayingDaysEditableInTransaction(callerId, workBranchDayId, payingBranchDayId, reason)
-            assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
-            val result = CompensationRepository.createInTransaction(params)
-            if (result.created) {
-                CompensationAudit.inserted(
-                    AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
-                    result.compensation,
+            validateMoneyAmount(amount, "amount")
+            val params =
+                CompensationCreateParams(
+                    id = id,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = userId,
+                    amount = amount,
+                    assignedBy = callerId,
+                    note = note,
                 )
-            }
-            result.compensation
-        }.also { created ->
-            logger.info {
-                "[CREATE-COMPENSATION] Compensation ${created.id.toString().maskUUID()} created"
+            return@traced transaction {
+                replayIfExistsInTransaction(params)?.let {
+                    return@transaction it
+                }
+                // gate BOTH legs — the work day carries the duty being priced, so a
+                // REMITTED work day needs the same reason discipline even when the paying day is OPEN.
+                val gate =
+                    checkWorkAndPayingDaysEditableInTransaction(callerId, workBranchDayId, payingBranchDayId, reason)
+                assertPayingMatchesWork(gate.workDay, gate.payingDay)
+
+                val result = CompensationRepository.createInTransaction(params)
+                if (result.created) {
+                    CompensationAudit.inserted(
+                        AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
+                        result.compensation,
+                    )
+                }
+                result.compensation
+            }.also { created ->
+                logger.info {
+                    "[CREATE-COMPENSATION] Compensation ${created.id.toString().maskUUID()} created"
+                }
             }
         }
     }
@@ -168,37 +171,39 @@ object CompensationService {
         expectedVersion: Int,
         reason: String? = null,
     ): Compensation {
-        validateMoneyAmount(amount, "amount")
-        return transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val before =
-                CompensationRepository.findByIdInTransaction(compensationId)
-                    ?: throw NotFoundException("Compensation not found")
+        return traced("CompensationService.update") {
+            validateMoneyAmount(amount, "amount")
+            return@traced transaction {
+                // Transaction-local before-state (ADR-0019): read inside the command's transaction.
+                val before =
+                    CompensationRepository.findByIdInTransaction(compensationId)
+                        ?: throw NotFoundException("Compensation not found")
 
-            // gate BOTH stored legs — the work day was previously re-read for the
-            // same-branch invariant only, never for editability.
-            val gate =
-                checkWorkAndPayingDaysEditableInTransaction(
-                    callerId,
-                    before.workBranchDayId,
-                    before.payingBranchDayId,
-                    reason,
+                // gate BOTH stored legs — the work day was previously re-read for the
+                // same-branch invariant only, never for editability.
+                val gate =
+                    checkWorkAndPayingDaysEditableInTransaction(
+                        callerId,
+                        before.workBranchDayId,
+                        before.payingBranchDayId,
+                        reason,
+                    )
+                // Same-branch invariant on the stored record too: a legacy row whose days
+                // span branches must not stay updatable through either day's gate alone.
+                assertPayingMatchesWork(gate.workDay, gate.payingDay)
+
+                val after =
+                    CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
+
+                CompensationAudit.updated(
+                    AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
+                    before,
+                    after,
                 )
-            // Same-branch invariant on the stored record too: a legacy row whose days
-            // span branches must not stay updatable through either day's gate alone.
-            assertPayingMatchesWork(gate.workDay, gate.payingDay)
-
-            val after =
-                CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
-
-            CompensationAudit.updated(
-                AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
-                before,
-                after,
-            )
-            after
-        }.also {
-            logger.info { "[UPDATE-COMPENSATION] Compensation ${compensationId.toString().maskUUID()} updated" }
+                after
+            }.also {
+                logger.info { "[UPDATE-COMPENSATION] Compensation ${compensationId.toString().maskUUID()} updated" }
+            }
         }
     }
 }

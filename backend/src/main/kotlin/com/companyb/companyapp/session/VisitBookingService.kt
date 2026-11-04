@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.session.BookingStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.time.LocalTime
@@ -37,25 +38,28 @@ object VisitBookingService {
         clientId: UUID,
         input: BookingInput,
     ): Pair<BookingResponse, Boolean> {
-        val created =
-            transaction {
-                if (isRetry(id, branchId, clientId)) return@transaction false
-                val booking =
-                    VisitBooking(
-                        id,
-                        branchId,
-                        clientId,
-                        input.visitDate,
-                        input.visitTime,
-                        clean(input.note),
-                        BookingStatus.BOOKED,
-                    )
-                validate(booking)
-                VisitBookingRepository.insertInTransaction(booking, callerId).also { inserted ->
-                    if (inserted) VisitBookingAudit.inserted(callerId, booking)
+        return traced("VisitBookingService.create") {
+            val created =
+                transaction {
+                    if (isRetry(id, branchId, clientId)) return@transaction false
+                    val booking =
+                        VisitBooking(
+                            id,
+                            branchId,
+                            clientId,
+                            input.visitDate,
+                            input.visitTime,
+                            clean(input.note),
+                            BookingStatus.BOOKED,
+                        )
+                    validate(booking)
+                    VisitBookingRepository.insertInTransaction(booking, callerId).also { inserted ->
+                        if (inserted) VisitBookingAudit.inserted(callerId, booking)
+                    }
                 }
-            }
-        return (VisitBookingRepository.findResponse(id) ?: throw NotFoundException("Booking not found")) to created
+            return@traced (VisitBookingRepository.findResponse(id) ?: throw NotFoundException("Booking not found")) to
+                created
+        }
     }
 
     fun update(
@@ -65,23 +69,25 @@ object VisitBookingService {
         input: BookingInput,
         status: BookingStatus,
     ): BookingResponse {
-        transaction {
-            val before =
-                VisitBookingRepository.findByIdInTransaction(id)?.takeIf { it.branchId == branchId }
-                    ?: throw NotFoundException("Booking not found")
-            val after =
-                before.copy(
-                    visitDate = input.visitDate,
-                    visitTime = input.visitTime,
-                    note = clean(input.note),
-                    status = status,
-                )
-            if (after == before) return@transaction
-            if (after.status == BookingStatus.BOOKED && after.visitDate != before.visitDate) validate(after)
-            VisitBookingRepository.updateInTransaction(after, callerId)
-            VisitBookingAudit.updated(callerId, before, after)
+        return traced("VisitBookingService.update") {
+            transaction {
+                val before =
+                    VisitBookingRepository.findByIdInTransaction(id)?.takeIf { it.branchId == branchId }
+                        ?: throw NotFoundException("Booking not found")
+                val after =
+                    before.copy(
+                        visitDate = input.visitDate,
+                        visitTime = input.visitTime,
+                        note = clean(input.note),
+                        status = status,
+                    )
+                if (after == before) return@transaction
+                if (after.status == BookingStatus.BOOKED && after.visitDate != before.visitDate) validate(after)
+                VisitBookingRepository.updateInTransaction(after, callerId)
+                VisitBookingAudit.updated(callerId, before, after)
+            }
+            return@traced VisitBookingRepository.findResponse(id) ?: throw NotFoundException("Booking not found")
         }
-        return VisitBookingRepository.findResponse(id) ?: throw NotFoundException("Booking not found")
     }
 
     /** True when [id] already names this same booking; a different one under the id is a conflict. */

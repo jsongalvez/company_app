@@ -11,6 +11,7 @@ import com.companyb.companyapp.contracts.identity.ViewAsResponse
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.Context
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -77,23 +78,32 @@ object ViewAs {
     ): ViewAsResponse {
         if (!isSuperuser(callerId)) throw ForbiddenException("Only a superuser can view as someone else")
         if (callerId == targetId) throw ValidationException("That's you")
-        val response =
-            transaction {
-                val user = MeRepository.findUser(targetId) ?: throw NotFoundException("User not found")
-                if (user.status != UserStatus.ACTIVE) throw ValidationException("That account is not active")
-                val roles = RoleRepository.findRoleNamesForUserInTransaction(targetId)
-                if (SUPERUSER_ROLE in roles) throw ValidationException("Can't view as another superuser")
-                ViewAsAudit.record(callerId, targetId, mapOf("viewAs" to "started", "allowChanges" to "$allowChanges"))
-                ViewAsResponse(
-                    userId = targetId.toString(),
-                    username = user.username,
-                    displayName = user.displayName,
-                    roles = roles,
-                    allowChanges = allowChanges,
-                )
-            }
-        logger.info { "[VIEW-AS] $callerId started viewing as $targetId allowChanges=$allowChanges" }
-        return response
+        return traced("ViewAs.start") {
+            val response =
+                transaction {
+                    val user = MeRepository.findUser(targetId) ?: throw NotFoundException("User not found")
+                    if (user.status != UserStatus.ACTIVE) throw ValidationException("That account is not active")
+                    val roles = RoleRepository.findRoleNamesForUserInTransaction(targetId)
+                    if (SUPERUSER_ROLE in roles) throw ValidationException("Can't view as another superuser")
+                    ViewAsAudit.record(
+                        callerId,
+                        targetId,
+                        mapOf(
+                            "viewAs" to "started",
+                            "allowChanges" to "$allowChanges",
+                        ),
+                    )
+                    ViewAsResponse(
+                        userId = targetId.toString(),
+                        username = user.username,
+                        displayName = user.displayName,
+                        roles = roles,
+                        allowChanges = allowChanges,
+                    )
+                }
+            logger.info { "[VIEW-AS] $callerId started viewing as $targetId allowChanges=$allowChanges" }
+            return@traced response
+        }
     }
 
     /** Records the end (or a change of the allow-changes switch) in history. */
@@ -103,8 +113,10 @@ object ViewAs {
         event: String,
     ) {
         if (!isSuperuser(callerId)) throw ForbiddenException("Only a superuser can view as someone else")
-        transaction { ViewAsAudit.record(callerId, targetId, mapOf("viewAs" to event)) }
-        logger.info { "[VIEW-AS] $callerId $event viewing as $targetId" }
+        traced("ViewAs.stop") {
+            transaction { ViewAsAudit.record(callerId, targetId, mapOf("viewAs" to event)) }
+            logger.info { "[VIEW-AS] $callerId $event viewing as $targetId" }
+        }
     }
 }
 

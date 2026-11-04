@@ -1,5 +1,6 @@
 package com.companyb.companyapp.commission
 
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -15,13 +16,15 @@ private val logger = KotlinLogging.logger {}
 
 internal object CommissionSplitRepository {
     fun findByBranchDayId(branchDayId: UUID): List<CommissionSplit> =
-        transaction {
-            CommissionSplitTable
-                .selectAll()
-                .where { CommissionSplitTable.branchDayId eq branchDayId }
-                .map { it.toCommissionSplit() }
-        }.also {
-            logger.info { "[COMMISSION-SPLIT] Found ${it.size} splits for branchDay=$branchDayId" }
+        traced("CommissionSplitRepository.findByBranchDayId") {
+            transaction {
+                CommissionSplitTable
+                    .selectAll()
+                    .where { CommissionSplitTable.branchDayId eq branchDayId }
+                    .map { it.toCommissionSplit() }
+            }.also {
+                logger.info { "[COMMISSION-SPLIT] Found ${it.size} splits for branchDay=$branchDayId" }
+            }
         }
 
     /**

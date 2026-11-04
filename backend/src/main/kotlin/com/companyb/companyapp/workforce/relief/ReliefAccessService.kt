@@ -13,6 +13,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.ShiftGuard
 import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -96,84 +97,86 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        // Non-locking entry read (the discipline — no lock widening): the day lock
-        // inside the command transaction is the serializer, not the relief row.
-        val request =
-            ReliefAccessRepository.findById(requestId)
-                ?: throw NotFoundException("Relief access request not found")
+        return traced("ReliefAccessService.grantAccess") {
+            // Non-locking entry read (the discipline — no lock widening): the day lock
+            // inside the command transaction is the serializer, not the relief row.
+            val request =
+                ReliefAccessRepository.findById(requestId)
+                    ?: throw NotFoundException("Relief access request not found")
 
-        val result =
-            transaction {
-                // membership at commit + locked day gate inside the command
-                // transaction: a concurrent remittance submit flipping the day to REMITTED
-                // can no longer slip between the gate and the grant.
-                requireActiveMemberInTransaction(callerId, request.branchDayId)
-                val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
+            val result =
+                transaction {
+                    // membership at commit + locked day gate inside the command
+                    // transaction: a concurrent remittance submit flipping the day to REMITTED
+                    // can no longer slip between the gate and the grant.
+                    requireActiveMemberInTransaction(callerId, request.branchDayId)
+                    val (branchDay, isRemitted) =
+                        BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
 
-                // one duty per person per day (idx_one_grant_per_day backstop):
-                // a sibling GRANTED for the same requester/day turns this grant into
-                // a 409 instead of a unique-violation 500. Day-lock serialized with
-                // the sibling's grant, so the check+flip are atomic.
-                requireNoSiblingGrantedInTransaction(request.requestedBy, request.branchDayId, requestId)
+                    // one duty per person per day (idx_one_grant_per_day backstop):
+                    // a sibling GRANTED for the same requester/day turns this grant into
+                    // a 409 instead of a unique-violation 500. Day-lock serialized with
+                    // the sibling's grant, so the check+flip are atomic.
+                    requireNoSiblingGrantedInTransaction(request.requestedBy, request.branchDayId, requestId)
 
-                val mutation =
-                    ReliefAccessRepository.grantInTransaction(
-                        GrantWithCapabilityParams(
+                    val mutation =
+                        ReliefAccessRepository.grantInTransaction(
+                            GrantWithCapabilityParams(
+                                requestId = requestId,
+                                grantedBy = callerId,
+                            ),
+                        ) ?: error("Grant failed: relief access request not found in transaction")
+
+                    // granting an already-decided ask is a 409, not a silent 200
+                    // carrying the wrong status (the deny/cancel decided-state discipline).
+                    // The GRANTED replay leg stays idempotent (updated=false, after=GRANTED).
+                    if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.GRANTED) {
+                        throw ConflictException(
+                            "This relief request was already decided (${mutation.after.requestStatus})",
+                        )
+                    }
+                    // cross-path twin of the sibling guard (fresh flips only; the
+                    // GRANTED replay leg above returns its own grant, which the view
+                    // check would otherwise mistake for another path's duty):
+                    // an ACCEPTED invite for the same user/day already wrote the
+                    // day-scoped grant (same capability, other table), so a fresh
+                    // grant here would stack a second active row. Post-mutation throw
+                    // rolls the flip back — the request stays PENDING.
+                    if (mutation.updated) {
+                        requireNoInviteDutyInTransaction(request.requestedBy, request.branchDayId)
+                    }
+                    if (mutation.updated) {
+                        AuthorizationGrants.grantReliefCapabilityInTransaction(
+                            GrantReliefCapabilityParams(
+                                userId = request.requestedBy,
+                                branchDayId = request.branchDayId,
+                                sourceId = requestId,
+                                validTo = BranchDayService.expirationUtc(branchDay.date),
+                            ),
+                        )
+                        ReliefAccessAudit.updated(
+                            AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                            mutation.before,
+                            mutation.after,
+                        )
+                        // outcome broadcast: everyone incl. who granted + the requester.
+                        ReliefNotifications.requestOutcome(
+                            eventType = ReliefNotifications.GRANTED,
                             requestId = requestId,
-                            grantedBy = callerId,
-                        ),
-                    ) ?: error("Grant failed: relief access request not found in transaction")
+                            actorId = callerId,
+                            requesterId = request.requestedBy,
+                            context = ReliefEventContext.of(branchDay),
+                        )
+                    }
+                    mutation.after
+                }
 
-                // granting an already-decided ask is a 409, not a silent 200
-                // carrying the wrong status (the deny/cancel decided-state discipline).
-                // The GRANTED replay leg stays idempotent (updated=false, after=GRANTED).
-                if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.GRANTED) {
-                    throw ConflictException(
-                        "This relief request was already decided (${mutation.after.requestStatus})",
-                    )
-                }
-                // cross-path twin of the sibling guard (fresh flips only; the
-                // GRANTED replay leg above returns its own grant, which the view
-                // check would otherwise mistake for another path's duty):
-                // an ACCEPTED invite for the same user/day already wrote the
-                // day-scoped grant (same capability, other table), so a fresh
-                // grant here would stack a second active row. Post-mutation throw
-                // rolls the flip back — the request stays PENDING.
-                if (mutation.updated) {
-                    requireNoInviteDutyInTransaction(request.requestedBy, request.branchDayId)
-                }
-                if (mutation.updated) {
-                    AuthorizationGrants.grantReliefCapabilityInTransaction(
-                        GrantReliefCapabilityParams(
-                            userId = request.requestedBy,
-                            branchDayId = request.branchDayId,
-                            sourceId = requestId,
-                            validTo = BranchDayService.expirationUtc(branchDay.date),
-                        ),
-                    )
-                    ReliefAccessAudit.updated(
-                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                        mutation.before,
-                        mutation.after,
-                    )
-                    // outcome broadcast: everyone incl. who granted + the requester.
-                    ReliefNotifications.requestOutcome(
-                        eventType = ReliefNotifications.GRANTED,
-                        requestId = requestId,
-                        actorId = callerId,
-                        requesterId = request.requestedBy,
-                        context = ReliefEventContext.of(branchDay),
-                    )
-                }
-                mutation.after
+            logger.info {
+                "[RELIEF-ACCESS-GRANT] Request $requestId handled by $callerId " +
+                    "(status=${result.requestStatus}, updated=${result.requestStatus == ReliefAccessStatus.GRANTED})"
             }
-
-        logger.info {
-            "[RELIEF-ACCESS-GRANT] Request $requestId handled by $callerId " +
-                "(status=${result.requestStatus}, updated=${result.requestStatus == ReliefAccessStatus.GRANTED})"
+            return@traced result
         }
-        return result
     }
 
     fun denyAccess(
@@ -181,48 +184,50 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        // Non-locking entry read (the discipline — no lock widening): the store's
-        // conditional update arbitrates races. No pre-transaction decided-state
-        // fast-path: the membership + day gates below must run on every leg
-        // so non-members get 403 on DENIED/GRANTED rows instead of a 200/400 oracle.
-        val request =
-            ReliefAccessRepository.findById(requestId)
-                ?: throw NotFoundException("Relief access request not found")
+        return traced("ReliefAccessService.denyAccess") {
+            // Non-locking entry read (the discipline — no lock widening): the store's
+            // conditional update arbitrates races. No pre-transaction decided-state
+            // fast-path: the membership + day gates below must run on every leg
+            // so non-members get 403 on DENIED/GRANTED rows instead of a 200/400 oracle.
+            val request =
+                ReliefAccessRepository.findById(requestId)
+                    ?: throw NotFoundException("Relief access request not found")
 
-        val result =
-            transaction {
-                // membership at commit + locked day gate in the same tx
-                // (same TOCTOU shape as grant).
-                requireActiveMemberInTransaction(callerId, request.branchDayId)
-                val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
+            val result =
+                transaction {
+                    // membership at commit + locked day gate in the same tx
+                    // (same TOCTOU shape as grant).
+                    requireActiveMemberInTransaction(callerId, request.branchDayId)
+                    val (branchDay, isRemitted) =
+                        BranchDayService.checkBranchDayEditableInTransaction(callerId, request.branchDayId, reason)
 
-                val mutation = ReliefAccessRepository.denyInTransaction(requestId)
-                if (mutation.updated) {
-                    ReliefAccessAudit.updated(
-                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                        mutation.before,
-                        mutation.after,
-                    )
-                    // outcome broadcast: everyone incl. who denied + the requester.
-                    ReliefNotifications.requestOutcome(
-                        eventType = ReliefNotifications.DENIED,
-                        requestId = requestId,
-                        actorId = callerId,
-                        requesterId = request.requestedBy,
-                        context = ReliefEventContext.of(branchDay),
-                    )
+                    val mutation = ReliefAccessRepository.denyInTransaction(requestId)
+                    if (mutation.updated) {
+                        ReliefAccessAudit.updated(
+                            AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                            mutation.before,
+                            mutation.after,
+                        )
+                        // outcome broadcast: everyone incl. who denied + the requester.
+                        ReliefNotifications.requestOutcome(
+                            eventType = ReliefNotifications.DENIED,
+                            requestId = requestId,
+                            actorId = callerId,
+                            requesterId = request.requestedBy,
+                            context = ReliefEventContext.of(branchDay),
+                        )
+                    }
+                    mutation.after
                 }
-                mutation.after
+
+            if (result.requestStatus == ReliefAccessStatus.GRANTED) {
+                throw ValidationException("Cannot deny a request that has already been granted")
             }
 
-        if (result.requestStatus == ReliefAccessStatus.GRANTED) {
-            throw ValidationException("Cannot deny a request that has already been granted")
+            logger.info { "[RELIEF-ACCESS-DENY] Request $requestId denied by $callerId" }
+
+            return@traced result
         }
-
-        logger.info { "[RELIEF-ACCESS-DENY] Request $requestId denied by $callerId" }
-
-        return result
     }
 
     /**
@@ -235,60 +240,62 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        val request =
-            ReliefAccessRepository.findById(requestId)
-                ?: throw NotFoundException("Relief access request not found")
+        return traced("ReliefAccessService.cancelRequest") {
+            val request =
+                ReliefAccessRepository.findById(requestId)
+                    ?: throw NotFoundException("Relief access request not found")
 
-        val isRequester = request.requestedBy == callerId
+            val isRequester = request.requestedBy == callerId
 
-        val result =
-            transaction {
-                // membership at commit for the member-cancel leg: the FOR UPDATE
-                // re-read orders against a concurrently committing assignment removal.
-                if (!isRequester) {
-                    requireActiveMemberInTransaction(callerId, request.branchDayId)
-                }
-                // Owner rule: ALL retraction stops once the requester clocks in as relief
-                // (the check serializes on the branch_day row, so a concurrent
-                // clock-in cannot slip between the read and this command's commit).
-                ShiftGuard.ensureRetractionAllowed(
-                    request.requestedBy,
-                    request.branchDayId,
-                    "Relief duty has already started — this request can no longer be cancelled",
-                )
-
-                val (branchDay, isRemitted) =
-                    // The day gate only arbitrates edit authority for members; a withdrawing
-                    // requester acts on their own row regardless of day state (a scheduled
-                    // ask can be withdrawn before its day even opens).
-                    if (isRequester) {
-                        BranchDayService.requireBranchDayExists(request.branchDayId).let {
-                            it to false
-                        }
-                    } else {
-                        BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+            val result =
+                transaction {
+                    // membership at commit for the member-cancel leg: the FOR UPDATE
+                    // re-read orders against a concurrently committing assignment removal.
+                    if (!isRequester) {
+                        requireActiveMemberInTransaction(callerId, request.branchDayId)
                     }
+                    // Owner rule: ALL retraction stops once the requester clocks in as relief
+                    // (the check serializes on the branch_day row, so a concurrent
+                    // clock-in cannot slip between the read and this command's commit).
+                    ShiftGuard.ensureRetractionAllowed(
+                        request.requestedBy,
+                        request.branchDayId,
+                        "Relief duty has already started — this request can no longer be cancelled",
+                    )
 
-                val mutation = ReliefAccessRepository.cancelInTransaction(requestId)
-                if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.CANCELLED) {
-                    throw ConflictException(
-                        "This relief request was already decided (${mutation.after.requestStatus})",
-                    )
+                    val (branchDay, isRemitted) =
+                        // The day gate only arbitrates edit authority for members; a withdrawing
+                        // requester acts on their own row regardless of day state (a scheduled
+                        // ask can be withdrawn before its day even opens).
+                        if (isRequester) {
+                            BranchDayService.requireBranchDayExists(request.branchDayId).let {
+                                it to false
+                            }
+                        } else {
+                            BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+                        }
+
+                    val mutation = ReliefAccessRepository.cancelInTransaction(requestId)
+                    if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.CANCELLED) {
+                        throw ConflictException(
+                            "This relief request was already decided (${mutation.after.requestStatus})",
+                        )
+                    }
+                    if (mutation.updated) {
+                        ReliefAccessAudit.updated(
+                            AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                            mutation.before,
+                            mutation.after,
+                        )
+                    }
+                    mutation.after
                 }
-                if (mutation.updated) {
-                    ReliefAccessAudit.updated(
-                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                        mutation.before,
-                        mutation.after,
-                    )
-                }
-                mutation.after
+
+            logger.info {
+                "[RELIEF-ACCESS-CANCEL] Request $requestId cancelled by $callerId (requester=$isRequester)"
             }
-
-        logger.info {
-            "[RELIEF-ACCESS-CANCEL] Request $requestId cancelled by $callerId (requester=$isRequester)"
+            return@traced result
         }
-        return result
     }
 
     fun requestReliefAccess(
@@ -298,73 +305,75 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        val branch = BranchService.findById(branchId)
-        requireRequesterEligible(callerId, branchId)
+        return traced("ReliefAccessService.requestReliefAccess") {
+            val branch = BranchService.findById(branchId)
+            requireRequesterEligible(callerId, branchId)
 
-        val operationalDate = date ?: BranchDayService.currentOperationalDate()
-        requireOperationalDate(operationalDate)
+            val operationalDate = date ?: BranchDayService.currentOperationalDate()
+            requireOperationalDate(operationalDate)
 
-        val (reliefAccess, wasCreated) =
-            transaction {
-                val branchDay = BranchDayService.resolveOrCreate(branchId, operationalDate)
+            val (reliefAccess, wasCreated) =
+                transaction {
+                    val branchDay = BranchDayService.resolveOrCreate(branchId, operationalDate)
 
-                // in-tx replay classification before the day gate (the
-                // discipline): a same-id row already committed acks without re-gating so
-                // retries landing after a day transition still ack; ownership matches the
-                // insert below (the / class).
-                ReliefAccessRepository.findByIdInTransaction(requestId)?.let { existing ->
-                    requireReplayOwnership(existing, branchDay.id, callerId)
-                    return@transaction existing to false
+                    // in-tx replay classification before the day gate (the
+                    // discipline): a same-id row already committed acks without re-gating so
+                    // retries landing after a day transition still ack; ownership matches the
+                    // insert below (the / class).
+                    ReliefAccessRepository.findByIdInTransaction(requestId)?.let { existing ->
+                        requireReplayOwnership(existing, branchDay.id, callerId)
+                        return@transaction existing to false
+                    }
+
+                    // Locked day read: serializes this request with remittance's REMITTED transition.
+                    val (lockedDay, isRemitted) =
+                        BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
+
+                    // per-person duty guard (mirrors the invite create guard): the
+                    // requester must not already hold the day (a GRANTED request or an
+                    // active day grant incl. the invite path). Without it a second grant
+                    // would hit idx_one_grant_per_day as a 500.
+                    requireNoExistingDutyInTransaction(callerId, lockedDay.id)
+
+                    val pair =
+                        ReliefAccessRepository.insertRequestInTransaction(
+                            id = requestId,
+                            branchDayId = lockedDay.id,
+                            requestedBy = callerId,
+                        )
+                    if (pair.first == null) {
+                        // A different live request stands for this branch day — the Q4
+                        // flood rule. Throw inside the transaction so the swallowed insert
+                        // and the conflict commit atomically as nothing.
+                        throw ConflictException("You already have a live relief request for this branch day")
+                    }
+                    if (pair.second) {
+                        ReliefAccessAudit.inserted(
+                            AuditContext(callerId, lockedDay.branchId, isRemitted, reason),
+                            checkNotNull(pair.first),
+                        )
+                        // the branch-wide ping commits with the request it announces.
+                        ReliefNotifications.requestCreated(
+                            requestId = requestId,
+                            requesterId = callerId,
+                            context =
+                                ReliefEventContext(
+                                    branchId = branchId,
+                                    branchName = branch.name,
+                                    date = operationalDate,
+                                ),
+                        )
+                    }
+                    pair
                 }
 
-                // Locked day read: serializes this request with remittance's REMITTED transition.
-                val (lockedDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
-
-                // per-person duty guard (mirrors the invite create guard): the
-                // requester must not already hold the day (a GRANTED request or an
-                // active day grant incl. the invite path). Without it a second grant
-                // would hit idx_one_grant_per_day as a 500.
-                requireNoExistingDutyInTransaction(callerId, lockedDay.id)
-
-                val pair =
-                    ReliefAccessRepository.insertRequestInTransaction(
-                        id = requestId,
-                        branchDayId = lockedDay.id,
-                        requestedBy = callerId,
-                    )
-                if (pair.first == null) {
-                    // A different live request stands for this branch day — the Q4
-                    // flood rule. Throw inside the transaction so the swallowed insert
-                    // and the conflict commit atomically as nothing.
-                    throw ConflictException("You already have a live relief request for this branch day")
-                }
-                if (pair.second) {
-                    ReliefAccessAudit.inserted(
-                        AuditContext(callerId, lockedDay.branchId, isRemitted, reason),
-                        checkNotNull(pair.first),
-                    )
-                    // the branch-wide ping commits with the request it announces.
-                    ReliefNotifications.requestCreated(
-                        requestId = requestId,
-                        requesterId = callerId,
-                        context =
-                            ReliefEventContext(
-                                branchId = branchId,
-                                branchName = branch.name,
-                                date = operationalDate,
-                            ),
-                    )
-                }
-                pair
+            logger.info {
+                "[RELIEF-ACCESS-REQUEST] Request $requestId created " +
+                    "(relief=$callerId, branch=$branchId, date=$operationalDate, replay=${!wasCreated})"
             }
 
-        logger.info {
-            "[RELIEF-ACCESS-REQUEST] Request $requestId created " +
-                "(relief=$callerId, branch=$branchId, date=$operationalDate, replay=${!wasCreated})"
+            return@traced checkNotNull(reliefAccess) { "conflict path already threw" }
         }
-
-        return checkNotNull(reliefAccess) { "conflict path already threw" }
     }
 
     /**

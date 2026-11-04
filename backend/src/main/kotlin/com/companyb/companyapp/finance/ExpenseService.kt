@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -34,42 +35,44 @@ object ExpenseService {
         notes: String?,
         reason: String? = null,
     ): Expense {
-        validateMoneyAmount(amount, "amount")
-        return transaction {
-            // in-tx replay classification before the day gate: a same-id
-            // row already committed acks without gating so retries landing after a day transition
-            // still ack; ownership matches createInTransaction below.
-            ExpenseRepository.findByIdInTransaction(id)?.let { existing ->
-                if (existing.branchDayId != branchDayId) {
-                    throw NotFoundException("Expense not found for this branch day")
+        return traced("ExpenseService.create") {
+            validateMoneyAmount(amount, "amount")
+            return@traced transaction {
+                // in-tx replay classification before the day gate: a same-id
+                // row already committed acks without gating so retries landing after a day transition
+                // still ack; ownership matches createInTransaction below.
+                ExpenseRepository.findByIdInTransaction(id)?.let { existing ->
+                    if (existing.branchDayId != branchDayId) {
+                        throw NotFoundException("Expense not found for this branch day")
+                    }
+                    if (existing.createdBy != callerId || !samePayload(existing, amount, category, notes)) {
+                        throw ConflictException("Expense id already belongs to another create request")
+                    }
+                    return@transaction existing
                 }
-                if (existing.createdBy != callerId || !samePayload(existing, amount, category, notes)) {
-                    throw ConflictException("Expense id already belongs to another create request")
-                }
-                return@transaction existing
-            }
-            // Locked day read: serializes this create with remittance's REMITTED transition.
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
+                // Locked day read: serializes this create with remittance's REMITTED transition.
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
 
-            val result =
-                ExpenseRepository.createInTransaction(
-                    ExpenseCreateParams(
-                        id = id,
-                        branchDayId = branchDayId,
-                        amount = amount,
-                        category = category,
-                        createdBy = callerId,
-                        notes = notes,
-                    ),
-                )
-            if (result.created) {
-                ExpenseAudit.inserted(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                    result.expense,
-                )
+                val result =
+                    ExpenseRepository.createInTransaction(
+                        ExpenseCreateParams(
+                            id = id,
+                            branchDayId = branchDayId,
+                            amount = amount,
+                            category = category,
+                            createdBy = callerId,
+                            notes = notes,
+                        ),
+                    )
+                if (result.created) {
+                    ExpenseAudit.inserted(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        result.expense,
+                    )
+                }
+                result.expense
             }
-            result.expense
         }
     }
 
@@ -93,30 +96,37 @@ object ExpenseService {
         expectedVersion: Int,
         reason: String? = null,
     ): Expense {
-        validateMoneyAmount(amount, "amount")
-        return transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction,
-            // never held across a method boundary where a concurrent write could stale it.
-            val before =
-                ExpenseRepository.findByIdInTransaction(expenseId)
-                    ?: throw NotFoundException("Expense not found")
+        return traced("ExpenseService.update") {
+            validateMoneyAmount(amount, "amount")
+            return@traced transaction {
+                // Transaction-local before-state (ADR-0019): read inside the command's transaction,
+                // never held across a method boundary where a concurrent write could stale it.
+                val before =
+                    ExpenseRepository.findByIdInTransaction(expenseId)
+                        ?: throw NotFoundException("Expense not found")
 
-            if (before.deletedAt != null) {
-                throw ValidationException("Cannot update a deleted expense")
+                if (before.deletedAt != null) {
+                    throw ValidationException("Cannot update a deleted expense")
+                }
+
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        before.branchDayId,
+                        reason,
+                        DayWrite.FIX,
+                    )
+
+                val after =
+                    ExpenseRepository.updateInTransaction(expenseId, amount, category, notes, expectedVersion)
+
+                ExpenseAudit.updated(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    before,
+                    after,
+                )
+                after
             }
-
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
-
-            val after =
-                ExpenseRepository.updateInTransaction(expenseId, amount, category, notes, expectedVersion)
-
-            ExpenseAudit.updated(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                before,
-                after,
-            )
-            after
         }
     }
 
@@ -126,26 +136,33 @@ object ExpenseService {
         reason: String,
         expectedVersion: Int,
     ): Expense =
-        transaction {
-            val before =
-                ExpenseRepository.findByIdInTransaction(expenseId)
-                    ?: throw NotFoundException("Expense not found")
+        traced("ExpenseService.softDelete") {
+            transaction {
+                val before =
+                    ExpenseRepository.findByIdInTransaction(expenseId)
+                        ?: throw NotFoundException("Expense not found")
 
-            if (before.deletedAt != null) {
-                throw ValidationException("Cannot delete an already-deleted expense")
+                if (before.deletedAt != null) {
+                    throw ValidationException("Cannot delete an already-deleted expense")
+                }
+
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        before.branchDayId,
+                        reason,
+                        DayWrite.FIX,
+                    )
+
+                val after =
+                    ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason, expectedVersion)
+
+                ExpenseAudit.deleted(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    before,
+                )
+                after
             }
-
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
-
-            val after =
-                ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason, expectedVersion)
-
-            ExpenseAudit.deleted(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                before,
-            )
-            after
         }
 
     /**
@@ -162,28 +179,35 @@ object ExpenseService {
         expenseId: UUID,
         reason: String? = null,
     ): Expense =
-        transaction {
-            val before =
-                ExpenseRepository.findByIdInTransaction(expenseId)
-                    ?: throw NotFoundException("Expense not found")
+        traced("ExpenseService.restore") {
+            transaction {
+                val before =
+                    ExpenseRepository.findByIdInTransaction(expenseId)
+                        ?: throw NotFoundException("Expense not found")
 
-            if (before.deletedAt == null) {
-                throw ValidationException("Expense is not deleted")
+                if (before.deletedAt == null) {
+                    throw ValidationException("Expense is not deleted")
+                }
+
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        before.branchDayId,
+                        reason,
+                        DayWrite.FIX,
+                    )
+
+                val after =
+                    ExpenseRepository.restoreInTransaction(expenseId)
+                        ?: throw ValidationException("Expense is not deleted")
+
+                ExpenseAudit.updated(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    before,
+                    after,
+                )
+                after
             }
-
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
-
-            val after =
-                ExpenseRepository.restoreInTransaction(expenseId)
-                    ?: throw ValidationException("Expense is not deleted")
-
-            ExpenseAudit.updated(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                before,
-                after,
-            )
-            after
         }
 
     // record-scoped read rides the route's gate (Access.require with Act.WORK_DAY);

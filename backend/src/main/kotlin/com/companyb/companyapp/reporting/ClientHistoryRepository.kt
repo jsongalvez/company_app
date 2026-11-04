@@ -7,6 +7,7 @@ import com.companyb.companyapp.contracts.reporting.ClientHistoryResponse
 import com.companyb.companyapp.contracts.reporting.ClientSaleItem
 import com.companyb.companyapp.contracts.reporting.ClientSessionItem
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ConcernTable
 import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.session.SessionPractitionerTable
@@ -29,12 +30,14 @@ private const val HISTORY_LIMIT = 200
 /** A client's past sessions and purchases: "I can't see the client's past history". */
 internal object ClientHistoryRepository {
     fun load(clientId: UUID): ClientHistoryResponse =
-        transaction {
-            val sessions = findSessions(clientId)
-            ClientHistoryResponse(
-                sessions = sessions,
-                sales = findSales(clientId, sessions.map { UUID.fromString(it.id) }),
-            )
+        traced("ClientHistoryRepository.load") {
+            transaction {
+                val sessions = findSessions(clientId)
+                ClientHistoryResponse(
+                    sessions = sessions,
+                    sales = findSales(clientId, sessions.map { UUID.fromString(it.id) }),
+                )
+            }
         }
 
     private fun findSessions(clientId: UUID): List<ClientSessionItem> {

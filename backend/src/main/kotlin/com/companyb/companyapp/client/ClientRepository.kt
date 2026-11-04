@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -156,9 +157,11 @@ internal object ClientRepository {
     }
 
     fun findById(id: UUID): Client? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
+        traced("ClientRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
+        }
 
     /** Locks and reads client row on caller's open transaction. */
     fun acquireLockInTransaction(clientId: UUID): Client? =
@@ -227,58 +230,62 @@ internal object ClientRepository {
         }
 
     fun search(query: String): List<Client> =
-        transaction {
-            val tokens = query.split(" ").filter { it.isNotBlank() }
-            val searchQuery = query.trim()
-            val colType: org.jetbrains.exposed.v1.core.IColumnType<String> = ClientTable.firstName.columnType
-            val spaceLiteral = LiteralOp(VarCharColumnType(SPACE_COLUMN_WIDTH), " ")
-            val fullNameConcat =
-                CustomFunction(
-                    "concat",
-                    VarCharColumnType(FULL_NAME_CONCAT_WIDTH),
-                    ClientTable.firstName,
-                    spaceLiteral,
-                    ClientTable.lastName,
-                )
-            val simScore =
-                similarity(
-                    fullNameConcat,
-                    LiteralOp(
-                        VarCharColumnType(searchQuery.length),
-                        searchQuery,
-                    ),
-                )
+        traced("ClientRepository.search") {
+            transaction {
+                val tokens = query.split(" ").filter { it.isNotBlank() }
+                val searchQuery = query.trim()
+                val colType: org.jetbrains.exposed.v1.core.IColumnType<String> = ClientTable.firstName.columnType
+                val spaceLiteral = LiteralOp(VarCharColumnType(SPACE_COLUMN_WIDTH), " ")
+                val fullNameConcat =
+                    CustomFunction(
+                        "concat",
+                        VarCharColumnType(FULL_NAME_CONCAT_WIDTH),
+                        ClientTable.firstName,
+                        spaceLiteral,
+                        ClientTable.lastName,
+                    )
+                val simScore =
+                    similarity(
+                        fullNameConcat,
+                        LiteralOp(
+                            VarCharColumnType(searchQuery.length),
+                            searchQuery,
+                        ),
+                    )
 
-            ClientTable
-                .selectAll()
-                .where {
-                    val tokenConditions =
-                        tokens.map { token ->
-                            val namePattern = "%$token%"
-                            val phonePattern = "$token%"
-                            val tokenParam = QueryParameter(token, colType)
-                            nameFieldMatch(tokenParam, namePattern) or
-                                (ClientTable.phoneNumber like phonePattern)
-                        }
-                    (ClientTable.deletedAt.isNull()) and
-                        tokenConditions.reduce { acc, cond -> acc and cond }
-                }.orderBy(
-                    simScore to SortOrder.DESC,
-                    ClientTable.lastName to SortOrder.ASC,
-                    ClientTable.firstName to SortOrder.ASC,
-                ).limit(SEARCH_LIMIT)
-                .map { it.toClient() }
-        }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s)" } }
+                ClientTable
+                    .selectAll()
+                    .where {
+                        val tokenConditions =
+                            tokens.map { token ->
+                                val namePattern = "%$token%"
+                                val phonePattern = "$token%"
+                                val tokenParam = QueryParameter(token, colType)
+                                nameFieldMatch(tokenParam, namePattern) or
+                                    (ClientTable.phoneNumber like phonePattern)
+                            }
+                        (ClientTable.deletedAt.isNull()) and
+                            tokenConditions.reduce { acc, cond -> acc and cond }
+                    }.orderBy(
+                        simScore to SortOrder.DESC,
+                        ClientTable.lastName to SortOrder.ASC,
+                        ClientTable.firstName to SortOrder.ASC,
+                    ).limit(SEARCH_LIMIT)
+                    .map { it.toClient() }
+            }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s)" } }
+        }
 
     /** Every live client in name order, capped, for phones to search with no signal. */
     fun directory(): List<Client> =
-        transaction {
-            ClientTable
-                .selectAll()
-                .where { ClientTable.deletedAt.isNull() }
-                .orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
-                .limit(DIRECTORY_LIMIT)
-                .map { it.toClient() }
+        traced("ClientRepository.directory") {
+            transaction {
+                ClientTable
+                    .selectAll()
+                    .where { ClientTable.deletedAt.isNull() }
+                    .orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
+                    .limit(DIRECTORY_LIMIT)
+                    .map { it.toClient() }
+            }
         }
 
     /**
@@ -286,49 +293,53 @@ internal object ClientRepository {
      * creation time, so a client with no session yet is not listed; searching still finds them.
      */
     fun recent(): List<Client> =
-        transaction {
-            val lastSeen = SessionTable.createdAt.max()
-            val ids =
-                SessionTable
-                    .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
-                    .leftJoin(
-                        ActiveSessionVoidsView,
-                        { SessionTable.id },
-                        { ActiveSessionVoidsView.sessionId },
-                    ).select(SessionTable.clientId, lastSeen)
-                    .where { ActiveSessionVoidsView.sessionId.isNull() and ClientTable.deletedAt.isNull() }
-                    .groupBy(SessionTable.clientId)
-                    .orderBy(lastSeen to SortOrder.DESC)
-                    .limit(RECENT_LIMIT)
-                    .map { it[SessionTable.clientId] }
-            ClientTable
-                .selectAll()
-                .where { ClientTable.id inList ids }
-                .map { it.toClient() }
-                .sortedBy { ids.indexOf(it.id) }
+        traced("ClientRepository.recent") {
+            transaction {
+                val lastSeen = SessionTable.createdAt.max()
+                val ids =
+                    SessionTable
+                        .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
+                        .leftJoin(
+                            ActiveSessionVoidsView,
+                            { SessionTable.id },
+                            { ActiveSessionVoidsView.sessionId },
+                        ).select(SessionTable.clientId, lastSeen)
+                        .where { ActiveSessionVoidsView.sessionId.isNull() and ClientTable.deletedAt.isNull() }
+                        .groupBy(SessionTable.clientId)
+                        .orderBy(lastSeen to SortOrder.DESC)
+                        .limit(RECENT_LIMIT)
+                        .map { it[SessionTable.clientId] }
+                ClientTable
+                    .selectAll()
+                    .where { ClientTable.id inList ids }
+                    .map { it.toClient() }
+                    .sortedBy { ids.indexOf(it.id) }
+            }
         }
 
     /** Total session history per client for authoritative client read models. */
     fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> {
         if (clientIds.isEmpty()) return emptyMap()
-        val ids = clientIds.toList()
-        val counts =
-            transaction {
-                val sessionCount = SessionTable.id.count()
-                SessionTable
-                    .leftJoin(
-                        ActiveSessionVoidsView,
-                        { SessionTable.id },
-                        { ActiveSessionVoidsView.sessionId },
-                    ).select(SessionTable.clientId, sessionCount)
-                    .where {
-                        (SessionTable.clientId inList ids) and
-                            (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
-                            (ActiveSessionVoidsView.sessionId.isNull())
-                    }.groupBy(SessionTable.clientId)
-                    .associate { row -> row[SessionTable.clientId] to row[sessionCount].toInt() }
-            }
-        return ids.associateWith { counts[it] ?: 0 }
+        return traced("ClientRepository.countSessions") {
+            val ids = clientIds.toList()
+            val counts =
+                transaction {
+                    val sessionCount = SessionTable.id.count()
+                    SessionTable
+                        .leftJoin(
+                            ActiveSessionVoidsView,
+                            { SessionTable.id },
+                            { ActiveSessionVoidsView.sessionId },
+                        ).select(SessionTable.clientId, sessionCount)
+                        .where {
+                            (SessionTable.clientId inList ids) and
+                                (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
+                                (ActiveSessionVoidsView.sessionId.isNull())
+                        }.groupBy(SessionTable.clientId)
+                        .associate { row -> row[SessionTable.clientId] to row[sessionCount].toInt() }
+                }
+            return@traced ids.associateWith { counts[it] ?: 0 }
+        }
     }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.commission
 
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -96,8 +97,10 @@ internal object CommissionManualInclusionRepository {
         }
 
     fun findById(id: UUID): CommissionManualInclusion? =
-        transaction {
-            findByIdInTransaction(id)
+        traced("CommissionManualInclusionRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }
         }
 
     private fun findByIdInTransaction(id: UUID): CommissionManualInclusion? =

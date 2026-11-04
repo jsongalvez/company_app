@@ -1,5 +1,6 @@
 package com.companyb.companyapp.reporting
 
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryMappers.toMonthlyRemittanceSummary
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -13,14 +14,16 @@ internal object MonthlyRemittanceSummaryRepository {
         year: Int,
         month: Int,
     ): MonthlyRemittanceSummary? =
-        transaction {
-            MonthlyRemittanceSummaryView
-                .selectAll()
-                .where {
-                    (MonthlyRemittanceSummaryView.branchId eq branchId) and
-                        (MonthlyRemittanceSummaryView.year eq year) and
-                        (MonthlyRemittanceSummaryView.month eq month)
-                }.singleOrNull()
-                ?.toMonthlyRemittanceSummary()
+        traced("MonthlyRemittanceSummaryRepository.findByBranchYearMonth") {
+            transaction {
+                MonthlyRemittanceSummaryView
+                    .selectAll()
+                    .where {
+                        (MonthlyRemittanceSummaryView.branchId eq branchId) and
+                            (MonthlyRemittanceSummaryView.year eq year) and
+                            (MonthlyRemittanceSummaryView.month eq month)
+                    }.singleOrNull()
+                    ?.toMonthlyRemittanceSummary()
+            }
         }
 }

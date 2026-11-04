@@ -106,7 +106,6 @@ class RequestTimingTest : BasePostgresTest() {
                 RequestElapsedConverter.startRequest()
                 DeltaTimeConverter.startRequest()
                 TraceIdFilter.before(it)
-                RequestLog.start(it)
                 // Stands in for the sign-in filter: Server-Timing goes to signed-in calls only.
                 it.attribute("userId", "signed-in")
             }

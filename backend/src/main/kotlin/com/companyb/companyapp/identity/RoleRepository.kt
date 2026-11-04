@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.RoleCapabilityTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -34,23 +35,25 @@ internal object RoleRepository {
     )
 
     fun findAllWithCapabilities(): List<RoleWithCapabilities> =
-        transaction {
-            val capabilityCodesByRole =
-                RoleTable
-                    .innerJoin(RoleCapabilityTable, { RoleTable.id }, { RoleCapabilityTable.roleId })
-                    .innerJoin(CapabilityTable, { RoleCapabilityTable.capabilityId }, { CapabilityTable.id })
-                    .selectAll()
-                    .orderBy(CapabilityTable.code to SortOrder.ASC)
-                    .groupBy({ it[RoleTable.id] }) { it[CapabilityTable.code] }
-            RoleTable.selectAll().orderBy(RoleTable.name to SortOrder.ASC).map { row ->
-                val roleId = row[RoleTable.id]
-                RoleWithCapabilities(
-                    id = roleId,
-                    name = row[RoleTable.name],
-                    capabilities = capabilityCodesByRole[roleId].orEmpty(),
-                )
-            }
-        }.also { logger.info { "[FIND-ALL-ROLES] Fetched ${it.size} role(s)" } }
+        traced("RoleRepository.findAllWithCapabilities") {
+            transaction {
+                val capabilityCodesByRole =
+                    RoleTable
+                        .innerJoin(RoleCapabilityTable, { RoleTable.id }, { RoleCapabilityTable.roleId })
+                        .innerJoin(CapabilityTable, { RoleCapabilityTable.capabilityId }, { CapabilityTable.id })
+                        .selectAll()
+                        .orderBy(CapabilityTable.code to SortOrder.ASC)
+                        .groupBy({ it[RoleTable.id] }) { it[CapabilityTable.code] }
+                RoleTable.selectAll().orderBy(RoleTable.name to SortOrder.ASC).map { row ->
+                    val roleId = row[RoleTable.id]
+                    RoleWithCapabilities(
+                        id = roleId,
+                        name = row[RoleTable.name],
+                        capabilities = capabilityCodesByRole[roleId].orEmpty(),
+                    )
+                }
+            }.also { logger.info { "[FIND-ALL-ROLES] Fetched ${it.size} role(s)" } }
+        }
 
     /** In-transaction store lookup (ADR-0024) — resolves a seeded role by exact name. */
     fun findIdByNameInTransaction(name: String): UUID? =
@@ -63,14 +66,16 @@ internal object RoleRepository {
     /** Role names per user for the given ids; names ASC within each user. */
     fun findRoleNamesByUser(userIds: Collection<UUID>): Map<UUID, List<String>> {
         if (userIds.isEmpty()) return emptyMap()
-        return transaction {
-            UserRoleTable
-                .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
-                .selectAll()
-                .where { UserRoleTable.userId inList userIds }
-                .orderBy(RoleTable.name to SortOrder.ASC)
-                .groupBy({ it[UserRoleTable.userId] }, { it[RoleTable.name] })
-        }.also { logger.info { "[FIND-ROLE-NAMES-BY-USER] Fetched roles for ${it.size} user(s)" } }
+        return traced("RoleRepository.findRoleNamesByUser") {
+            return@traced transaction {
+                UserRoleTable
+                    .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+                    .selectAll()
+                    .where { UserRoleTable.userId inList userIds }
+                    .orderBy(RoleTable.name to SortOrder.ASC)
+                    .groupBy({ it[UserRoleTable.userId] }, { it[RoleTable.name] })
+            }.also { logger.info { "[FIND-ROLE-NAMES-BY-USER] Fetched roles for ${it.size} user(s)" } }
+        }
     }
 
     /** In-transaction store read of the target's current role names (before-state capture). */

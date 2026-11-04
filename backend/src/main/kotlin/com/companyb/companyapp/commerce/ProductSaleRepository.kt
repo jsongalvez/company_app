@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
@@ -220,17 +221,21 @@ internal object ProductSaleRepository {
 
     /** The day's sales, deleted ones included so a list can show them dimmed with their reason. */
     fun findByBranchDayId(branchDayId: UUID): List<ProductSale> =
-        transaction {
-            ProductSaleTable
-                .selectAll()
-                .where { ProductSaleTable.branchDayId eq branchDayId }
-                .orderBy(ProductSaleTable.soldAt to SortOrder.ASC, ProductSaleTable.id to SortOrder.ASC)
-                .map { it.toProductSale() }
+        traced("ProductSaleRepository.findByBranchDayId") {
+            transaction {
+                ProductSaleTable
+                    .selectAll()
+                    .where { ProductSaleTable.branchDayId eq branchDayId }
+                    .orderBy(ProductSaleTable.soldAt to SortOrder.ASC, ProductSaleTable.id to SortOrder.ASC)
+                    .map { it.toProductSale() }
+            }
         }
 
     fun findById(id: UUID): ProductSale? =
-        transaction {
-            findByIdInTransaction(id)
+        traced("ProductSaleRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }
         }
 
     /** In-transaction read — runs on the caller's transaction for the shared aggregation. */

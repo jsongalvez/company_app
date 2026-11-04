@@ -6,6 +6,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -235,61 +236,65 @@ internal object BranchInventoryRepository {
         date: LocalDate? = null,
         before: OffsetDateTime? = null,
     ): List<InventoryMovement> =
-        transaction {
-            InventoryMovementTable
-                .innerJoin(
-                    BranchDayTable,
-                    { InventoryMovementTable.branchDayId },
-                    { BranchDayTable.id },
-                ).innerJoin(
-                    ProductTable,
-                    { InventoryMovementTable.productId },
-                    { ProductTable.id },
-                ).selectAll()
-                .where {
-                    if (date != null) {
-                        (InventoryMovementTable.branchId eq branchId) and
-                            (BranchDayTable.date eq date) and
-                            (ProductTable.isActive eq true)
-                    } else if (before != null) {
-                        (InventoryMovementTable.branchId eq branchId) and
-                            (InventoryMovementTable.movedAt less before) and
-                            (ProductTable.isActive eq true)
-                    } else {
-                        (InventoryMovementTable.branchId eq branchId) and
-                            (ProductTable.isActive eq true)
-                    }
-                }.orderBy(
-                    InventoryMovementTable.movedAt to SortOrder.DESC,
-                    InventoryMovementTable.id to SortOrder.DESC,
-                ).let { if (date == null) it.limit(RECENT_MOVEMENTS_LIMIT) else it }
-                .map { it.toInventoryMovement() }
-        }.also {
-            logger.info {
-                "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId " +
-                    "date=${date?.toString().orEmpty()}"
+        traced("BranchInventoryRepository.findMovements") {
+            transaction {
+                InventoryMovementTable
+                    .innerJoin(
+                        BranchDayTable,
+                        { InventoryMovementTable.branchDayId },
+                        { BranchDayTable.id },
+                    ).innerJoin(
+                        ProductTable,
+                        { InventoryMovementTable.productId },
+                        { ProductTable.id },
+                    ).selectAll()
+                    .where {
+                        if (date != null) {
+                            (InventoryMovementTable.branchId eq branchId) and
+                                (BranchDayTable.date eq date) and
+                                (ProductTable.isActive eq true)
+                        } else if (before != null) {
+                            (InventoryMovementTable.branchId eq branchId) and
+                                (InventoryMovementTable.movedAt less before) and
+                                (ProductTable.isActive eq true)
+                        } else {
+                            (InventoryMovementTable.branchId eq branchId) and
+                                (ProductTable.isActive eq true)
+                        }
+                    }.orderBy(
+                        InventoryMovementTable.movedAt to SortOrder.DESC,
+                        InventoryMovementTable.id to SortOrder.DESC,
+                    ).let { if (date == null) it.limit(RECENT_MOVEMENTS_LIMIT) else it }
+                    .map { it.toInventoryMovement() }
+            }.also {
+                logger.info {
+                    "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId " +
+                        "date=${date?.toString().orEmpty()}"
+                }
             }
         }
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> =
-        transaction {
-            BranchInventoryTable
-                .innerJoin(
-                    ProductTable,
-                    { BranchInventoryTable.productId },
-                    { ProductTable.id },
-                ).selectAll()
-                .where {
-                    (BranchInventoryTable.branchId eq branchId) and
-                        (ProductTable.isActive eq true)
-                }.orderBy(ProductTable.name to SortOrder.ASC)
-                .map { row ->
-                    BranchInventoryWithProduct(
-                        inventory = row.toBranchInventory(),
-                        productName = row[ProductTable.name],
-                    )
-                }
-        }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
+        traced("BranchInventoryRepository.findByBranch") {
+            transaction {
+                BranchInventoryTable
+                    .innerJoin(
+                        ProductTable,
+                        { BranchInventoryTable.productId },
+                        { ProductTable.id },
+                    ).selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (ProductTable.isActive eq true)
+                    }.orderBy(ProductTable.name to SortOrder.ASC)
+                    .map { row ->
+                        BranchInventoryWithProduct(
+                            inventory = row.toBranchInventory(),
+                            productName = row[ProductTable.name],
+                        )
+                    }
+            }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
+        }
 
     private fun ResultRow.toBranchInventory(): BranchInventory =
         BranchInventory(

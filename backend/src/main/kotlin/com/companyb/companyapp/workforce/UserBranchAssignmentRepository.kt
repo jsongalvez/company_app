@@ -3,6 +3,7 @@ package com.companyb.companyapp.workforce
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -97,17 +98,19 @@ internal object UserBranchAssignmentRepository {
     }
 
     fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =
-        transaction {
-            UserBranchAssignmentTable
-                .selectAll()
-                .where {
-                    (UserBranchAssignmentTable.branchId eq branchId) and
-                        (UserBranchAssignmentTable.endedAt.isNull())
-                }.orderBy(
-                    UserBranchAssignmentTable.slot to SortOrder.ASC,
-                    UserBranchAssignmentTable.userId to SortOrder.ASC,
-                ).map { it.toAssignment() }
-        }.also { logger.info { "[FIND-ASSIGNMENTS-BY-BRANCH] Fetched ${it.size} active assignments" } }
+        traced("UserBranchAssignmentRepository.findActiveByBranch") {
+            transaction {
+                UserBranchAssignmentTable
+                    .selectAll()
+                    .where {
+                        (UserBranchAssignmentTable.branchId eq branchId) and
+                            (UserBranchAssignmentTable.endedAt.isNull())
+                    }.orderBy(
+                        UserBranchAssignmentTable.slot to SortOrder.ASC,
+                        UserBranchAssignmentTable.userId to SortOrder.ASC,
+                    ).map { it.toAssignment() }
+            }.also { logger.info { "[FIND-ASSIGNMENTS-BY-BRANCH] Fetched ${it.size} active assignments" } }
+        }
 
     fun findActiveByBranchAndUserInTransaction(
         branchId: UUID,
@@ -147,8 +150,10 @@ internal object UserBranchAssignmentRepository {
         branchId: UUID,
         userId: UUID,
     ): UserBranchAssignment? =
-        transaction {
-            findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
+        traced("UserBranchAssignmentRepository.findActiveByBranchAndUser") {
+            transaction {
+                findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
+            }
         }
 
     private fun findByIdInTransaction(id: UUID): UserBranchAssignment? =

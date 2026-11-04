@@ -15,6 +15,7 @@ import com.companyb.companyapp.finance.AllowanceTable
 import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.remittance.RemittanceLineTable
 import com.companyb.companyapp.remittance.RemittanceTable
@@ -135,21 +136,23 @@ internal object LedgerRepository {
         from: LocalDate,
         to: LocalDate,
     ): Ledger =
-        transaction {
-            val days = findDays(branchIds, from, to)
-            val dayIds = days.map { it.branchDayId }
-            val payouts = findPayouts(dayIds)
-            val known = dayIds.toSet()
-            val otherIds = payouts.mapNotNull { it.workDayId }.filter { it !in known }.distinct()
-            Ledger(
-                days = days,
-                sessions = findSessions(dayIds),
-                sales = findSales(dayIds),
-                expenses = findExpenses(dayIds),
-                payouts = payouts,
-                remittances = findRemittances(branchIds, from, to),
-                otherDays = findDaysById(otherIds).associateBy { it.branchDayId },
-            )
+        traced("LedgerRepository.load") {
+            transaction {
+                val days = findDays(branchIds, from, to)
+                val dayIds = days.map { it.branchDayId }
+                val payouts = findPayouts(dayIds)
+                val known = dayIds.toSet()
+                val otherIds = payouts.mapNotNull { it.workDayId }.filter { it !in known }.distinct()
+                Ledger(
+                    days = days,
+                    sessions = findSessions(dayIds),
+                    sales = findSales(dayIds),
+                    expenses = findExpenses(dayIds),
+                    payouts = payouts,
+                    remittances = findRemittances(branchIds, from, to),
+                    otherDays = findDaysById(otherIds).associateBy { it.branchDayId },
+                )
+            }
         }
 
     private fun dayQuery() =

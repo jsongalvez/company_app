@@ -1,5 +1,6 @@
 package com.companyb.companyapp.remittance
 
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -26,8 +27,10 @@ internal object RemittanceFinancialSnapshotRepository {
     }
 
     fun findByRemittanceId(remittanceId: UUID): RemittanceFinancialSnapshot? =
-        transaction {
-            findByRemittanceIdInTransaction(remittanceId)
+        traced("RemittanceFinancialSnapshotRepository.findByRemittanceId") {
+            transaction {
+                findByRemittanceIdInTransaction(remittanceId)
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */

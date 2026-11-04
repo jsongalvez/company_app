@@ -5,6 +5,7 @@ import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -206,11 +207,13 @@ internal object SessionBaseRateRepository {
     }
 
     fun findActiveByBranch(branchId: UUID): List<SessionBaseRate> =
-        transaction {
-            findActiveByBranchInTransaction(branchId)
-        }.also {
-            logger.info {
-                "[FIND-ACTIVE-RATES] Fetched ${it.size} rate(s) for branch ${branchId.toString().maskUUID()}"
+        traced("SessionBaseRateRepository.findActiveByBranch") {
+            transaction {
+                findActiveByBranchInTransaction(branchId)
+            }.also {
+                logger.info {
+                    "[FIND-ACTIVE-RATES] Fetched ${it.size} rate(s) for branch ${branchId.toString().maskUUID()}"
+                }
             }
         }
 

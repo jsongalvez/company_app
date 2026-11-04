@@ -9,6 +9,7 @@ import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.CustomFunction
@@ -64,23 +65,25 @@ internal object UserRepository {
     private val clockTimestamp = CustomFunction("clock_timestamp", CurrentTimestampWithTimeZone.columnType)
 
     fun findByUsername(username: String): AppUser? =
-        transaction {
-            AppUserTable
-                .selectAll()
-                .where { AppUserTable.username eq username }
-                .map { row ->
-                    AppUser(
-                        id = row[AppUserTable.id].toString(),
-                        username = row[AppUserTable.username],
-                        passwordHash = row[AppUserTable.passwordHash],
-                        status = row[AppUserTable.status],
-                        displayName = row[AppUserTable.displayName],
-                        deactivatedAt = row[AppUserTable.deactivatedAt],
-                        jwtRevokedAt = row[AppUserTable.jwtRevokedAt],
-                        credentialVersion = row[AppUserTable.credentialVersion],
-                    )
-                }.singleOrNull()
-        }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
+        traced("UserRepository.findByUsername") {
+            transaction {
+                AppUserTable
+                    .selectAll()
+                    .where { AppUserTable.username eq username }
+                    .map { row ->
+                        AppUser(
+                            id = row[AppUserTable.id].toString(),
+                            username = row[AppUserTable.username],
+                            passwordHash = row[AppUserTable.passwordHash],
+                            status = row[AppUserTable.status],
+                            displayName = row[AppUserTable.displayName],
+                            deactivatedAt = row[AppUserTable.deactivatedAt],
+                            jwtRevokedAt = row[AppUserTable.jwtRevokedAt],
+                            credentialVersion = row[AppUserTable.credentialVersion],
+                        )
+                    }.singleOrNull()
+            }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
+        }
 
     fun createUserInTransaction(params: UserCreateParams): UUID {
         val insert =
@@ -155,12 +158,14 @@ internal object UserRepository {
     }
 
     fun existsById(userId: UUID): Boolean =
-        transaction {
-            AppUserTable
-                .select(AppUserTable.id)
-                .where { AppUserTable.id eq userId }
-                .empty()
-                .not()
+        traced("UserRepository.existsById") {
+            transaction {
+                AppUserTable
+                    .select(AppUserTable.id)
+                    .where { AppUserTable.id eq userId }
+                    .empty()
+                    .not()
+            }
         }
 
     /**
@@ -182,11 +187,13 @@ internal object UserRepository {
      */
     fun findDisplayNamesByIds(ids: Collection<UUID>): Map<UUID, String> {
         if (ids.isEmpty()) return emptyMap()
-        return transaction {
-            AppUserTable
-                .selectAll()
-                .where { AppUserTable.id inList ids }
-                .associate { it[AppUserTable.id] to it[AppUserTable.displayName] }
+        return traced("UserRepository.findDisplayNamesByIds") {
+            return@traced transaction {
+                AppUserTable
+                    .selectAll()
+                    .where { AppUserTable.id inList ids }
+                    .associate { it[AppUserTable.id] to it[AppUserTable.displayName] }
+            }
         }
     }
 
@@ -375,14 +382,16 @@ internal object UserRepository {
     }
 
     fun findAll(): List<AppUser> =
-        transaction {
-            AppUserTable
-                .selectAll()
-                .orderBy(
-                    AppUserTable.displayName to SortOrder.ASC,
-                    AppUserTable.username to SortOrder.ASC,
-                ).map { it.toAppUser() }
-        }.also { logger.info { "[FIND-ALL-USERS] Fetched ${it.size} user(s)" } }
+        traced("UserRepository.findAll") {
+            transaction {
+                AppUserTable
+                    .selectAll()
+                    .orderBy(
+                        AppUserTable.displayName to SortOrder.ASC,
+                        AppUserTable.username to SortOrder.ASC,
+                    ).map { it.toAppUser() }
+            }.also { logger.info { "[FIND-ALL-USERS] Fetched ${it.size} user(s)" } }
+        }
 
     /** Locks target user row for eligibility and concurrent role replacement decisions. */
     fun acquireLockInTransaction(userId: UUID): Boolean =
@@ -432,24 +441,26 @@ internal object UserRepository {
 
     /** Active assignments (ended_at IS NULL) with branch names, slot ASC — the user-list join. */
     fun findActiveAssignmentsWithBranch(): List<UserBranchAssignmentSummary> =
-        transaction {
-            UserBranchAssignmentTable
-                .innerJoin(BranchTable, { UserBranchAssignmentTable.branchId }, { BranchTable.id })
-                .selectAll()
-                .where { UserBranchAssignmentTable.endedAt.isNull() }
-                .orderBy(
-                    UserBranchAssignmentTable.slot to SortOrder.ASC,
-                    UserBranchAssignmentTable.userId to SortOrder.ASC,
-                ).map { row ->
-                    UserBranchAssignmentSummary(
-                        assignmentId = row[UserBranchAssignmentTable.id],
-                        userId = row[UserBranchAssignmentTable.userId],
-                        branchId = row[UserBranchAssignmentTable.branchId],
-                        branchName = row[BranchTable.name],
-                        slot = row[UserBranchAssignmentTable.slot],
-                    )
-                }
-        }.also { logger.info { "[FIND-ACTIVE-ASSIGNMENTS-WITH-BRANCH] Fetched ${it.size} active assignment(s)" } }
+        traced("UserRepository.findActiveAssignmentsWithBranch") {
+            transaction {
+                UserBranchAssignmentTable
+                    .innerJoin(BranchTable, { UserBranchAssignmentTable.branchId }, { BranchTable.id })
+                    .selectAll()
+                    .where { UserBranchAssignmentTable.endedAt.isNull() }
+                    .orderBy(
+                        UserBranchAssignmentTable.slot to SortOrder.ASC,
+                        UserBranchAssignmentTable.userId to SortOrder.ASC,
+                    ).map { row ->
+                        UserBranchAssignmentSummary(
+                            assignmentId = row[UserBranchAssignmentTable.id],
+                            userId = row[UserBranchAssignmentTable.userId],
+                            branchId = row[UserBranchAssignmentTable.branchId],
+                            branchName = row[BranchTable.name],
+                            slot = row[UserBranchAssignmentTable.slot],
+                        )
+                    }
+            }.also { logger.info { "[FIND-ACTIVE-ASSIGNMENTS-WITH-BRANCH] Fetched ${it.size} active assignment(s)" } }
+        }
 
     /**
      * Token-aware authorization: evaluates ACTIVE status, the credential generation, plus the
@@ -464,36 +475,38 @@ internal object UserRepository {
         tokenIssuedAt: Instant,
         credentialVersion: Long = 0L,
     ): Boolean {
-        val state =
-            AuthStateCache.get(userId) {
-                transaction {
-                    AppUserTable
-                        .select(
-                            AppUserTable.status,
-                            AppUserTable.jwtRevokedAt,
-                            AppUserTable.credentialVersion,
-                        ).where { AppUserTable.id eq userId }
-                        .singleOrNull()
-                        ?.let {
-                            AuthState(
-                                status = it[AppUserTable.status],
-                                jwtRevokedAt = it[AppUserTable.jwtRevokedAt],
-                                credentialVersion = it[AppUserTable.credentialVersion],
-                            )
-                        }
+        return traced("UserRepository.authorize") {
+            val state =
+                AuthStateCache.get(userId) {
+                    transaction {
+                        AppUserTable
+                            .select(
+                                AppUserTable.status,
+                                AppUserTable.jwtRevokedAt,
+                                AppUserTable.credentialVersion,
+                            ).where { AppUserTable.id eq userId }
+                            .singleOrNull()
+                            ?.let {
+                                AuthState(
+                                    status = it[AppUserTable.status],
+                                    jwtRevokedAt = it[AppUserTable.jwtRevokedAt],
+                                    credentialVersion = it[AppUserTable.credentialVersion],
+                                )
+                            }
+                    }
                 }
+            val authorized =
+                state != null &&
+                    state.status == UserStatus.ACTIVE &&
+                    state.credentialVersion == credentialVersion &&
+                    (state.jwtRevokedAt?.toInstant()?.let { tokenIssuedAt.isAfter(it) } ?: true)
+            if (authorized) {
+                logger.debug { "[AUTHORIZE] User ${userId.toString().maskUUID()} is authorized" }
+            } else {
+                logger.warn { "[AUTHORIZE] User ${userId.toString().maskUUID()} is not authorized" }
             }
-        val authorized =
-            state != null &&
-                state.status == UserStatus.ACTIVE &&
-                state.credentialVersion == credentialVersion &&
-                (state.jwtRevokedAt?.toInstant()?.let { tokenIssuedAt.isAfter(it) } ?: true)
-        if (authorized) {
-            logger.debug { "[AUTHORIZE] User ${userId.toString().maskUUID()} is authorized" }
-        } else {
-            logger.warn { "[AUTHORIZE] User ${userId.toString().maskUUID()} is not authorized" }
+            return@traced authorized
         }
-        return authorized
     }
 
     private fun ResultRow.toAppUser(): AppUser =

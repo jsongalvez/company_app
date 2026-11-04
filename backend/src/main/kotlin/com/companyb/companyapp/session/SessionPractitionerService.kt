@@ -11,6 +11,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -53,50 +54,52 @@ internal object SessionPractitionerService {
         if (!AccountReads.userExists(practitionerId)) {
             throw NotFoundException("User not found")
         }
-        return transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
+        return traced("SessionPractitionerService.addPractitioner") {
+            return@traced transaction {
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
 
-            // status-only INACTIVE guard: unknown users 404 above,
-            // deactivated users 400 here before the slot snapshot. Never a membership
-            // check — ACTIVE outsiders (relief) stay eligible for the 999 fallback.
-            requireActivePractitionerInTransaction(practitionerId)
+                // status-only INACTIVE guard: unknown users 404 above,
+                // deactivated users 400 here before the slot snapshot. Never a membership
+                // check — ACTIVE outsiders (relief) stay eligible for the 999 fallback.
+                requireActivePractitionerInTransaction(practitionerId)
 
-            val existing =
-                SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
-                    sessionId,
-                    practitionerId,
-                )
-            if (existing != null) {
-                logger.info {
-                    "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)"
+                val existing =
+                    SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
+                        sessionId,
+                        practitionerId,
+                    )
+                if (existing != null) {
+                    logger.info {
+                        "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)"
+                    }
+                    return@transaction AddPractitionerResult(existing, false)
                 }
-                return@transaction AddPractitionerResult(existing, false)
+
+                val slotAtTime =
+                    WorkforceReads.findAssignmentSlotInTransaction(branchDay.branchId, practitionerId)
+                        ?: DEFAULT_SLOT
+
+                val result =
+                    SessionPractitionerRepository.addInTransaction(
+                        id = id,
+                        sessionId = sessionId,
+                        practitionerId = practitionerId,
+                        slotAtTime = slotAtTime,
+                        remarks = remarks,
+                    )
+                if (result.created) {
+                    SessionPractitionerAudit.inserted(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        result.practitioner,
+                    )
+                }
+
+                logger.info {
+                    "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime"
+                }
+
+                result
             }
-
-            val slotAtTime =
-                WorkforceReads.findAssignmentSlotInTransaction(branchDay.branchId, practitionerId)
-                    ?: DEFAULT_SLOT
-
-            val result =
-                SessionPractitionerRepository.addInTransaction(
-                    id = id,
-                    sessionId = sessionId,
-                    practitionerId = practitionerId,
-                    slotAtTime = slotAtTime,
-                    remarks = remarks,
-                )
-            if (result.created) {
-                SessionPractitionerAudit.inserted(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                    result.practitioner,
-                )
-            }
-
-            logger.info {
-                "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime"
-            }
-
-            result
         }
     }
 
@@ -107,33 +110,35 @@ internal object SessionPractitionerService {
         remarks: String?,
         reason: String? = null,
     ): SessionPractitioner =
-        transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+        traced("SessionPractitionerService.updatePractitionerRemarks") {
+            transaction {
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
 
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val before =
-                SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(sessionId, practitionerId)
-                    ?: throw NotFoundException("Practitioner not found in session")
+                // Transaction-local before-state (ADR-0019): read inside the command's transaction.
+                val before =
+                    SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(sessionId, practitionerId)
+                        ?: throw NotFoundException("Practitioner not found in session")
 
-            val after =
-                SessionPractitionerRepository.updateRemarksInTransaction(
-                    sessionId = sessionId,
-                    practitionerId = practitionerId,
-                    remarks = remarks,
+                val after =
+                    SessionPractitionerRepository.updateRemarksInTransaction(
+                        sessionId = sessionId,
+                        practitionerId = practitionerId,
+                        remarks = remarks,
+                    )
+
+                SessionPractitionerAudit.updated(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    before,
+                    after,
                 )
 
-            SessionPractitionerAudit.updated(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                before,
-                after,
-            )
+                logger.info {
+                    "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
+                        "practitioner $practitionerId in session $sessionId"
+                }
 
-            logger.info {
-                "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
-                    "practitioner $practitionerId in session $sessionId"
+                after
             }
-
-            after
         }
 
     fun removePractitioner(
@@ -142,21 +147,23 @@ internal object SessionPractitionerService {
         practitionerId: UUID,
         reason: String? = null,
     ) {
-        transaction {
-            val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+        traced("SessionPractitionerService.removePractitioner") {
+            transaction {
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
 
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction;
-            // the store operation returns the removed row for the delete audit.
-            val removed =
-                SessionPractitionerRepository.removeInTransaction(sessionId, practitionerId)
-                    ?: throw NotFoundException("Practitioner not found in session")
+                // Transaction-local before-state (ADR-0019): read inside the command's transaction;
+                // the store operation returns the removed row for the delete audit.
+                val removed =
+                    SessionPractitionerRepository.removeInTransaction(sessionId, practitionerId)
+                        ?: throw NotFoundException("Practitioner not found in session")
 
-            SessionPractitionerAudit.deleted(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                removed,
-            )
+                SessionPractitionerAudit.deleted(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    removed,
+                )
 
-            logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
+                logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
+            }
         }
     }
 

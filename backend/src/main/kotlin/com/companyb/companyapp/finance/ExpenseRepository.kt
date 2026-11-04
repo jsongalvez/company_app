@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -130,15 +131,17 @@ internal object ExpenseRepository {
     // needs the payload; the summary view already excludes them from totals). Deterministic
     // insertion order (createdAt ASC, id ASC tiebreak — lesson).
     fun findByBranchDayId(branchDayId: UUID): List<Expense> =
-        transaction {
-            ExpenseTable
-                .selectAll()
-                .where { ExpenseTable.branchDayId eq branchDayId }
-                .orderBy(
-                    ExpenseTable.createdAt to SortOrder.ASC,
-                    ExpenseTable.id to SortOrder.ASC,
-                ).map { it.toExpense() }
-        }.also { logger.debug { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
+        traced("ExpenseRepository.findByBranchDayId") {
+            transaction {
+                ExpenseTable
+                    .selectAll()
+                    .where { ExpenseTable.branchDayId eq branchDayId }
+                    .orderBy(
+                        ExpenseTable.createdAt to SortOrder.ASC,
+                        ExpenseTable.id to SortOrder.ASC,
+                    ).map { it.toExpense() }
+            }.also { logger.debug { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
+        }
 
     fun updateInTransaction(
         expenseId: UUID,
@@ -175,9 +178,11 @@ internal object ExpenseRepository {
     }
 
     fun findById(id: UUID): Expense? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-EXPENSE] Expense ${id.toString().maskUUID()} found=${it != null}" } }
+        traced("ExpenseRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }.also { logger.info { "[FIND-EXPENSE] Expense ${id.toString().maskUUID()} found=${it != null}" } }
+        }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
     fun findByIdInTransaction(id: UUID): Expense? =

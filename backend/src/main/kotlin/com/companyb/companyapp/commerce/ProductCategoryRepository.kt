@@ -2,6 +2,7 @@ package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -40,17 +41,23 @@ internal object ProductCategoryRepository {
     }
 
     fun findById(id: UUID): ProductCategory? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-PRODUCT-CATEGORY] Category ${id.toString().maskUUID()} found=${it != null}" } }
+        traced("ProductCategoryRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }.also {
+                logger.info { "[FIND-PRODUCT-CATEGORY] Category ${id.toString().maskUUID()} found=${it != null}" }
+            }
+        }
 
     fun findAll(): List<ProductCategory> =
-        transaction {
-            ProductCategoryTable
-                .selectAll()
-                .orderBy(ProductCategoryTable.name to SortOrder.ASC, ProductCategoryTable.id to SortOrder.ASC)
-                .map { it.toProductCategory() }
-        }.also { logger.info { "[FIND-PRODUCT-CATEGORIES] Fetched ${it.size} category(ies)" } }
+        traced("ProductCategoryRepository.findAll") {
+            transaction {
+                ProductCategoryTable
+                    .selectAll()
+                    .orderBy(ProductCategoryTable.name to SortOrder.ASC, ProductCategoryTable.id to SortOrder.ASC)
+                    .map { it.toProductCategory() }
+            }.also { logger.info { "[FIND-PRODUCT-CATEGORIES] Fetched ${it.size} category(ies)" } }
+        }
 
     private fun findByIdInTransaction(id: UUID): ProductCategory? =
         ProductCategoryTable

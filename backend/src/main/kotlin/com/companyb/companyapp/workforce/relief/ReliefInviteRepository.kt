@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -68,26 +69,30 @@ internal object ReliefInviteRepository {
     }
 
     fun findById(id: UUID): ReliefInvite? =
-        transaction {
-            findByIdInTransaction(id)
+        traced("ReliefInviteRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }
         }
 
     fun hasPendingOrAcceptedInvite(
         invitee: UUID,
         branchDayId: UUID,
     ): Boolean =
-        transaction {
-            ReliefInviteTable
-                .selectAll()
-                .where {
-                    (ReliefInviteTable.invitee eq invitee) and
-                        (ReliefInviteTable.branchDayId eq branchDayId) and
-                        (
-                            ReliefInviteTable.status inList
-                                listOf(ReliefInviteStatus.PENDING, ReliefInviteStatus.ACCEPTED)
-                        )
-                }.empty()
-                .not()
+        traced("ReliefInviteRepository.hasPendingOrAcceptedInvite") {
+            transaction {
+                ReliefInviteTable
+                    .selectAll()
+                    .where {
+                        (ReliefInviteTable.invitee eq invitee) and
+                            (ReliefInviteTable.branchDayId eq branchDayId) and
+                            (
+                                ReliefInviteTable.status inList
+                                    listOf(ReliefInviteStatus.PENDING, ReliefInviteStatus.ACCEPTED)
+                            )
+                    }.empty()
+                    .not()
+            }
         }
 
     /**
@@ -100,20 +105,22 @@ internal object ReliefInviteRepository {
         userId: UUID,
         branchDayId: UUID,
     ): Boolean =
-        transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).selectAll()
-                .where {
-                    (ActiveUserCapabilitiesView.userId eq userId) and
-                        (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
-                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
-                        (ActiveUserCapabilitiesView.contextId eq branchDayId)
-                }.empty()
-                .not()
+        traced("ReliefInviteRepository.hasActiveGrant") {
+            transaction {
+                ActiveUserCapabilitiesView
+                    .innerJoin(
+                        CapabilityTable,
+                        { ActiveUserCapabilitiesView.capabilityId },
+                        { CapabilityTable.id },
+                    ).selectAll()
+                    .where {
+                        (ActiveUserCapabilitiesView.userId eq userId) and
+                            (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
+                            (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
+                            (ActiveUserCapabilitiesView.contextId eq branchDayId)
+                    }.empty()
+                    .not()
+            }
         }
 
     /**
@@ -147,24 +154,26 @@ internal object ReliefInviteRepository {
      * moving the row OUT of ACCEPTED (REVOKED), no marker cleanup.
      */
     fun findAcceptedForDutyDate(dutyDate: java.time.LocalDate): List<AcceptedInviteWithBranch> =
-        transaction {
-            ReliefInviteTable
-                .innerJoin(BranchDayTable, { ReliefInviteTable.branchDayId }, { BranchDayTable.id })
-                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
-                .selectAll()
-                .where {
-                    (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED) and
-                        (BranchDayTable.date eq dutyDate)
-                }.map { row ->
-                    AcceptedInviteWithBranch(
-                        inviteId = row[ReliefInviteTable.id],
-                        invitee = row[ReliefInviteTable.invitee],
-                        branchDayId = row[ReliefInviteTable.branchDayId],
-                        branchId = row[BranchDayTable.branchId],
-                        branchName = row[BranchTable.name],
-                        date = row[BranchDayTable.date],
-                    )
-                }
+        traced("ReliefInviteRepository.findAcceptedForDutyDate") {
+            transaction {
+                ReliefInviteTable
+                    .innerJoin(BranchDayTable, { ReliefInviteTable.branchDayId }, { BranchDayTable.id })
+                    .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                    .selectAll()
+                    .where {
+                        (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED) and
+                            (BranchDayTable.date eq dutyDate)
+                    }.map { row ->
+                        AcceptedInviteWithBranch(
+                            inviteId = row[ReliefInviteTable.id],
+                            invitee = row[ReliefInviteTable.invitee],
+                            branchDayId = row[ReliefInviteTable.branchDayId],
+                            branchId = row[BranchDayTable.branchId],
+                            branchName = row[BranchTable.name],
+                            date = row[BranchDayTable.date],
+                        )
+                    }
+            }
         }
 
     /**
@@ -172,17 +181,19 @@ internal object ReliefInviteRepository {
      * exclusion set (the same guard as [hasPendingOrAcceptedInvite], batched).
      */
     fun findLiveInviteeIds(branchDayId: UUID): Set<UUID> =
-        transaction {
-            ReliefInviteTable
-                .select(ReliefInviteTable.invitee)
-                .where {
-                    (ReliefInviteTable.branchDayId eq branchDayId) and
-                        (
-                            ReliefInviteTable.status inList
-                                listOf(ReliefInviteStatus.PENDING, ReliefInviteStatus.ACCEPTED)
-                        )
-                }.map { it[ReliefInviteTable.invitee] }
-                .toSet()
+        traced("ReliefInviteRepository.findLiveInviteeIds") {
+            transaction {
+                ReliefInviteTable
+                    .select(ReliefInviteTable.invitee)
+                    .where {
+                        (ReliefInviteTable.branchDayId eq branchDayId) and
+                            (
+                                ReliefInviteTable.status inList
+                                    listOf(ReliefInviteStatus.PENDING, ReliefInviteStatus.ACCEPTED)
+                            )
+                    }.map { it[ReliefInviteTable.invitee] }
+                    .toSet()
+            }
         }
 
     /**
@@ -190,43 +201,47 @@ internal object ReliefInviteRepository {
      * candidate exclusion (view-served: inactive + expired excluded).
      */
     fun findActiveGrantUserIds(branchDayId: UUID): Set<UUID> =
-        transaction {
-            ActiveUserCapabilitiesView
-                .innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).select(ActiveUserCapabilitiesView.userId)
-                .where {
-                    (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
-                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
-                        (ActiveUserCapabilitiesView.contextId eq branchDayId)
-                }.map { it[ActiveUserCapabilitiesView.userId] }
-                .toSet()
+        traced("ReliefInviteRepository.findActiveGrantUserIds") {
+            transaction {
+                ActiveUserCapabilitiesView
+                    .innerJoin(
+                        CapabilityTable,
+                        { ActiveUserCapabilitiesView.capabilityId },
+                        { CapabilityTable.id },
+                    ).select(ActiveUserCapabilitiesView.userId)
+                    .where {
+                        (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
+                            (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
+                            (ActiveUserCapabilitiesView.contextId eq branchDayId)
+                    }.map { it[ActiveUserCapabilitiesView.userId] }
+                    .toSet()
+            }
         }
 
     /** ACTIVE users whose username or displayName starts with [prefix] (case-insensitive). */
     fun findActiveUsersWithPrefix(prefix: String): List<ReliefCandidate> =
-        transaction {
-            val needle = "${escapeLike(prefix)}%"
-            AppUserTable
-                .selectAll()
-                .where {
-                    (AppUserTable.status eq UserStatus.ACTIVE) and
-                        (
-                            ilike(AppUserTable.username, needle) or
-                                ilike(AppUserTable.displayName, needle)
+        traced("ReliefInviteRepository.findActiveUsersWithPrefix") {
+            transaction {
+                val needle = "${escapeLike(prefix)}%"
+                AppUserTable
+                    .selectAll()
+                    .where {
+                        (AppUserTable.status eq UserStatus.ACTIVE) and
+                            (
+                                ilike(AppUserTable.username, needle) or
+                                    ilike(AppUserTable.displayName, needle)
+                            )
+                    }.orderBy(
+                        AppUserTable.displayName to SortOrder.ASC,
+                        AppUserTable.username to SortOrder.ASC,
+                    ).map { row ->
+                        ReliefCandidate(
+                            id = row[AppUserTable.id],
+                            username = row[AppUserTable.username],
+                            displayName = row[AppUserTable.displayName],
                         )
-                }.orderBy(
-                    AppUserTable.displayName to SortOrder.ASC,
-                    AppUserTable.username to SortOrder.ASC,
-                ).map { row ->
-                    ReliefCandidate(
-                        id = row[AppUserTable.id],
-                        username = row[AppUserTable.username],
-                        displayName = row[AppUserTable.displayName],
-                    )
-                }
+                    }
+            }
         }
 
     /** Escapes LIKE wildcards so a user-typed prefix cannot broaden the match. */
@@ -253,12 +268,14 @@ internal object ReliefInviteRepository {
         )
 
     fun isActiveUser(userId: UUID): Boolean =
-        transaction {
-            AppUserTable
-                .selectAll()
-                .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
-                .empty()
-                .not()
+        traced("ReliefInviteRepository.isActiveUser") {
+            transaction {
+                AppUserTable
+                    .selectAll()
+                    .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
+                    .empty()
+                    .not()
+            }
         }
 
     /**
@@ -268,15 +285,17 @@ internal object ReliefInviteRepository {
      * not resurrect an answered invite with live buttons.
      */
     fun findReceivedByInvitee(invitee: UUID): List<ReliefInviteView> =
-        transaction {
-            joinWithDisplay()
-                .selectAll()
-                .where {
-                    (ReliefInviteTable.invitee eq invitee) and
-                        (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
-                }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
-                .map { it.toView() }
-                .withInviteeNames()
+        traced("ReliefInviteRepository.findReceivedByInvitee") {
+            transaction {
+                joinWithDisplay()
+                    .selectAll()
+                    .where {
+                        (ReliefInviteTable.invitee eq invitee) and
+                            (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
+                    }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
+                    .map { it.toView() }
+                    .withInviteeNames()
+            }
         }
 
     /** Sent invites: the caller's own, scoped to the branch path param (parent-child). */
@@ -284,15 +303,17 @@ internal object ReliefInviteRepository {
         invitedBy: UUID,
         branchId: UUID,
     ): List<ReliefInviteView> =
-        transaction {
-            joinWithDisplay()
-                .selectAll()
-                .where {
-                    (ReliefInviteTable.invitedBy eq invitedBy) and
-                        (BranchDayTable.branchId eq branchId)
-                }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
-                .map { it.toView() }
-                .withInviteeNames()
+        traced("ReliefInviteRepository.findSentByInviterAndBranch") {
+            transaction {
+                joinWithDisplay()
+                    .selectAll()
+                    .where {
+                        (ReliefInviteTable.invitedBy eq invitedBy) and
+                            (BranchDayTable.branchId eq branchId)
+                    }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
+                    .map { it.toView() }
+                    .withInviteeNames()
+            }
         }
 
     /**
@@ -305,16 +326,18 @@ internal object ReliefInviteRepository {
         branchId: UUID,
         fromDate: java.time.LocalDate,
     ): List<ReliefInviteView> =
-        transaction {
-            joinWithDisplay()
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED) and
-                        (BranchDayTable.date greaterEq fromDate)
-                }.orderBy(BranchDayTable.date to SortOrder.ASC)
-                .map { it.toView() }
-                .withInviteeNames()
+        traced("ReliefInviteRepository.findAcceptedByBranch") {
+            transaction {
+                joinWithDisplay()
+                    .selectAll()
+                    .where {
+                        (BranchDayTable.branchId eq branchId) and
+                            (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED) and
+                            (BranchDayTable.date greaterEq fromDate)
+                    }.orderBy(BranchDayTable.date to SortOrder.ASC)
+                    .map { it.toView() }
+                    .withInviteeNames()
+            }
         }
 
     /**
@@ -327,25 +350,29 @@ internal object ReliefInviteRepository {
         branchId: UUID,
         date: java.time.LocalDate,
     ): List<ReliefInviteView> =
-        transaction {
-            joinWithDisplay()
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq date)
-                }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
-                .map { it.toView() }
-                .withInviteeNames()
+        traced("ReliefInviteRepository.findByBranchAndDate") {
+            transaction {
+                joinWithDisplay()
+                    .selectAll()
+                    .where {
+                        (BranchDayTable.branchId eq branchId) and
+                            (BranchDayTable.date eq date)
+                    }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
+                    .map { it.toView() }
+                    .withInviteeNames()
+            }
         }
 
     fun findViewByInviteId(id: UUID): ReliefInviteView? =
-        transaction {
-            joinWithDisplay()
-                .selectAll()
-                .where { ReliefInviteTable.id eq id }
-                .singleOrNull()
-                ?.toView()
-                ?.withInviteeName()
+        traced("ReliefInviteRepository.findViewByInviteId") {
+            transaction {
+                joinWithDisplay()
+                    .selectAll()
+                    .where { ReliefInviteTable.id eq id }
+                    .singleOrNull()
+                    ?.toView()
+                    ?.withInviteeName()
+            }
         }
 
     /** Batch-fills [ReliefInviteView.inviteeName] (one IN-lookup per list, human-scale). */

@@ -8,6 +8,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -47,73 +48,75 @@ object InventoryService {
         branchDayId: UUID,
         reason: String? = null,
     ): InventoryMovement {
-        val movementReason = movementType.toInventoryMovementReason()
-        val params =
-            RecordMovementParams(
-                movementId = movementId,
-                branchId = branchId,
-                productId = productId,
-                reason = movementReason,
-                quantityChange = quantityChange,
-                notes = notes,
-                branchDayId = branchDayId,
-                movedBy = callerId,
-            )
+        return traced("InventoryService.recordMovement") {
+            val movementReason = movementType.toInventoryMovementReason()
+            val params =
+                RecordMovementParams(
+                    movementId = movementId,
+                    branchId = branchId,
+                    productId = productId,
+                    reason = movementReason,
+                    quantityChange = quantityChange,
+                    notes = notes,
+                    branchDayId = branchDayId,
+                    movedBy = callerId,
+                )
 
-        val result =
-            transaction {
-                val existingMovement = BranchInventoryRepository.findMovementInTransaction(movementId)
-                if (existingMovement != null) {
-                    // Idempotent retries remain safe no-ops even if product was later deactivated.
-                    ensureRequestOwnership(existingMovement, params)
-                    return@transaction RecordMovementResult(existingMovement, created = false)
+            val result =
+                transaction {
+                    val existingMovement = BranchInventoryRepository.findMovementInTransaction(movementId)
+                    if (existingMovement != null) {
+                        // Idempotent retries remain safe no-ops even if product was later deactivated.
+                        ensureRequestOwnership(existingMovement, params)
+                        return@transaction RecordMovementResult(existingMovement, created = false)
+                    }
+
+                    if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
+                    BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
+
+                    // day → product → card lock order (shared with ProductSaleService.sell):
+                    // the day gate locks the day row before the product row so a sale and a
+                    // movement on the same day serialize instead of deadlocking.
+                    val isRemitted =
+                        StockValidator.validateMovement(
+                            callerId,
+                            branchDayId,
+                            movementType,
+                            quantityChange,
+                            notes,
+                            reason,
+                        )
+
+                    requireActiveProductInTransaction(productId)
+
+                    // The card read that supplies expectedVersion now happens in this same command
+                    // transaction, fixing the former cross-boundary stale version read.
+                    val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId).card
+
+                    val inserted =
+                        BranchInventoryRepository.insertMovementInTransaction(params)
+                    if (!inserted.created) return@transaction inserted
+
+                    val newCard =
+                        BranchInventoryRepository.requireCardForUpdateInTransaction(
+                            oldCard,
+                            oldCard.version,
+                            quantityChange,
+                        )
+
+                    val context = AuditContext(callerId, branchId, isRemitted, reason)
+                    BranchInventoryAudit.updated(context, oldCard, newCard)
+                    BranchInventoryAudit.inserted(context, inserted.movement)
+                    inserted
                 }
 
-                if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
-                BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
-
-                // day → product → card lock order (shared with ProductSaleService.sell):
-                // the day gate locks the day row before the product row so a sale and a
-                // movement on the same day serialize instead of deadlocking.
-                val isRemitted =
-                    StockValidator.validateMovement(
-                        callerId,
-                        branchDayId,
-                        movementType,
-                        quantityChange,
-                        notes,
-                        reason,
-                    )
-
-                requireActiveProductInTransaction(productId)
-
-                // The card read that supplies expectedVersion now happens in this same command
-                // transaction, fixing the former cross-boundary stale version read.
-                val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId).card
-
-                val inserted =
-                    BranchInventoryRepository.insertMovementInTransaction(params)
-                if (!inserted.created) return@transaction inserted
-
-                val newCard =
-                    BranchInventoryRepository.requireCardForUpdateInTransaction(
-                        oldCard,
-                        oldCard.version,
-                        quantityChange,
-                    )
-
-                val context = AuditContext(callerId, branchId, isRemitted, reason)
-                BranchInventoryAudit.updated(context, oldCard, newCard)
-                BranchInventoryAudit.inserted(context, inserted.movement)
-                inserted
+            if (result.created) {
+                logger.info {
+                    "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
+                }
             }
-
-        if (result.created) {
-            logger.info {
-                "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
-            }
+            return@traced result.movement
         }
-        return result.movement
     }
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
@@ -203,18 +206,20 @@ object InventoryService {
         branchId: UUID,
         productId: UUID,
     ): BranchInventory =
-        transaction {
-            if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
-            requireActiveProductInTransaction(productId)
+        traced("InventoryService.ensureCard") {
+            transaction {
+                if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
+                requireActiveProductInTransaction(productId)
 
-            val result = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
-            if (result.created) {
-                BranchInventoryAudit.inserted(AuditContext(callerId, branchId), result.card)
+                val result = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
+                if (result.created) {
+                    BranchInventoryAudit.inserted(AuditContext(callerId, branchId), result.card)
+                }
+                // No audit on existing card: audit log is immutable mutation history.
+                result.card
+            }.also {
+                logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
             }
-            // No audit on existing card: audit log is immutable mutation history.
-            result.card
-        }.also {
-            logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
         }
 
     private fun requireActiveProductInTransaction(productId: UUID): Product =

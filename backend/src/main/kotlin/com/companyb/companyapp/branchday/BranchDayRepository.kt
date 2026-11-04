@@ -2,6 +2,7 @@ package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.logging.RequestQueryTally
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -32,21 +33,25 @@ internal object BranchDayRepository {
         branchId: UUID,
         date: LocalDate,
     ): BranchDay =
-        findByBranchAndDate(branchId, date) ?: transaction {
-            BranchDayTable.insertIgnore {
-                it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = date
-            }
-            BranchDayTable
-                .selectAll()
-                .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
-                .single()
-                .toBranchDay()
-        }.also { logger.info { "[RESOLVE-OR-CREATE] Resolved branch_day ${it.id} (status=${it.status})" } }
+        traced("BranchDayRepository.resolveOrCreate") {
+            findByBranchAndDate(branchId, date) ?: transaction {
+                BranchDayTable.insertIgnore {
+                    it[BranchDayTable.branchId] = branchId
+                    it[BranchDayTable.date] = date
+                }
+                BranchDayTable
+                    .selectAll()
+                    .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
+                    .single()
+                    .toBranchDay()
+            }.also { logger.info { "[RESOLVE-OR-CREATE] Resolved branch_day ${it.id} (status=${it.status})" } }
+        }
 
     fun findById(branchDayId: UUID): BranchDay? =
-        RequestQueryTally.untilWriteOrNull(ById(branchDayId), BranchDay::class, dayReads) {
-            transaction { findByIdInTransaction(branchDayId) }
+        traced("BranchDayRepository.findById") {
+            RequestQueryTally.untilWriteOrNull(ById(branchDayId), BranchDay::class, dayReads) {
+                transaction { findByIdInTransaction(branchDayId) }
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
@@ -68,8 +73,10 @@ internal object BranchDayRepository {
     }
 
     fun acquireLock(branchDayId: UUID) {
-        transaction {
-            acquireLockInTransaction(branchDayId)
+        traced("BranchDayRepository.acquireLock") {
+            transaction {
+                acquireLockInTransaction(branchDayId)
+            }
         }
     }
 
@@ -87,13 +94,15 @@ internal object BranchDayRepository {
         branchId: UUID,
         date: LocalDate,
     ): BranchDay? =
-        RequestQueryTally.untilWriteOrNull(ByDate(branchId, date), BranchDay::class, dayReads) {
-            transaction {
-                BranchDayTable
-                    .selectAll()
-                    .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
-                    .singleOrNull()
-                    ?.toBranchDay()
+        traced("BranchDayRepository.findByBranchAndDate") {
+            RequestQueryTally.untilWriteOrNull(ByDate(branchId, date), BranchDay::class, dayReads) {
+                transaction {
+                    BranchDayTable
+                        .selectAll()
+                        .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
+                        .singleOrNull()
+                        ?.toBranchDay()
+                }
             }
         }
 
@@ -106,12 +115,14 @@ internal object BranchDayRepository {
         branchDayId: UUID,
         branchId: UUID,
     ): BranchDay? =
-        transaction {
-            BranchDayTable
-                .selectAll()
-                .where { (BranchDayTable.id eq branchDayId) and (BranchDayTable.branchId eq branchId) }
-                .singleOrNull()
-                ?.toBranchDay()
+        traced("BranchDayRepository.findByIdForBranch") {
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { (BranchDayTable.id eq branchDayId) and (BranchDayTable.branchId eq branchId) }
+                    .singleOrNull()
+                    ?.toBranchDay()
+            }
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchDay(): BranchDay =

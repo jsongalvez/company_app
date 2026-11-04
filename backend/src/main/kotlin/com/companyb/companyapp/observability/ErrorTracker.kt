@@ -166,18 +166,20 @@ internal object ErrorTracker {
         }
 
     private fun httpTransport(): ErrorTrackerTransport {
-        val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS)).build()
-        return ErrorTrackerTransport { url, auth, body ->
-            val request =
-                HttpRequest
-                    .newBuilder(URI(url))
-                    .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
-                    .header("X-Sentry-Auth", auth)
-                    .header("Content-Type", "application/x-sentry-envelope")
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build()
-            val response = client.send(request, HttpResponse.BodyHandlers.discarding())
-            check(response.statusCode() < HTTP_REDIRECT) { "tracker answered ${response.statusCode()}" }
+        return traced("ErrorTracker.httpTransport") {
+            val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS)).build()
+            return@traced ErrorTrackerTransport { url, auth, body ->
+                val request =
+                    HttpRequest
+                        .newBuilder(URI(url))
+                        .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
+                        .header("X-Sentry-Auth", auth)
+                        .header("Content-Type", "application/x-sentry-envelope")
+                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .build()
+                val response = client.send(request, HttpResponse.BodyHandlers.discarding())
+                check(response.statusCode() < HTTP_REDIRECT) { "tracker answered ${response.statusCode()}" }
+            }
         }
     }
 }

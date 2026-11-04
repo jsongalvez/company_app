@@ -94,18 +94,23 @@ internal object TelemetryService {
         sessionId: UUID,
         events: List<TelemetryEvent>,
     ) {
-        transaction { TelemetryStore.insertInTransaction(userId, sessionId, events) }
-        val rows = rowsSinceTrim.addAndGet(events.size.toLong())
-        val nowMs = System.currentTimeMillis()
-        val last = lastTrimMs.get()
-        if (rows < TRIM_EVERY_ROWS && nowMs - last < TRIM_EVERY_MS) return
-        if (!lastTrimMs.compareAndSet(last, nowMs)) return
-        rowsSinceTrim.set(0)
-        trim(OffsetDateTime.ofInstant(Instant.ofEpochMilli(nowMs), ZoneOffset.UTC))
+        traced("TelemetryService.record") {
+            transaction { TelemetryStore.insertInTransaction(userId, sessionId, events) }
+            val rows = rowsSinceTrim.addAndGet(events.size.toLong())
+            val nowMs = System.currentTimeMillis()
+            val last = lastTrimMs.get()
+            if (rows < TRIM_EVERY_ROWS && nowMs - last < TRIM_EVERY_MS) return@traced
+            if (!lastTrimMs.compareAndSet(last, nowMs)) return@traced
+            rowsSinceTrim.set(0)
+            trim(OffsetDateTime.ofInstant(Instant.ofEpochMilli(nowMs), ZoneOffset.UTC))
+        }
     }
 
     fun trim(
         now: OffsetDateTime,
         cap: Long = ROW_CAP,
-    ): Int = transaction { TelemetryStore.trimInTransaction(now.minusDays(RETENTION_DAYS), cap) }
+    ): Int =
+        traced("TelemetryService.trim") {
+            transaction { TelemetryStore.trimInTransaction(now.minusDays(RETENTION_DAYS), cap) }
+        }
 }

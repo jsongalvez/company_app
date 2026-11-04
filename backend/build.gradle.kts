@@ -45,6 +45,8 @@ dependencies {
 
     // PDF export
     implementation(libs.openpdf)
+    implementation(libs.opentelemetry.api)
+    implementation(libs.opentelemetry.sdk.trace)
     // Excel export (accounting report)
     implementation(libs.fastexcel)
 

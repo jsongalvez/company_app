@@ -28,19 +28,21 @@ internal class GithubIssueSender(
     private val config: GithubIssueConfig,
 ) : IncidentSender {
     override fun send(packet: IncidentPacket) {
-        val payload = Json.encodeToString(renderIssue(packet))
-        val request =
-            HttpRequest
-                .newBuilder(URI.create("$API_BASE/repos/${config.repository}/issues"))
-                .timeout(REQUEST_TIMEOUT)
-                .header("Accept", GITHUB_JSON)
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer ${config.token}")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build()
-        val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() !in HTTP_OK_MIN..HTTP_OK_MAX) {
-            throw IOException("GitHub issue creation failed with status ${response.statusCode()}")
+        traced("GithubIssueSender.send") {
+            val payload = Json.encodeToString(renderIssue(packet))
+            val request =
+                HttpRequest
+                    .newBuilder(URI.create("$API_BASE/repos/${config.repository}/issues"))
+                    .timeout(REQUEST_TIMEOUT)
+                    .header("Accept", GITHUB_JSON)
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer ${config.token}")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build()
+            val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() !in HTTP_OK_MIN..HTTP_OK_MAX) {
+                throw IOException("GitHub issue creation failed with status ${response.statusCode()}")
+            }
         }
     }
 

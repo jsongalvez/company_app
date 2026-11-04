@@ -24,6 +24,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.remittance.RemittanceReads
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -60,6 +61,27 @@ object SessionService {
         }
     }
 
+    /**
+     * The new session's type and price. History reads join the command transaction after the
+     * client-row lock, so concurrent creates for the same client serialize on that row; reading
+     * before the lock let two writers both see priorCount=0 and persist REGULAR twice (type has no
+     * DB backstop, unlike PENDING). A medical-mission visit is always free (BR §Session types): a
+     * non-zero caller price is normalized to zero rather than rejected, and the money check runs
+     * after that, since checking the raw input would refuse a mission.
+     */
+    private fun typeAndPriceInTransaction(
+        branchType: BranchType,
+        clientId: UUID,
+        earlierVisits: Int,
+        finalPrice: BigDecimal,
+    ): Pair<SessionType, BigDecimal> {
+        val priorCount = earlierVisits + SessionRepository.countRecordedNonMedicalMissionSessionsInTransaction(clientId)
+        val sessionType = computeSessionType(branchType, priorCount)
+        val price = if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
+        validateSessionMoney(price, "finalPrice")
+        return sessionType to price
+    }
+
     @Suppress("LongParameterList") // #593
     fun create(
         callerId: UUID,
@@ -88,83 +110,71 @@ object SessionService {
         // What the caller already read in this transaction, so the create does not read it again.
         knownBranchType: BranchType? = null,
         knownGatedBranchDay: BranchDay? = null,
-    ): SessionCreateResult {
-        val branchType = knownBranchType ?: requireBranchType(branchId)
+    ): SessionCreateResult =
+        traced("SessionService.create") {
+            val branchType = knownBranchType ?: requireBranchType(branchId)
 
-        requestedPractitionerId?.let { requireRequestedPractitioner(branchId, it) }
+            requestedPractitionerId?.let { requireRequestedPractitioner(branchId, it) }
 
-        val existing = SessionRepository.findById(id)
-        if (existing != null) {
-            return fastPathReplay(existing, clientId, branchId, callerId, gatedBranchDayId)
+            val existing = SessionRepository.findById(id)
+            if (existing != null) {
+                return@traced fastPathReplay(existing, clientId, branchId, callerId, gatedBranchDayId)
+            }
+
+            val today = BranchDayService.currentOperationalDate()
+            val branchDay = resolveBranchDay(branchId, today, gatedBranchDayId, knownGatedBranchDay)
+
+            return@traced transaction {
+                // client-first lock order preserved (see requireActiveClientInTransaction):
+                // the client row is locked before the day gate's day row.
+                val lockedClient = requireActiveClientInTransaction(clientId)
+                val found = SessionRepository.findByIdInTransaction(id)
+                idempotentReplayOrNull(found, clientId, branchDay.id, callerId)?.let { return@transaction it }
+                val (sessionType, effectiveFinalPrice) =
+                    typeAndPriceInTransaction(
+                        branchType,
+                        clientId,
+                        lockedClient.earlierVisits,
+                        finalPrice,
+                    )
+
+                val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
+                val (lockedDay, isRemitted) =
+                    BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDay.id, reason)
+                if (requireClockIn) {
+                    WorkforceReads.requireClockedInInTransaction(callerId, lockedDay.id, lockedDay.date == today)
+                }
+                val result =
+                    SessionRepository.createInTransaction(
+                        SessionCreateParams(
+                            id = id,
+                            clientId = clientId,
+                            branchDayId = branchDay.id,
+                            requestedPractitionerId = requestedPractitionerId,
+                            sessionType = sessionType,
+                            isWalkIn = isWalkIn,
+                            basePrice = basePrice,
+                            finalPrice = effectiveFinalPrice,
+                            remarks = remarks,
+                            otherConcerns = otherConcerns,
+                            nextAppointmentDate = nextAppointmentDate,
+                            changedBy = callerId,
+                        ),
+                    )
+                if (result.created) {
+                    SessionAudit.inserted(
+                        AuditContext(callerId, lockedDay.branchId, isRemitted, reason),
+                        result.session,
+                    )
+                }
+
+                logger.info {
+                    "[CREATE-SESSION] Session ${result.session.id} created (type=$sessionType, branchType=$branchType)"
+                }
+
+                result
+            }
         }
-
-        val today = BranchDayService.currentOperationalDate()
-        val branchDay = resolveBranchDay(branchId, today, gatedBranchDayId, knownGatedBranchDay)
-
-        return transaction {
-            // client-first lock order preserved (see requireActiveClientInTransaction):
-            // the client row is locked before the day gate's day row.
-            val lockedClient = requireActiveClientInTransaction(clientId)
-            idempotentReplayOrNull(SessionRepository.findByIdInTransaction(id), clientId, branchDay.id, callerId)?.let {
-                return@transaction it
-            }
-            // history reads join this command transaction after the client-row
-            // lock so concurrent creates for the same client serialize on the client
-            // row; reading before the lock let two writers both see priorCount=0 and
-            // persist REGULAR twice (type has no DB backstop, unlike PENDING).
-            val priorCount =
-                lockedClient.earlierVisits +
-                    SessionRepository.countRecordedNonMedicalMissionSessionsInTransaction(clientId)
-            val sessionType = computeSessionType(branchType, priorCount)
-
-            // BR §Session types: a medical-mission visit is always free (₱0). The rule is
-            // an invariant of the domain, not an input constraint, so a non-zero caller-supplied
-            // price is normalized to zero rather than rejected — no client version or direct API
-            // caller can persist one.
-            val effectiveFinalPrice =
-                if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
-
-            // After the mission ₱0 normalization: checking the raw input would refuse a mission.
-            validateSessionMoney(effectiveFinalPrice, "finalPrice")
-
-            val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
-            val (lockedDay, isRemitted) =
-                BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDay.id, reason)
-            if (requireClockIn) {
-                WorkforceReads.requireClockedInInTransaction(
-                    callerId,
-                    lockedDay.id,
-                    lockedDay.date == today,
-                )
-            }
-            val result =
-                SessionRepository.createInTransaction(
-                    SessionCreateParams(
-                        id = id,
-                        clientId = clientId,
-                        branchDayId = branchDay.id,
-                        requestedPractitionerId = requestedPractitionerId,
-                        sessionType = sessionType,
-                        isWalkIn = isWalkIn,
-                        basePrice = basePrice,
-                        finalPrice = effectiveFinalPrice,
-                        remarks = remarks,
-                        otherConcerns = otherConcerns,
-                        nextAppointmentDate = nextAppointmentDate,
-                        changedBy = callerId,
-                    ),
-                )
-            if (result.created) {
-                SessionAudit.inserted(AuditContext(callerId, lockedDay.branchId, isRemitted, reason), result.session)
-            }
-
-            logger.info {
-                "[CREATE-SESSION] Session ${result.session.id} created (type=$sessionType, branchType=$branchType)"
-            }
-
-            result
-        }
-    }
 
     private fun requireBranchType(branchId: UUID): BranchType =
         SessionRepository.getBranchType(branchId) ?: throw NotFoundException("Branch not found")
@@ -327,77 +337,79 @@ object SessionService {
         expectedVersion: Int,
         reason: String? = null,
     ): Session =
-        transaction {
-            val initial =
-                SessionRepository.findByIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
-            // Client-first lock order matches create, anonymize, void, and unvoid commands.
-            val client =
-                ClientReads.acquireLockInTransaction(initial.clientId)
-                    ?: throw NotFoundException("Client not found")
-            val session =
-                SessionRepository.acquireLockInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
+        traced("SessionService.updateStatus") {
+            transaction {
+                val initial =
+                    SessionRepository.findByIdInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
+                // Client-first lock order matches create, anonymize, void, and unvoid commands.
+                val client =
+                    ClientReads.acquireLockInTransaction(initial.clientId)
+                        ?: throw NotFoundException("Client not found")
+                val session =
+                    SessionRepository.acquireLockInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
 
-            if (requireVersionOrAckRepeat(session, newStatus, expectedVersion)) return@transaction session
+                if (requireVersionOrAckRepeat(session, newStatus, expectedVersion)) return@transaction session
 
-            // void freezes status: a voided row rejects every status change
-            // (unvoid restores editability). Roster joins stay open.
-            // Authority is the void row (active = unvoidedAt null), read after the
-            // session lock so a concurrent void serializes on the same row.
-            val activeVoid = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
-            if (activeVoid != null && activeVoid.unvoidedAt == null) {
-                throw ConflictException("Session is voided")
-            }
+                // void freezes status: a voided row rejects every status change
+                // (unvoid restores editability). Roster joins stay open.
+                // Authority is the void row (active = unvoidedAt null), read after the
+                // session lock so a concurrent void serializes on the same row.
+                val activeVoid = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
+                if (activeVoid != null && activeVoid.unvoidedAt == null) {
+                    throw ConflictException("Session is voided")
+                }
 
-            if (!isStatusTransitionAllowed(session.sessionStatus, newStatus, session.isWalkIn)) {
-                throw ValidationException(
-                    "Illegal session status transition from ${session.sessionStatus} to $newStatus",
+                if (!isStatusTransitionAllowed(session.sessionStatus, newStatus, session.isWalkIn)) {
+                    throw ValidationException(
+                        "Illegal session status transition from ${session.sessionStatus} to $newStatus",
+                    )
+                }
+
+                if (client.deletedAt != null) {
+                    throw ConflictException("Cannot update the status of a session for an anonymized client")
+                }
+
+                if (session.sessionStatus == SessionStatus.COMPLETED &&
+                    newStatus == SessionStatus.PENDING &&
+                    RemittanceReads.isSessionIncludedInTransaction(sessionId)
+                ) {
+                    throw ConflictException("This session is in a remittance. Remove it from the remittance first.")
+                }
+
+                requireMemberToCorrect(callerId, session, newStatus)
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        session.branchDayId,
+                        reason,
+                        DayWrite.FIX,
+                    )
+
+                if (newStatus == SessionStatus.PENDING) {
+                    SessionRepository.assertNotWaitingElsewhereInTransaction(
+                        session.clientId,
+                        session.branchDayId,
+                        sessionId,
+                    )
+                }
+
+                val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
+
+                SessionAudit.updated(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    session,
+                    updated,
                 )
+
+                logger.info {
+                    "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
+                        " from ${session.sessionStatus.name} to ${newStatus.name}"
+                }
+
+                updated
             }
-
-            if (client.deletedAt != null) {
-                throw ConflictException("Cannot update the status of a session for an anonymized client")
-            }
-
-            if (session.sessionStatus == SessionStatus.COMPLETED &&
-                newStatus == SessionStatus.PENDING &&
-                RemittanceReads.isSessionIncludedInTransaction(sessionId)
-            ) {
-                throw ConflictException("This session is in a remittance. Remove it from the remittance first.")
-            }
-
-            requireMemberToCorrect(callerId, session, newStatus)
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(
-                    callerId,
-                    session.branchDayId,
-                    reason,
-                    DayWrite.FIX,
-                )
-
-            if (newStatus == SessionStatus.PENDING) {
-                SessionRepository.assertNotWaitingElsewhereInTransaction(
-                    session.clientId,
-                    session.branchDayId,
-                    sessionId,
-                )
-            }
-
-            val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
-
-            SessionAudit.updated(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                session,
-                updated,
-            )
-
-            logger.info {
-                "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
-                    " from ${session.sessionStatus.name} to ${newStatus.name}"
-            }
-
-            updated
         }
 
     fun updateFinalPrice(
@@ -407,56 +419,58 @@ object SessionService {
         expectedVersion: Int,
         reason: String? = null,
     ): Session =
-        transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
-            val initial =
-                SessionRepository.findByIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
-            val client =
-                ClientReads.acquireLockInTransaction(initial.clientId)
-                    ?: throw NotFoundException("Client not found")
-            if (client.deletedAt != null) {
-                throw ConflictException("Cannot update the price of a session for an anonymized client")
-            }
-            val session =
-                SessionRepository.acquireLockInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
+        traced("SessionService.updateFinalPrice") {
+            transaction {
+                // Transaction-local before-state (ADR-0019): read inside the command's transaction.
+                val initial =
+                    SessionRepository.findByIdInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
+                val client =
+                    ClientReads.acquireLockInTransaction(initial.clientId)
+                        ?: throw NotFoundException("Client not found")
+                if (client.deletedAt != null) {
+                    throw ConflictException("Cannot update the price of a session for an anonymized client")
+                }
+                val session =
+                    SessionRepository.acquireLockInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
 
-            if (session.version != expectedVersion) {
-                throw ConflictException("Session version mismatch")
-            }
+                if (session.version != expectedVersion) {
+                    throw ConflictException("Session version mismatch")
+                }
 
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(
-                    callerId,
-                    session.branchDayId,
-                    reason,
-                    write = DayWrite.FIX,
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        session.branchDayId,
+                        reason,
+                        write = DayWrite.FIX,
+                    )
+
+                // same invariant as create (BR §Session types): a medical-mission session
+                // carries MEDICAL_MISSION for life, so its price normalizes to ₱0 no matter what
+                // the caller sent.
+                val effectivePrice =
+                    if (session.sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else newFinalPrice
+
+                validateSessionMoney(effectivePrice, "finalPrice")
+
+                val updated =
+                    SessionRepository.updateFinalPriceInTransaction(sessionId, effectivePrice, expectedVersion)
+
+                SessionAudit.updated(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    session,
+                    updated,
                 )
 
-            // same invariant as create (BR §Session types): a medical-mission session
-            // carries MEDICAL_MISSION for life, so its price normalizes to ₱0 no matter what
-            // the caller sent.
-            val effectivePrice =
-                if (session.sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else newFinalPrice
+                logger.info {
+                    "[UPDATE-SESSION-FINAL-PRICE] Session $sessionId final price changed" +
+                        " from ${session.finalPrice.toPlainString()} to ${effectivePrice.toPlainString()}"
+                }
 
-            validateSessionMoney(effectivePrice, "finalPrice")
-
-            val updated =
-                SessionRepository.updateFinalPriceInTransaction(sessionId, effectivePrice, expectedVersion)
-
-            SessionAudit.updated(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                session,
-                updated,
-            )
-
-            logger.info {
-                "[UPDATE-SESSION-FINAL-PRICE] Session $sessionId final price changed" +
-                    " from ${session.finalPrice.toPlainString()} to ${effectivePrice.toPlainString()}"
+                updated
             }
-
-            updated
         }
 
     /** Correcting a mark is for branch members, as voiding is; relief day grants never carry VOID_SESSION. */
@@ -475,56 +489,58 @@ object SessionService {
         voidId: UUID,
         voidReason: String,
     ): VoidResult {
-        return transaction {
-            val initial =
-                SessionRepository.findByIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
-            val client =
-                ClientReads.acquireLockInTransaction(initial.clientId)
-                    ?: throw NotFoundException("Client not found")
-            if (client.deletedAt != null) {
-                throw ConflictException("Cannot void a session for an anonymized client")
+        return traced("SessionService.voidSession") {
+            return@traced transaction {
+                val initial =
+                    SessionRepository.findByIdInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
+                val client =
+                    ClientReads.acquireLockInTransaction(initial.clientId)
+                        ?: throw NotFoundException("Client not found")
+                if (client.deletedAt != null) {
+                    throw ConflictException("Cannot void a session for an anonymized client")
+                }
+                val session =
+                    SessionRepository.acquireLockInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
+                val existing = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
+                if (existing != null && existing.unvoidedAt == null) {
+                    SessionRepository.setVoidedInTransaction(sessionId, true)
+                    logger.info { "[VOID-SESSION] Session $sessionId already voided, returning existing (idempotent)" }
+                    return@transaction VoidResult(existing, false)
+                }
+
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        session.branchDayId,
+                        voidReason,
+                        DayWrite.FIX,
+                    )
+
+                val result =
+                    SessionVoidRepository.voidInTransaction(
+                        id = voidId,
+                        sessionId = sessionId,
+                        voidReason = voidReason,
+                        voidedBy = callerId,
+                    )
+                if (result.sessionVoid.unvoidedAt == null) {
+                    SessionRepository.setVoidedInTransaction(sessionId, true)
+                }
+                if (result.created) {
+                    SessionAudit.voidInserted(
+                        AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = voidReason),
+                        result.sessionVoid,
+                    )
+                }
+
+                CommissionService.recalculateInTransaction(session.branchDayId)
+
+                logger.info { "[VOID-SESSION] Session $sessionId voided" }
+
+                result
             }
-            val session =
-                SessionRepository.acquireLockInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
-            val existing = SessionVoidRepository.findBySessionIdInTransaction(sessionId)
-            if (existing != null && existing.unvoidedAt == null) {
-                SessionRepository.setVoidedInTransaction(sessionId, true)
-                logger.info { "[VOID-SESSION] Session $sessionId already voided, returning existing (idempotent)" }
-                return@transaction VoidResult(existing, false)
-            }
-
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(
-                    callerId,
-                    session.branchDayId,
-                    voidReason,
-                    DayWrite.FIX,
-                )
-
-            val result =
-                SessionVoidRepository.voidInTransaction(
-                    id = voidId,
-                    sessionId = sessionId,
-                    voidReason = voidReason,
-                    voidedBy = callerId,
-                )
-            if (result.sessionVoid.unvoidedAt == null) {
-                SessionRepository.setVoidedInTransaction(sessionId, true)
-            }
-            if (result.created) {
-                SessionAudit.voidInserted(
-                    AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = voidReason),
-                    result.sessionVoid,
-                )
-            }
-
-            CommissionService.recalculateInTransaction(session.branchDayId)
-
-            logger.info { "[VOID-SESSION] Session $sessionId voided" }
-
-            result
         }
     }
 
@@ -533,69 +549,73 @@ object SessionService {
         sessionId: UUID,
         unvoidedReason: String,
     ): SessionVoid =
-        transaction {
-            val initial =
-                SessionRepository.findByIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
-            val client =
-                ClientReads.acquireLockInTransaction(initial.clientId)
-                    ?: throw NotFoundException("Client not found")
-            if (client.deletedAt != null) {
-                throw ConflictException("Cannot unvoid a session for an anonymized client")
-            }
-            val session =
-                SessionRepository.acquireLockInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
+        traced("SessionService.unvoidSession") {
+            transaction {
+                val initial =
+                    SessionRepository.findByIdInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
+                val client =
+                    ClientReads.acquireLockInTransaction(initial.clientId)
+                        ?: throw NotFoundException("Client not found")
+                if (client.deletedAt != null) {
+                    throw ConflictException("Cannot unvoid a session for an anonymized client")
+                }
+                val session =
+                    SessionRepository.acquireLockInTransaction(sessionId)
+                        ?: throw NotFoundException("Session not found")
 
-            val sessionVoid =
-                SessionVoidRepository.findBySessionIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session is not voided")
+                val sessionVoid =
+                    SessionVoidRepository.findBySessionIdInTransaction(sessionId)
+                        ?: throw NotFoundException("Session is not voided")
 
-            if (sessionVoid.unvoidedAt != null) {
+                if (sessionVoid.unvoidedAt != null) {
+                    SessionRepository.setVoidedInTransaction(sessionId, false)
+                    logger.info {
+                        "[UNVOID-SESSION] Session $sessionId already unvoided, returning existing (idempotent)"
+                    }
+                    return@transaction sessionVoid
+                }
+
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        session.branchDayId,
+                        unvoidedReason,
+                        DayWrite.FIX,
+                    )
+
+                if (session.sessionStatus == SessionStatus.PENDING) {
+                    SessionRepository.assertNotWaitingElsewhereInTransaction(
+                        session.clientId,
+                        session.branchDayId,
+                        excludedSessionId = sessionId,
+                    )
+                }
+
+                val updated =
+                    SessionVoidRepository.unvoidInTransaction(
+                        sessionVoidId = sessionVoid.id,
+                        unvoidedBy = callerId,
+                        unvoidedReason = unvoidedReason,
+                    ) ?: throw NotFoundException("Session void record not found after unvoid")
+
                 SessionRepository.setVoidedInTransaction(sessionId, false)
-                logger.info { "[UNVOID-SESSION] Session $sessionId already unvoided, returning existing (idempotent)" }
-                return@transaction sessionVoid
-            }
 
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(
-                    callerId,
-                    session.branchDayId,
-                    unvoidedReason,
-                    DayWrite.FIX,
+                SessionAudit.voidUpdated(
+                    AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = unvoidedReason),
+                    sessionVoid,
+                    updated,
                 )
 
-            if (session.sessionStatus == SessionStatus.PENDING) {
-                SessionRepository.assertNotWaitingElsewhereInTransaction(
-                    session.clientId,
-                    session.branchDayId,
-                    excludedSessionId = sessionId,
-                )
+                // unvoid restores the session to the commission aggregation input;
+                // same transaction-joined recalc as void above (force=false keeps the
+                // PAST/REMITTED auto-skip; day row already held by the gate).
+                CommissionService.recalculateInTransaction(session.branchDayId)
+
+                logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
+
+                updated
             }
-
-            val updated =
-                SessionVoidRepository.unvoidInTransaction(
-                    sessionVoidId = sessionVoid.id,
-                    unvoidedBy = callerId,
-                    unvoidedReason = unvoidedReason,
-                ) ?: throw NotFoundException("Session void record not found after unvoid")
-
-            SessionRepository.setVoidedInTransaction(sessionId, false)
-
-            SessionAudit.voidUpdated(
-                AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = unvoidedReason),
-                sessionVoid,
-                updated,
-            )
-
-            // unvoid restores the session to the commission aggregation input;
-            // same transaction-joined recalc as void above (force=false keeps the
-            // PAST/REMITTED auto-skip; day row already held by the gate).
-            CommissionService.recalculateInTransaction(session.branchDayId)
-
-            logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
-
-            updated
         }
 
     /**

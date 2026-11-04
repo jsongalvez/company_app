@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -28,30 +29,32 @@ object ProductService {
         unitPrice: BigDecimal,
         commissionAmount: BigDecimal,
     ): ProductCreateResult {
-        val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
-        if (!categoryExists) {
-            throw NotFoundException("Product category not found")
-        }
-
-        validateMoneyAmount(unitPrice, "unitPrice")
-        validateMoneyAmount(commissionAmount, "commissionAmount")
-
-        return transaction {
-            val result =
-                ProductRepository.createInTransaction(
-                    ProductCreateParams(
-                        id = id,
-                        name = name,
-                        productCategoryId = productCategoryId,
-                        unitPrice = unitPrice,
-                        commissionAmount = commissionAmount,
-                        changedBy = callerId,
-                    ),
-                )
-            if (result.created) {
-                ProductAudit.inserted(callerId, result.product)
+        return traced("ProductService.create") {
+            val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
+            if (!categoryExists) {
+                throw NotFoundException("Product category not found")
             }
-            result
+
+            validateMoneyAmount(unitPrice, "unitPrice")
+            validateMoneyAmount(commissionAmount, "commissionAmount")
+
+            return@traced transaction {
+                val result =
+                    ProductRepository.createInTransaction(
+                        ProductCreateParams(
+                            id = id,
+                            name = name,
+                            productCategoryId = productCategoryId,
+                            unitPrice = unitPrice,
+                            commissionAmount = commissionAmount,
+                            changedBy = callerId,
+                        ),
+                    )
+                if (result.created) {
+                    ProductAudit.inserted(callerId, result.product)
+                }
+                result
+            }
         }
     }
 
@@ -77,33 +80,35 @@ object ProductService {
             throw NotFoundException("Product category not found")
         }
 
-        unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
-        commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
+        return traced("ProductService.update") {
+            unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
+            commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
 
-        return transaction {
-            // Locked before-state: SELECT FOR UPDATE serializes concurrent
-            // writers so the audit diff attributes only this actor's changes.
-            val before =
-                ProductRepository.findByIdForUpdateInTransaction(productId)
-                    ?: throw NotFoundException("Product not found")
+            return@traced transaction {
+                // Locked before-state: SELECT FOR UPDATE serializes concurrent
+                // writers so the audit diff attributes only this actor's changes.
+                val before =
+                    ProductRepository.findByIdForUpdateInTransaction(productId)
+                        ?: throw NotFoundException("Product not found")
 
-            val (updatedCount, after) =
-                ProductRepository.updateInTransaction(
-                    productId = productId,
-                    update =
-                        ProductUpdate(
-                            name = name?.takeIf { it.isNotEmpty() },
-                            productCategoryId = productCategoryId,
-                            unitPrice = unitPrice,
-                            commissionAmount = commissionAmount,
-                            isActive = isActive,
-                        ),
-                )
+                val (updatedCount, after) =
+                    ProductRepository.updateInTransaction(
+                        productId = productId,
+                        update =
+                            ProductUpdate(
+                                name = name?.takeIf { it.isNotEmpty() },
+                                productCategoryId = productCategoryId,
+                                unitPrice = unitPrice,
+                                commissionAmount = commissionAmount,
+                                isActive = isActive,
+                            ),
+                    )
 
-            if (updatedCount > 0 && after != null) {
-                ProductAudit.updated(callerId, before, after)
+                if (updatedCount > 0 && after != null) {
+                    ProductAudit.updated(callerId, before, after)
+                }
+                after ?: throw NotFoundException("Product not found")
             }
-            after ?: throw NotFoundException("Product not found")
         }
     }
 }

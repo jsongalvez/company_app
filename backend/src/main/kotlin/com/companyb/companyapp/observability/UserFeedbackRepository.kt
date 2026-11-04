@@ -30,13 +30,15 @@ internal object UserFeedbackRepository {
     }
 
     fun list(status: FeedbackStatus?): List<UserFeedback> =
-        transaction {
-            val query = joined().selectAll()
-            if (status != null) query.where { UserFeedbackTable.status eq status.name }
-            query
-                .orderBy(UserFeedbackTable.createdAt to SortOrder.DESC)
-                .limit(LIST_LIMIT)
-                .map { it.toFeedback() }
+        traced("UserFeedbackRepository.list") {
+            transaction {
+                val query = joined().selectAll()
+                if (status != null) query.where { UserFeedbackTable.status eq status.name }
+                query
+                    .orderBy(UserFeedbackTable.createdAt to SortOrder.DESC)
+                    .limit(LIST_LIMIT)
+                    .map { it.toFeedback() }
+            }
         }
 
     fun setStatusInTransaction(

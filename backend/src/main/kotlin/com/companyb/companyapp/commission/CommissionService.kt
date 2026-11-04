@@ -9,6 +9,7 @@ import com.companyb.companyapp.commerce.ProductSale
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.AttendanceWindow
 import com.companyb.companyapp.workforce.WorkforceReads
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -110,16 +111,18 @@ object CommissionService {
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
-        val params =
-            CommissionManualInclusionUpsertParams(
-                id = id,
-                productSaleId = productSaleId,
-                userId = userId,
-                isIncluded = isIncluded,
-                reason = reason,
-                assignedBy = callerId,
-            )
-        return transaction { createManualInclusionInTransaction(params) }
+        return traced("CommissionService.createManualInclusion") {
+            val params =
+                CommissionManualInclusionUpsertParams(
+                    id = id,
+                    productSaleId = productSaleId,
+                    userId = userId,
+                    isIncluded = isIncluded,
+                    reason = reason,
+                    assignedBy = callerId,
+                )
+            return@traced transaction { createManualInclusionInTransaction(params) }
+        }
     }
 
     private fun createManualInclusionInTransaction(
@@ -158,8 +161,10 @@ object CommissionService {
     fun recalculate(
         branchDayId: UUID,
         force: Boolean = false,
-    ) = transaction {
-        recalculateInTransaction(branchDayId, force)
+    ) = traced("CommissionService.recalculate") {
+        transaction {
+            recalculateInTransaction(branchDayId, force)
+        }
     }
 
     /**
@@ -204,8 +209,10 @@ object CommissionService {
      * split rows stay the frozen history (a forced recalc on a PAST day must not move the card).
      */
     fun liveCommissions(branchDayId: UUID): Map<UUID, CommissionShare> =
-        transaction {
-            computeTotalsInTransaction(branchDayId)
+        traced("CommissionService.liveCommissions") {
+            transaction {
+                computeTotalsInTransaction(branchDayId)
+            }
         }
 
     /**

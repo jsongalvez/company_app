@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.logging.RequestQueryTally
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
@@ -15,12 +16,14 @@ private val logger = KotlinLogging.logger {}
 
 internal object CapabilityRepository {
     fun findIdByCode(code: String): UUID? =
-        transaction {
-            CapabilityTable
-                .selectAll()
-                .where { CapabilityTable.code eq code }
-                .singleOrNull()
-                ?.let { it[CapabilityTable.id] }
+        traced("CapabilityRepository.findIdByCode") {
+            transaction {
+                CapabilityTable
+                    .selectAll()
+                    .where { CapabilityTable.code eq code }
+                    .singleOrNull()
+                    ?.let { it[CapabilityTable.id] }
+            }
         }
 
     fun hasCapability(
@@ -65,28 +68,30 @@ internal object CapabilityRepository {
      * four to six times. The copy is dropped by a write to any table in [VIEW_READS].
      */
     private fun grantsOf(userId: UUID): List<Grant> =
-        RequestQueryTally
-            .untilWrite(GrantsKey(userId), Grants::class, VIEW_READS) {
-                Grants(
-                    transaction {
-                        ActiveUserCapabilitiesView
-                            .innerJoin(
-                                CapabilityTable,
-                                { ActiveUserCapabilitiesView.capabilityId },
-                                { CapabilityTable.id },
-                            ).selectAll()
-                            .where { ActiveUserCapabilitiesView.userId eq userId }
-                            .map { row ->
-                                Grant(
-                                    code = row[CapabilityTable.code],
-                                    contextType = row[ActiveUserCapabilitiesView.contextType],
-                                    contextId = row[ActiveUserCapabilitiesView.contextId],
-                                    sourceType = row[ActiveUserCapabilitiesView.sourceType],
-                                )
-                            }
-                    },
-                )
-            }.rows
+        traced("CapabilityRepository.grantsOf") {
+            RequestQueryTally
+                .untilWrite(GrantsKey(userId), Grants::class, VIEW_READS) {
+                    Grants(
+                        transaction {
+                            ActiveUserCapabilitiesView
+                                .innerJoin(
+                                    CapabilityTable,
+                                    { ActiveUserCapabilitiesView.capabilityId },
+                                    { CapabilityTable.id },
+                                ).selectAll()
+                                .where { ActiveUserCapabilitiesView.userId eq userId }
+                                .map { row ->
+                                    Grant(
+                                        code = row[CapabilityTable.code],
+                                        contextType = row[ActiveUserCapabilitiesView.contextType],
+                                        contextId = row[ActiveUserCapabilitiesView.contextId],
+                                        sourceType = row[ActiveUserCapabilitiesView.sourceType],
+                                    )
+                                }
+                        },
+                    )
+                }.rows
+        }
 
     fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         grantsOf(userId)

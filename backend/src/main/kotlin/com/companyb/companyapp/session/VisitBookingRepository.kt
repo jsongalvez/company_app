@@ -5,6 +5,7 @@ import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.contracts.session.BookingStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -33,21 +34,27 @@ internal object VisitBookingRepository {
         branchId: UUID,
         from: LocalDate,
     ): List<BookingResponse> =
-        transaction {
-            list(
-                (VisitBookingTable.branchId eq branchId) and (VisitBookingTable.visitDate greaterEq from) and
-                    (VisitBookingTable.status eq BookingStatus.BOOKED.name),
-                SortOrder.ASC,
-            )
+        traced("VisitBookingRepository.findUpcomingForBranch") {
+            transaction {
+                list(
+                    (VisitBookingTable.branchId eq branchId) and (VisitBookingTable.visitDate greaterEq from) and
+                        (VisitBookingTable.status eq BookingStatus.BOOKED.name),
+                    SortOrder.ASC,
+                )
+            }
         }
 
     /** Every booking a client has, newest visit day first. */
     fun findForClient(clientId: UUID): List<BookingResponse> =
-        transaction { list(VisitBookingTable.clientId eq clientId, SortOrder.DESC) }
+        traced("VisitBookingRepository.findForClient") {
+            transaction { list(VisitBookingTable.clientId eq clientId, SortOrder.DESC) }
+        }
 
     fun findResponse(id: UUID): BookingResponse? =
-        transaction {
-            list(VisitBookingTable.id eq id, SortOrder.ASC).singleOrNull()
+        traced("VisitBookingRepository.findResponse") {
+            transaction {
+                list(VisitBookingTable.id eq id, SortOrder.ASC).singleOrNull()
+            }
         }
 
     fun clientExistsInTransaction(clientId: UUID): Boolean =

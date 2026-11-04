@@ -2,6 +2,7 @@ package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -71,8 +72,10 @@ internal object RemittanceDayBreakdownRepository {
     }
 
     fun findByRemittanceId(remittanceId: UUID): List<RemittanceDayBreakdown> =
-        transaction {
-            findByRemittanceIdInTransaction(remittanceId)
+        traced("RemittanceDayBreakdownRepository.findByRemittanceId") {
+            transaction {
+                findByRemittanceIdInTransaction(remittanceId)
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */

@@ -11,6 +11,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -30,25 +31,27 @@ object MedicalMissionDelegateService {
         callerId: UUID,
         role: DelegateRole = DelegateRole.PRACTITIONER,
     ): MedicalMissionDelegate {
-        requireTakesHelpers(branchId)
-        if (!AccountReads.userExists(targetUserId)) {
-            throw NotFoundException("User not found")
-        }
-
-        val delegate =
-            transaction {
-                assignDelegateInTransaction(
-                    delegateId = delegateId,
-                    targetUserId = targetUserId,
-                    branchId = branchId,
-                    callerId = callerId,
-                    role = role,
-                )
+        return traced("MedicalMissionDelegateService.assignDelegate") {
+            requireTakesHelpers(branchId)
+            if (!AccountReads.userExists(targetUserId)) {
+                throw NotFoundException("User not found")
             }
 
-        logger.info { "[DELEGATE-ASSIGN] Delegate $delegateId: user=$targetUserId, branch=$branchId" }
+            val delegate =
+                transaction {
+                    assignDelegateInTransaction(
+                        delegateId = delegateId,
+                        targetUserId = targetUserId,
+                        branchId = branchId,
+                        callerId = callerId,
+                        role = role,
+                    )
+                }
 
-        return delegate
+            logger.info { "[DELEGATE-ASSIGN] Delegate $delegateId: user=$targetUserId, branch=$branchId" }
+
+            return@traced delegate
+        }
     }
 
     private fun assignDelegateInTransaction(
@@ -135,19 +138,25 @@ object MedicalMissionDelegateService {
         delegateId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate =
-        transaction {
-            val before =
-                MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
-                    ?: throw NotFoundException("Medical mission delegate not found")
+        traced("MedicalMissionDelegateService.revokeDelegate") {
+            transaction {
+                val before =
+                    MedicalMissionDelegateRepository.findByIdInTransaction(delegateId)
+                        ?: throw NotFoundException("Medical mission delegate not found")
 
-            val result = MedicalMissionDelegateRepository.revokeInTransaction(delegateId)
+                val result = MedicalMissionDelegateRepository.revokeInTransaction(delegateId)
 
-            if (result.changed) {
-                AuthorizationGrants.closeDelegateCapabilityInTransaction(delegateId)
-                MedicalMissionDelegateAudit.updated(AuditContext(callerId, before.branchId), before, result.delegate)
-            }
-            result.delegate
-        }.also { logger.info { "[DELEGATE-REVOKE] Delegate $delegateId revoked by $callerId" } }
+                if (result.changed) {
+                    AuthorizationGrants.closeDelegateCapabilityInTransaction(delegateId)
+                    MedicalMissionDelegateAudit.updated(
+                        AuditContext(callerId, before.branchId),
+                        before,
+                        result.delegate,
+                    )
+                }
+                result.delegate
+            }.also { logger.info { "[DELEGATE-REVOKE] Delegate $delegateId revoked by $callerId" } }
+        }
 }
 
 /**

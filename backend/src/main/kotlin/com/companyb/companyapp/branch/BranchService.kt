@@ -6,6 +6,7 @@ import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.SessionBaseRateService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -20,26 +21,28 @@ object BranchService {
         name: String,
         branchType: BranchType,
     ): BranchCreateResult =
-        transaction {
-            val result =
-                BranchRepository.createInTransaction(
-                    BranchCreateParams(
-                        id = id,
-                        name = name,
-                        branchType = branchType,
-                        changedBy = callerId,
-                    ),
-                )
-            if (result.created) {
-                BranchAudit.inserted(callerId, result.branch)
-                // provision the five BR-documented default base rates in the same
-                // command transaction so a fresh branch never fails session create with
-                // "No base rate configured" (explicit session-rate hook, same tx).
-                SessionBaseRateService.provisionDefaultsInTransaction(result.branch.id, callerId)
+        traced("BranchService.create") {
+            transaction {
+                val result =
+                    BranchRepository.createInTransaction(
+                        BranchCreateParams(
+                            id = id,
+                            name = name,
+                            branchType = branchType,
+                            changedBy = callerId,
+                        ),
+                    )
+                if (result.created) {
+                    BranchAudit.inserted(callerId, result.branch)
+                    // provision the five BR-documented default base rates in the same
+                    // command transaction so a fresh branch never fails session create with
+                    // "No base rate configured" (explicit session-rate hook, same tx).
+                    SessionBaseRateService.provisionDefaultsInTransaction(result.branch.id, callerId)
+                }
+                result
+            }.also {
+                logger.info { "[CREATE-BRANCH] Branch ${it.branch.id.toString().maskUUID()} created=${it.created}" }
             }
-            result
-        }.also {
-            logger.info { "[CREATE-BRANCH] Branch ${it.branch.id.toString().maskUUID()} created=${it.created}" }
         }
 
     fun rename(
@@ -47,12 +50,14 @@ object BranchService {
         id: UUID,
         name: String,
     ): Branch =
-        transaction {
-            val old = BranchRepository.renameInTransaction(id, name) ?: throw NotFoundException("Branch not found")
-            val renamed = old.copy(name = name)
-            if (old.name != name) BranchAudit.renamed(callerId, old, renamed)
-            renamed
-        }.also { logger.info { "[RENAME-BRANCH] Branch ${id.toString().maskUUID()} renamed" } }
+        traced("BranchService.rename") {
+            transaction {
+                val old = BranchRepository.renameInTransaction(id, name) ?: throw NotFoundException("Branch not found")
+                val renamed = old.copy(name = name)
+                if (old.name != name) BranchAudit.renamed(callerId, old, renamed)
+                renamed
+            }.also { logger.info { "[RENAME-BRANCH] Branch ${id.toString().maskUUID()} renamed" } }
+        }
 
     fun findAll(): List<Branch> = BranchRepository.findAll()
 

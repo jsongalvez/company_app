@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -132,28 +133,34 @@ internal object CompensationRepository {
     }
 
     fun findById(id: UUID): Compensation? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-COMPENSATION] Compensation ${id.toString().maskUUID()} found=${it != null}" } }
+        traced("CompensationRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }.also {
+                logger.info { "[FIND-COMPENSATION] Compensation ${id.toString().maskUUID()} found=${it != null}" }
+            }
+        }
 
     fun findByPayingBranchDayId(branchDayId: UUID): List<CompensationWithUser> =
-        transaction {
-            CompensationTable
-                .innerJoin(AppUserTable, { CompensationTable.userId }, { AppUserTable.id })
-                .selectAll()
-                .where { CompensationTable.payingBranchDayId eq branchDayId }
-                .orderBy(
-                    CompensationTable.assignedAt to SortOrder.DESC,
-                    CompensationTable.id to SortOrder.DESC,
-                ).map { row ->
-                    CompensationWithUser(
-                        compensation = row.toCompensation(),
-                        userName = row[AppUserTable.displayName],
-                    )
+        traced("CompensationRepository.findByPayingBranchDayId") {
+            transaction {
+                CompensationTable
+                    .innerJoin(AppUserTable, { CompensationTable.userId }, { AppUserTable.id })
+                    .selectAll()
+                    .where { CompensationTable.payingBranchDayId eq branchDayId }
+                    .orderBy(
+                        CompensationTable.assignedAt to SortOrder.DESC,
+                        CompensationTable.id to SortOrder.DESC,
+                    ).map { row ->
+                        CompensationWithUser(
+                            compensation = row.toCompensation(),
+                            userName = row[AppUserTable.displayName],
+                        )
+                    }
+            }.also {
+                logger.info {
+                    "[FIND-COMPENSATIONS] Found ${it.size} compensations for paying branch day $branchDayId"
                 }
-        }.also {
-            logger.info {
-                "[FIND-COMPENSATIONS] Found ${it.size} compensations for paying branch day $branchDayId"
             }
         }
 

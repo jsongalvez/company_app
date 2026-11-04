@@ -1,6 +1,7 @@
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -47,39 +48,47 @@ internal object ProductRepository {
     }
 
     fun findById(id: UUID): Product? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.info { "[FIND-PRODUCT] Product ${id.toString().maskUUID()} found=${it != null}" } }
+        traced("ProductRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }.also { logger.info { "[FIND-PRODUCT] Product ${id.toString().maskUUID()} found=${it != null}" } }
+        }
 
     fun findByIds(ids: Collection<UUID>): List<Product> =
-        if (ids.isEmpty()) {
-            emptyList()
-        } else {
-            transaction {
-                ProductTable
-                    .selectAll()
-                    .where { ProductTable.id inList ids.toList() }
-                    .map { it.toProduct() }
+        traced("ProductRepository.findByIds") {
+            if (ids.isEmpty()) {
+                emptyList()
+            } else {
+                transaction {
+                    ProductTable
+                        .selectAll()
+                        .where { ProductTable.id inList ids.toList() }
+                        .map { it.toProduct() }
+                }
             }
         }
 
     fun findAllActive(): List<Product> =
-        transaction {
-            ProductTable
-                .selectAll()
-                .where { ProductTable.isActive eq true }
-                .orderBy(ProductTable.name to SortOrder.ASC, ProductTable.id to SortOrder.ASC)
-                .map { it.toProduct() }
-        }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} active product(s)" } }
+        traced("ProductRepository.findAllActive") {
+            transaction {
+                ProductTable
+                    .selectAll()
+                    .where { ProductTable.isActive eq true }
+                    .orderBy(ProductTable.name to SortOrder.ASC, ProductTable.id to SortOrder.ASC)
+                    .map { it.toProduct() }
+            }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} active product(s)" } }
+        }
 
     /** Admin catalog read: active + inactive, same ordering as [findAllActive]. */
     fun findAll(): List<Product> =
-        transaction {
-            ProductTable
-                .selectAll()
-                .orderBy(ProductTable.name to SortOrder.ASC, ProductTable.id to SortOrder.ASC)
-                .map { it.toProduct() }
-        }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} product(s) including inactive" } }
+        traced("ProductRepository.findAll") {
+            transaction {
+                ProductTable
+                    .selectAll()
+                    .orderBy(ProductTable.name to SortOrder.ASC, ProductTable.id to SortOrder.ASC)
+                    .map { it.toProduct() }
+            }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} product(s) including inactive" } }
+        }
 
     /**
      * Returns the updated row count and the post-write row (null when the product does not exist);

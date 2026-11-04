@@ -17,6 +17,7 @@ class CompanyAppRuleSetProvider : RuleSetProvider {
                 NoWidenThenCast(config),
                 RequireSafetyComment(config),
                 NoRuntimeTypeCheck(config),
+                TracedAtDefinition(config),
             ),
         )
 }

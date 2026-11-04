@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -127,14 +128,16 @@ internal object SessionPractitionerRepository {
     }
 
     fun findBySessionId(sessionId: UUID): List<SessionPractitioner> =
-        transaction {
-            SessionPractitionerTable
-                .selectAll()
-                .where { SessionPractitionerTable.sessionId eq sessionId }
-                .orderBy(SessionPractitionerTable.slotAtTime)
-                .map { it.toSessionPractitioner() }
-        }.also {
-            logger.info { "[FIND-PRACTITIONERS-BY-SESSION] Found ${it.size} practitioners for session $sessionId" }
+        traced("SessionPractitionerRepository.findBySessionId") {
+            transaction {
+                SessionPractitionerTable
+                    .selectAll()
+                    .where { SessionPractitionerTable.sessionId eq sessionId }
+                    .orderBy(SessionPractitionerTable.slotAtTime)
+                    .map { it.toSessionPractitioner() }
+            }.also {
+                logger.info { "[FIND-PRACTITIONERS-BY-SESSION] Found ${it.size} practitioners for session $sessionId" }
+            }
         }
 
     /**

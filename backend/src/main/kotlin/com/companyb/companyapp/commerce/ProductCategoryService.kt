@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -17,14 +18,16 @@ object ProductCategoryService {
         id: UUID,
         name: String,
     ): ProductCategory =
-        transaction {
-            val (category, created) = ProductCategoryRepository.createInTransaction(id, name)
-            if (created) {
-                ProductCategoryAudit.inserted(callerId, category)
+        traced("ProductCategoryService.create") {
+            transaction {
+                val (category, created) = ProductCategoryRepository.createInTransaction(id, name)
+                if (created) {
+                    ProductCategoryAudit.inserted(callerId, category)
+                }
+                category
+            }.also {
+                logger.info { "[CREATE-PRODUCT-CATEGORY] Category ${it.id.toString().maskUUID()}" }
             }
-            category
-        }.also {
-            logger.info { "[CREATE-PRODUCT-CATEGORY] Category ${it.id.toString().maskUUID()}" }
         }
 
     fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()

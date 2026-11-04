@@ -10,6 +10,7 @@ import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -57,8 +58,10 @@ data class SessionCreateResult(
 
 internal object SessionRepository {
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
-        transaction {
-            countPriorNonMedicalMissionSessionsInTransaction(clientId)
+        traced("SessionRepository.countPriorNonMedicalMissionSessions") {
+            transaction {
+                countPriorNonMedicalMissionSessionsInTransaction(clientId)
+            }
         }
 
     /** In-transaction store read — runs on the caller's command transaction. */
@@ -94,8 +97,10 @@ internal object SessionRepository {
      * count; voids via `active_session_voids` don't count); null when no such session exists.
      */
     fun findMostRecentPriorSessionFinalPrice(clientId: UUID): BigDecimal? =
-        transaction {
-            findMostRecentPriorSessionFinalPriceInTransaction(clientId)
+        traced("SessionRepository.findMostRecentPriorSessionFinalPrice") {
+            transaction {
+                findMostRecentPriorSessionFinalPriceInTransaction(clientId)
+            }
         }
 
     /** In-transaction store read — runs on the caller's command transaction. */
@@ -116,26 +121,30 @@ internal object SessionRepository {
             ?.get(SessionTable.finalPrice)
 
     fun getBranchType(branchId: UUID): BranchType? =
-        transaction {
-            BranchTable
-                .selectAll()
-                .where { BranchTable.id eq branchId }
-                .singleOrNull()
-                ?.let { it[BranchTable.branchType] }
+        traced("SessionRepository.getBranchType") {
+            transaction {
+                BranchTable
+                    .selectAll()
+                    .where { BranchTable.id eq branchId }
+                    .singleOrNull()
+                    ?.let { it[BranchTable.branchType] }
+            }
         }
 
     fun branchDayBelongsToBranch(
         branchDayId: UUID,
         branchId: UUID,
     ): Boolean =
-        transaction {
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.id eq branchDayId) and
-                        (BranchDayTable.branchId eq branchId)
-                }.empty()
-                .not()
+        traced("SessionRepository.branchDayBelongsToBranch") {
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where {
+                        (BranchDayTable.id eq branchDayId) and
+                            (BranchDayTable.branchId eq branchId)
+                    }.empty()
+                    .not()
+            }
         }
 
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
@@ -255,8 +264,10 @@ internal object SessionRepository {
     }
 
     fun findById(id: UUID): Session? =
-        transaction {
-            findByIdInTransaction(id)
+        traced("SessionRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }
         }
 
     /**
@@ -305,19 +316,21 @@ internal object SessionRepository {
         branchId: UUID,
         before: LocalDate,
     ): List<LocalDate> =
-        transaction {
-            SessionTable
-                .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
-                .select(BranchDayTable.date)
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date less before) and
-                        (BranchDayTable.status neq DayStatus.REMITTED) and
-                        (SessionTable.sessionStatus eq SessionStatus.PENDING) and
-                        (SessionTable.isVoided eq false)
-                }.withDistinct()
-                .orderBy(BranchDayTable.date to SortOrder.ASC)
-                .map { it[BranchDayTable.date] }
+        traced("SessionRepository.findEarlierWaitingDays") {
+            transaction {
+                SessionTable
+                    .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
+                    .select(BranchDayTable.date)
+                    .where {
+                        (BranchDayTable.branchId eq branchId) and
+                            (BranchDayTable.date less before) and
+                            (BranchDayTable.status neq DayStatus.REMITTED) and
+                            (SessionTable.sessionStatus eq SessionStatus.PENDING) and
+                            (SessionTable.isVoided eq false)
+                    }.withDistinct()
+                    .orderBy(BranchDayTable.date to SortOrder.ASC)
+                    .map { it[BranchDayTable.date] }
+            }
         }
 
     /** Any Waiting session at all, any day: the anonymize guard keeps a queued client named. */

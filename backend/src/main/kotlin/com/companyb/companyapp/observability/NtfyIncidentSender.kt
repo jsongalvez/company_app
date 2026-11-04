@@ -52,18 +52,20 @@ internal class NtfyIncidentSender(
         }
 
     private fun post(text: String) {
-        val request =
-            HttpRequest
-                .newBuilder(URI.create("${config.url}/${config.topic}"))
-                .timeout(REQUEST_TIMEOUT)
-                .header("Title", "CompanyApp server error")
-                .header("Priority", "high")
-                .header("Tags", "warning")
-                .POST(HttpRequest.BodyPublishers.ofString(text))
-                .build()
-        val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding())
-        if (response.statusCode() !in HTTP_OK_MIN..HTTP_OK_MAX) {
-            throw IOException("ntfy answered ${response.statusCode()}")
+        traced("NtfyIncidentSender.post") {
+            val request =
+                HttpRequest
+                    .newBuilder(URI.create("${config.url}/${config.topic}"))
+                    .timeout(REQUEST_TIMEOUT)
+                    .header("Title", "CompanyApp server error")
+                    .header("Priority", "high")
+                    .header("Tags", "warning")
+                    .POST(HttpRequest.BodyPublishers.ofString(text))
+                    .build()
+            val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding())
+            if (response.statusCode() !in HTTP_OK_MIN..HTTP_OK_MAX) {
+                throw IOException("ntfy answered ${response.statusCode()}")
+            }
         }
     }
 

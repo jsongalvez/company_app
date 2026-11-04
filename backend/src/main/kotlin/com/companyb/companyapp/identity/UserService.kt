@@ -23,6 +23,7 @@ import com.companyb.companyapp.identity.UserCreateParams
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.validation.EmailPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -83,26 +84,28 @@ object UserService {
         if (request.roles.contains(SUPERUSER_ROLE)) {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
         }
-        val profile = request.asProfile()
-        if (profile != null) {
-            validateProfile(profile)
-        }
-        // Invite validity is credential lifecycle: the auth cluster owns JVM-clock reads.
-        val expiresAt =
-            OffsetDateTime.ofInstant(
-                Instant.now().plus(INVITE_VALID_DAYS, ChronoUnit.DAYS),
-                ZoneOffset.UTC,
+        return traced("UserService.mintInvite") {
+            val profile = request.asProfile()
+            if (profile != null) {
+                validateProfile(profile)
+            }
+            // Invite validity is credential lifecycle: the auth cluster owns JVM-clock reads.
+            val expiresAt =
+                OffsetDateTime.ofInstant(
+                    Instant.now().plus(INVITE_VALID_DAYS, ChronoUnit.DAYS),
+                    ZoneOffset.UTC,
+                )
+            val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, profile, expiresAt) }
+            logger.info {
+                val action = if (minted.createdNew) "Created user" else "Re-invited existing user"
+                "[INVITE-MINT] $action ${minted.userId.toString().maskUUID()}"
+            }
+            return@traced InviteMintResponse(
+                userId = minted.userId.toString(),
+                inviteCode = minted.rawCode,
+                expiresAt = expiresAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             )
-        val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, profile, expiresAt) }
-        logger.info {
-            val action = if (minted.createdNew) "Created user" else "Re-invited existing user"
-            "[INVITE-MINT] $action ${minted.userId.toString().maskUUID()}"
         }
-        return InviteMintResponse(
-            userId = minted.userId.toString(),
-            inviteCode = minted.rawCode,
-            expiresAt = expiresAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-        )
     }
 
     /** The identity an invite carries, or null for a code-only invite; partly filled is a 400. */
@@ -272,15 +275,17 @@ object UserService {
         targetUserId: UUID,
         roleNames: List<String>,
     ) {
-        transaction {
-            if (!UserRepository.acquireLockInTransaction(targetUserId)) {
-                throw NotFoundException("User not found")
+        traced("UserService.replaceRoles") {
+            transaction {
+                if (!UserRepository.acquireLockInTransaction(targetUserId)) {
+                    throw NotFoundException("User not found")
+                }
+                val before = RoleRepository.findRoleNamesForUserInTransaction(targetUserId)
+                val wanted = rolesToWrite(callerId, targetUserId, before, roleNames)
+                replaceMembershipsInTransaction(callerId, targetUserId, wanted, before)
             }
-            val before = RoleRepository.findRoleNamesForUserInTransaction(targetUserId)
-            val wanted = rolesToWrite(callerId, targetUserId, before, roleNames)
-            replaceMembershipsInTransaction(callerId, targetUserId, wanted, before)
+            logger.info { "[USER-ROLES-REPLACE] Role replace processed for ${targetUserId.toString().maskUUID()}" }
         }
-        logger.info { "[USER-ROLES-REPLACE] Role replace processed for ${targetUserId.toString().maskUUID()}" }
     }
 
     /** Transaction-local: the roles to save for [targetId], refused when [RankRule] forbids the change. */
@@ -350,16 +355,18 @@ object UserService {
         if (callerId == targetUserId) {
             throw ValidationException(SELF_DEACTIVATE_MESSAGE)
         }
-        transaction {
-            requireMayChangeStatusInTransaction(callerId, targetUserId)
-            val t =
-                UserRepository.deactivateInTransaction(targetUserId)
-                    ?: throw NotFoundException("User not found")
-            if (t.changed) {
-                UserAudit.statusUpdated(AuditContext(callerId), t.before, t.after)
+        traced("UserService.deactivate") {
+            transaction {
+                requireMayChangeStatusInTransaction(callerId, targetUserId)
+                val t =
+                    UserRepository.deactivateInTransaction(targetUserId)
+                        ?: throw NotFoundException("User not found")
+                if (t.changed) {
+                    UserAudit.statusUpdated(AuditContext(callerId), t.before, t.after)
+                }
             }
+            logger.info { "[DEACTIVATE] Deactivation request processed" }
         }
-        logger.info { "[DEACTIVATE] Deactivation request processed" }
     }
 
     private fun requireMayChangeStatusInTransaction(
@@ -377,16 +384,18 @@ object UserService {
         callerId: UUID,
         targetUserId: UUID,
     ) {
-        transaction {
-            requireMayChangeStatusInTransaction(callerId, targetUserId)
-            val t =
-                UserRepository.reactivateInTransaction(targetUserId)
-                    ?: throw NotFoundException("User not found")
-            if (t.changed) {
-                UserAudit.statusUpdated(AuditContext(callerId), t.before, t.after)
+        traced("UserService.reactivate") {
+            transaction {
+                requireMayChangeStatusInTransaction(callerId, targetUserId)
+                val t =
+                    UserRepository.reactivateInTransaction(targetUserId)
+                        ?: throw NotFoundException("User not found")
+                if (t.changed) {
+                    UserAudit.statusUpdated(AuditContext(callerId), t.before, t.after)
+                }
             }
+            logger.info { "[REACTIVATE] Reactivation request processed" }
         }
-        logger.info { "[REACTIVATE] Reactivation request processed" }
     }
 
     fun listUsers(viewerId: UUID): List<UserSummaryResponse> {

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Clock
@@ -47,49 +48,51 @@ object NextAppointmentScheduler {
     }
 
     fun run(clock: Clock = Clock.system(BranchDayService.manilaZone)): Int {
-        val now = ZonedDateTime.now(clock)
-        val target = targetDate(BranchDayService.currentOperationalDate(now.toInstant()))
-        var sessionCount = 0
-        var branchCount = 0
-        val created =
-            transaction {
-                val sessions = NextAppointmentRepository.findUpcomingSessionsInTransaction(target)
+        return traced("NextAppointmentScheduler.run") {
+            val now = ZonedDateTime.now(clock)
+            val target = targetDate(BranchDayService.currentOperationalDate(now.toInstant()))
+            var sessionCount = 0
+            var branchCount = 0
+            val created =
+                transaction {
+                    val sessions = NextAppointmentRepository.findUpcomingSessionsInTransaction(target)
 
-                if (sessions.isEmpty()) {
-                    logger.info { "[SCHEDULER] No upcoming appointment sessions for $target" }
-                    return@transaction 0
+                    if (sessions.isEmpty()) {
+                        logger.info { "[SCHEDULER] No upcoming appointment sessions for $target" }
+                        return@transaction 0
+                    }
+
+                    val branchIds = sessions.map { it.branchId }.distinct()
+                    sessionCount = sessions.size
+                    branchCount = branchIds.size
+                    val coordinatorsByBranch =
+                        NextAppointmentRepository.findActiveCoordinatorsForBranchesInTransaction(branchIds)
+
+                    val message = "You have an upcoming appointment on $target"
+
+                    val candidates =
+                        sessions.flatMap { session ->
+                            coordinatorsByBranch[session.branchId].orEmpty().map { userId ->
+                                NotificationCreateParams(
+                                    sessionId = session.sessionId,
+                                    userId = userId,
+                                    branchId = session.branchId,
+                                    message = message,
+                                    eventType = APPOINTMENT_REMINDER,
+                                    sourceId = session.sessionId,
+                                    targetDate = target,
+                                    dedupKey = appointmentOccurrenceKey(session.sessionId, target),
+                                )
+                            }
+                        }
+                    NotificationAppender.appendInTransaction(candidates)
                 }
 
-                val branchIds = sessions.map { it.branchId }.distinct()
-                sessionCount = sessions.size
-                branchCount = branchIds.size
-                val coordinatorsByBranch =
-                    NextAppointmentRepository.findActiveCoordinatorsForBranchesInTransaction(branchIds)
-
-                val message = "You have an upcoming appointment on $target"
-
-                val candidates =
-                    sessions.flatMap { session ->
-                        coordinatorsByBranch[session.branchId].orEmpty().map { userId ->
-                            NotificationCreateParams(
-                                sessionId = session.sessionId,
-                                userId = userId,
-                                branchId = session.branchId,
-                                message = message,
-                                eventType = APPOINTMENT_REMINDER,
-                                sourceId = session.sessionId,
-                                targetDate = target,
-                                dedupKey = appointmentOccurrenceKey(session.sessionId, target),
-                            )
-                        }
-                    }
-                NotificationAppender.appendInTransaction(candidates)
+            logger.info {
+                "[SCHEDULER] Created $created notifications for $target " +
+                    "($sessionCount sessions, $branchCount branches)"
             }
-
-        logger.info {
-            "[SCHEDULER] Created $created notifications for $target " +
-                "($sessionCount sessions, $branchCount branches)"
+            return@traced created
         }
-        return created
     }
 }

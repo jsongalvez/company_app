@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.audit.AuditValues
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -22,8 +23,10 @@ data class VoidResult(
 
 internal object SessionVoidRepository {
     fun findBySessionId(sessionId: UUID): SessionVoid? =
-        transaction {
-            findBySessionIdInTransaction(sessionId)
+        traced("SessionVoidRepository.findBySessionId") {
+            transaction {
+                findBySessionIdInTransaction(sessionId)
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */

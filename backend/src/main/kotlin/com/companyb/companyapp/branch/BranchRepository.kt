@@ -3,6 +3,7 @@ package com.companyb.companyapp.branch
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -74,32 +75,38 @@ internal object BranchRepository {
 
     /** Read once per request until a write to `branch`: a clock-in asked for the same branch four times. */
     fun findById(id: UUID): Branch? =
-        RequestQueryTally
-            .untilWriteOrNull(ById(id), Branch::class, setOf("branch")) {
-                transaction { findByIdInTransaction(id) }
-            }.also { logger.debug { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
+        traced("BranchRepository.findById") {
+            RequestQueryTally
+                .untilWriteOrNull(ById(id), Branch::class, setOf("branch")) {
+                    transaction { findByIdInTransaction(id) }
+                }.also { logger.debug { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
+        }
 
     /** Every branch people see; a hidden branch (the latency probe's) is left out. */
     fun findAll(): List<Branch> =
-        transaction {
-            BranchTable
-                .selectAll()
-                .where { BranchTable.hidden eq false }
-                .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
-                .map { it.toBranch() }
-        }.also { logger.info { "[FIND-BRANCHES] Fetched ${it.size} branch(es)" } }
-
-    /** The given branches, hidden ones included: a member of a hidden branch still reaches it. */
-    fun findByIds(ids: List<UUID>): List<Branch> =
-        if (ids.isEmpty()) {
-            emptyList()
-        } else {
+        traced("BranchRepository.findAll") {
             transaction {
                 BranchTable
                     .selectAll()
-                    .where { BranchTable.id inList ids }
+                    .where { BranchTable.hidden eq false }
                     .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
                     .map { it.toBranch() }
+            }.also { logger.info { "[FIND-BRANCHES] Fetched ${it.size} branch(es)" } }
+        }
+
+    /** The given branches, hidden ones included: a member of a hidden branch still reaches it. */
+    fun findByIds(ids: List<UUID>): List<Branch> =
+        traced("BranchRepository.findByIds") {
+            if (ids.isEmpty()) {
+                emptyList()
+            } else {
+                transaction {
+                    BranchTable
+                        .selectAll()
+                        .where { BranchTable.id inList ids }
+                        .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
+                        .map { it.toBranch() }
+                }
             }
         }
 

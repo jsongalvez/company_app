@@ -86,3 +86,10 @@ CompanyApp:
       - '**/androidInstrumentedTest/**' # #468
       - '**/jsTest/**' # #468
       - '**/iosTest/**' # #468
+  TracedAtDefinition:
+    active: true
+    # The span exporter writes the spans: a span of its own would export forever.
+    excludes:
+      - '**/test/**'
+      - '**/observability/PostgresSpanExporter.kt'
+      - '**/src/dev/**'

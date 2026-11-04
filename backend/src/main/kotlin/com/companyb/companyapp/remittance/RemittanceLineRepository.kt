@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -179,8 +180,10 @@ internal object RemittanceLineRepository {
     }
 
     fun findByRemittanceId(remittanceId: UUID): List<RemittanceLine> =
-        transaction {
-            findByRemittanceIdInTransaction(remittanceId)
+        traced("RemittanceLineRepository.findByRemittanceId") {
+            transaction {
+                findByRemittanceIdInTransaction(remittanceId)
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
@@ -193,15 +196,17 @@ internal object RemittanceLineRepository {
             }.map { it.toRemittanceLine() }
 
     fun sumAmountsByRemittanceId(remittanceId: UUID): BigDecimal =
-        transaction {
-            RemittancePolicy.sum(
-                RemittanceLineTable
-                    .selectAll()
-                    .where {
-                        (RemittanceLineTable.remittanceId eq remittanceId) and
-                            RemittanceLineTable.deletedAt.isNull()
-                    }.map { it[RemittanceLineTable.amount] },
-            )
+        traced("RemittanceLineRepository.sumAmountsByRemittanceId") {
+            transaction {
+                RemittancePolicy.sum(
+                    RemittanceLineTable
+                        .selectAll()
+                        .where {
+                            (RemittanceLineTable.remittanceId eq remittanceId) and
+                                RemittanceLineTable.deletedAt.isNull()
+                        }.map { it[RemittanceLineTable.amount] },
+                )
+            }
         }
 
     /**

@@ -14,6 +14,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.ShiftGuard
 import com.companyb.companyapp.workforce.UserBranchAssignmentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -58,58 +59,65 @@ object ReliefInviteService {
         inviteeUserId: UUID,
         date: LocalDate,
     ): ReliefInvite {
-        // Advisory pre-transaction fast-path (unchanged): the insertIgnore swallow below
-        // is the atomic per-person guard; these reads only fail fast.
-        // eligibility + advisory guards split into named checks (ThrowsCount budget is 2).
-        // 404 precedence for an unknown branch before the membership gate:
-        // requireActiveAssignment alone conflates "unknown branch" with "known but
-        // non-member" (the clockIn / requestReliefAccess order).
-        BranchService.findById(branchId)
-        requireActiveAssignment(callerId, branchId)
-        requireInviteeEligible(inviteeUserId, callerId)
+        return traced("ReliefInviteService.createInvite") {
+            // Advisory pre-transaction fast-path (unchanged): the insertIgnore swallow below
+            // is the atomic per-person guard; these reads only fail fast.
+            // eligibility + advisory guards split into named checks (ThrowsCount budget is 2).
+            // 404 precedence for an unknown branch before the membership gate:
+            // requireActiveAssignment alone conflates "unknown branch" with "known but
+            // non-member" (the clockIn / requestReliefAccess order).
+            BranchService.findById(branchId)
+            requireActiveAssignment(callerId, branchId)
+            requireInviteeEligible(inviteeUserId, callerId)
 
-        val advisoryDay = BranchDayService.resolveOrCreate(branchId, date)
-        requireNoExistingInvite(inviteeUserId, advisoryDay.id)
+            val advisoryDay = BranchDayService.resolveOrCreate(branchId, date)
+            requireNoExistingInvite(inviteeUserId, advisoryDay.id)
 
-        val (invite, isNew) =
-            transaction {
-                // membership at commit, day resolution, and the locked day gate all
-                // inside the command transaction: the pre-transaction gate above could no
-                // longer see a concurrent remittance submit flipping the day to REMITTED.
-                requireActiveMemberInTransaction(callerId, branchId)
-                val branchDay = BranchDayService.resolveOrCreate(branchId, date)
-                val (_, isRemitted) =
-                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id)
-                val pair =
-                    ReliefInviteRepository.insertInTransaction(
-                        id = UUID.randomUUID(),
-                        branchDayId = branchDay.id,
-                        invitedBy = callerId,
-                        invitee = inviteeUserId,
-                    )
-                if (pair.second && pair.first != null) {
-                    ReliefInviteAudit.inserted(AuditContext(callerId, branchId, isRemitted), checkNotNull(pair.first))
-                    ReliefNotifications.inviteCreated(
-                        inviterId = callerId,
-                        inviteeId = inviteeUserId,
-                        inviteId = checkNotNull(pair.first).id,
-                        context = ReliefEventContext.of(branchDay),
-                    )
+            val (invite, isNew) =
+                transaction {
+                    // membership at commit, day resolution, and the locked day gate all
+                    // inside the command transaction: the pre-transaction gate above could no
+                    // longer see a concurrent remittance submit flipping the day to REMITTED.
+                    requireActiveMemberInTransaction(callerId, branchId)
+                    val branchDay = BranchDayService.resolveOrCreate(branchId, date)
+                    val (_, isRemitted) =
+                        BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id)
+                    val pair =
+                        ReliefInviteRepository.insertInTransaction(
+                            id = UUID.randomUUID(),
+                            branchDayId = branchDay.id,
+                            invitedBy = callerId,
+                            invitee = inviteeUserId,
+                        )
+                    if (pair.second && pair.first != null) {
+                        ReliefInviteAudit.inserted(
+                            AuditContext(callerId, branchId, isRemitted),
+                            checkNotNull(pair.first),
+                        )
+                        ReliefNotifications.inviteCreated(
+                            inviterId = callerId,
+                            inviteeId = inviteeUserId,
+                            inviteId = checkNotNull(pair.first).id,
+                            context = ReliefEventContext.of(branchDay),
+                        )
+                    }
+                    pair
                 }
-                pair
+
+            if (!isNew) {
+                // The partial unique index swallowed a concurrent duplicate — never a success
+                // (the count-0 discipline: the swallowed constraint class is exactly the
+                // per-person guard).
+                throw ConflictException("This user already has a pending invite or active grant for the day")
             }
 
-        if (!isNew) {
-            // The partial unique index swallowed a concurrent duplicate — never a success
-            // (the count-0 discipline: the swallowed constraint class is exactly the
-            // per-person guard).
-            throw ConflictException("This user already has a pending invite or active grant for the day")
+            logger.info {
+                "[RELIEF-INVITE-CREATE] Invite ${checkNotNull(
+                    invite,
+                ).id} created by $callerId for $inviteeUserId on $date"
+            }
+            return@traced checkNotNull(invite)
         }
-
-        logger.info {
-            "[RELIEF-INVITE-CREATE] Invite ${checkNotNull(invite).id} created by $callerId for $inviteeUserId on $date"
-        }
-        return checkNotNull(invite)
     }
 
     /** The caller's own sent invites at [branchId] — same gate as create. */
@@ -177,58 +185,64 @@ object ReliefInviteService {
         callerId: UUID,
         inviteId: UUID,
     ): ReliefInvite {
-        val invite = requireOwnInvite(callerId, inviteId)
+        return traced("ReliefInviteService.acceptInvite") {
+            val invite = requireOwnInvite(callerId, inviteId)
 
-        val result =
-            transaction {
-                // locked day read: serializes accept with remittance's REMITTED
-                // transition. The OPEN-only expiry rule itself is unchanged (still 400s
-                // when PAST/REMITTED — day-state remains the expiry).
-                val branchDay = BranchDayService.findLockedDayInTransaction(invite.branchDayId)
-                val effectiveStatus =
-                    BranchDayService.evaluateStatus(
-                        branchDay.status,
-                        branchDay.date,
-                        BranchDayService.currentOperationalDate(),
+            val result =
+                transaction {
+                    // locked day read: serializes accept with remittance's REMITTED
+                    // transition. The OPEN-only expiry rule itself is unchanged (still 400s
+                    // when PAST/REMITTED — day-state remains the expiry).
+                    val branchDay = BranchDayService.findLockedDayInTransaction(invite.branchDayId)
+                    val effectiveStatus =
+                        BranchDayService.evaluateStatus(
+                            branchDay.status,
+                            branchDay.date,
+                            BranchDayService.currentOperationalDate(),
+                        )
+                    if (effectiveStatus != DayStatus.OPEN) {
+                        throw ValidationException("This relief invite has expired — the day is no longer open")
+                    }
+                    val validTo = BranchDayService.expirationUtc(branchDay.date)
+
+                    // one duty per person per day (the rule, cross-path
+                    // twin): the invitee must not already hold the day through either
+                    // path (a GRANTED request or any active day grant). Without it an
+                    // accepted invite stacks a second active capability row next to
+                    // the request grant. Runs after the day lock, atomic with the
+                    // accept below. Revoked/expired duties hold no grant, so
+                    // re-invites still pass.
+                    requireNoExistingDutyInTransaction(callerId, branchDay.id)
+
+                    val mutation =
+                        ReliefInviteRepository.acceptInTransaction(id = inviteId)
+                            ?: throw ConflictException("This invite was already responded to")
+                    AuthorizationGrants.grantReliefCapabilityInTransaction(
+                        GrantReliefCapabilityParams(
+                            userId = callerId,
+                            branchDayId = branchDay.id,
+                            sourceId = inviteId,
+                            validTo = validTo,
+                        ),
                     )
-                if (effectiveStatus != DayStatus.OPEN) {
-                    throw ValidationException("This relief invite has expired — the day is no longer open")
+                    ReliefInviteAudit.updated(
+                        AuditContext(callerId, branchDay.branchId),
+                        mutation.before,
+                        mutation.after,
+                    )
+                    // "everyone is notified when the person accepts or not".
+                    ReliefNotifications.inviteResponded(
+                        eventType = ReliefNotifications.INVITE_ACCEPTED,
+                        inviteId = inviteId,
+                        inviteeId = callerId,
+                        context = ReliefEventContext.of(branchDay),
+                    )
+                    mutation.after
                 }
-                val validTo = BranchDayService.expirationUtc(branchDay.date)
 
-                // one duty per person per day (the rule, cross-path
-                // twin): the invitee must not already hold the day through either
-                // path (a GRANTED request or any active day grant). Without it an
-                // accepted invite stacks a second active capability row next to
-                // the request grant. Runs after the day lock, atomic with the
-                // accept below. Revoked/expired duties hold no grant, so
-                // re-invites still pass.
-                requireNoExistingDutyInTransaction(callerId, branchDay.id)
-
-                val mutation =
-                    ReliefInviteRepository.acceptInTransaction(id = inviteId)
-                        ?: throw ConflictException("This invite was already responded to")
-                AuthorizationGrants.grantReliefCapabilityInTransaction(
-                    GrantReliefCapabilityParams(
-                        userId = callerId,
-                        branchDayId = branchDay.id,
-                        sourceId = inviteId,
-                        validTo = validTo,
-                    ),
-                )
-                ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
-                // "everyone is notified when the person accepts or not".
-                ReliefNotifications.inviteResponded(
-                    eventType = ReliefNotifications.INVITE_ACCEPTED,
-                    inviteId = inviteId,
-                    inviteeId = callerId,
-                    context = ReliefEventContext.of(branchDay),
-                )
-                mutation.after
-            }
-
-        logger.info { "[RELIEF-INVITE-ACCEPT] Invite $inviteId accepted by $callerId (day grant written)" }
-        return result
+            logger.info { "[RELIEF-INVITE-ACCEPT] Invite $inviteId accepted by $callerId (day grant written)" }
+            return@traced result
+        }
     }
 
     /** Declines a PENDING invite — bearer, caller must be the invitee. */
@@ -236,25 +250,31 @@ object ReliefInviteService {
         callerId: UUID,
         inviteId: UUID,
     ): ReliefInvite {
-        val invite = requireOwnInvite(callerId, inviteId)
-        val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
+        return traced("ReliefInviteService.declineInvite") {
+            val invite = requireOwnInvite(callerId, inviteId)
+            val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
 
-        val result =
-            transaction {
-                val mutation =
-                    ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.DECLINED)
-                        ?: throw ConflictException("This invite was already responded to")
-                ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
-                // decline broadcast, same audience as accept.
-                ReliefNotifications.inviteResponded(
-                    eventType = ReliefNotifications.INVITE_DECLINED,
-                    inviteId = inviteId,
-                    inviteeId = callerId,
-                    context = ReliefEventContext.of(branchDay),
-                )
-                mutation.after
-            }
-        return result
+            val result =
+                transaction {
+                    val mutation =
+                        ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.DECLINED)
+                            ?: throw ConflictException("This invite was already responded to")
+                    ReliefInviteAudit.updated(
+                        AuditContext(callerId, branchDay.branchId),
+                        mutation.before,
+                        mutation.after,
+                    )
+                    // decline broadcast, same audience as accept.
+                    ReliefNotifications.inviteResponded(
+                        eventType = ReliefNotifications.INVITE_DECLINED,
+                        inviteId = inviteId,
+                        inviteeId = callerId,
+                        context = ReliefEventContext.of(branchDay),
+                    )
+                    mutation.after
+                }
+            return@traced result
+        }
     }
 
     /** Retracts a PENDING invite — same gate as create (active assignment at the branch). */
@@ -268,18 +288,20 @@ object ReliefInviteService {
         if (invite.invitedBy != callerId) {
             throw ForbiddenException("Only the inviter can retract this invite")
         }
-        val branchId = BranchDayService.requireBranchDayExists(invite.branchDayId).branchId
-        requireActiveAssignment(callerId, branchId)
+        return traced("ReliefInviteService.retractInvite") {
+            val branchId = BranchDayService.requireBranchDayExists(invite.branchDayId).branchId
+            requireActiveAssignment(callerId, branchId)
 
-        val result =
-            transaction {
-                val mutation =
-                    ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.RETRACTED)
-                        ?: throw ConflictException("This invite was already responded to")
-                ReliefInviteAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
-                mutation.after
-            }
-        return result
+            val result =
+                transaction {
+                    val mutation =
+                        ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.RETRACTED)
+                            ?: throw ConflictException("This invite was already responded to")
+                    ReliefInviteAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
+                    mutation.after
+                }
+            return@traced result
+        }
     }
 
     /**
@@ -306,41 +328,47 @@ object ReliefInviteService {
         val invite =
             ReliefInviteRepository.findById(inviteId)
                 ?: throw NotFoundException("Relief invite not found")
-        val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
+        return traced("ReliefInviteService.revokeInvite") {
+            val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
 
-        val result =
-            transaction {
-                // membership at commit: the FOR UPDATE re-read orders against any
-                // concurrently committing assignment removal; the pre-transaction check alone raced.
-                requireActiveMemberInTransaction(callerId, branchDay.branchId)
-                ShiftGuard.ensureRetractionAllowed(
-                    invite.invitee,
-                    invite.branchDayId,
-                    "This relief duty has already started",
-                )
-                if (BranchDayService.getEffectiveStatus(invite.branchDayId) != DayStatus.OPEN) {
-                    throw ValidationException("This relief duty has ended — the day is no longer open")
+            val result =
+                transaction {
+                    // membership at commit: the FOR UPDATE re-read orders against any
+                    // concurrently committing assignment removal; the pre-transaction check alone raced.
+                    requireActiveMemberInTransaction(callerId, branchDay.branchId)
+                    ShiftGuard.ensureRetractionAllowed(
+                        invite.invitee,
+                        invite.branchDayId,
+                        "This relief duty has already started",
+                    )
+                    if (BranchDayService.getEffectiveStatus(invite.branchDayId) != DayStatus.OPEN) {
+                        throw ValidationException("This relief duty has ended — the day is no longer open")
+                    }
+                    val mutation =
+                        ReliefInviteRepository.revokeInTransaction(inviteId)
+                            ?: throw ConflictException("This invite was already responded to")
+                    AuthorizationGrants.deleteReliefGrantBySourceIdInTransaction(
+                        userId = mutation.after.invitee,
+                        sourceId = inviteId,
+                    )
+                    ReliefInviteAudit.updated(
+                        AuditContext(callerId, branchDay.branchId),
+                        mutation.before,
+                        mutation.after,
+                    )
+                    // ruling 4 — the branch hears it; the invitee gets an explicit notice.
+                    ReliefNotifications.inviteRevoked(
+                        actorId = callerId,
+                        inviteeId = mutation.after.invitee,
+                        inviteId = inviteId,
+                        context = ReliefEventContext.of(branchDay),
+                    )
+                    mutation.after
                 }
-                val mutation =
-                    ReliefInviteRepository.revokeInTransaction(inviteId)
-                        ?: throw ConflictException("This invite was already responded to")
-                AuthorizationGrants.deleteReliefGrantBySourceIdInTransaction(
-                    userId = mutation.after.invitee,
-                    sourceId = inviteId,
-                )
-                ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
-                // ruling 4 — the branch hears it; the invitee gets an explicit notice.
-                ReliefNotifications.inviteRevoked(
-                    actorId = callerId,
-                    inviteeId = mutation.after.invitee,
-                    inviteId = inviteId,
-                    context = ReliefEventContext.of(branchDay),
-                )
-                mutation.after
-            }
 
-        logger.info { "[RELIEF-INVITE-REVOKE] Invite $inviteId revoked by $callerId (day grant removed)" }
-        return result
+            logger.info { "[RELIEF-INVITE-REVOKE] Invite $inviteId revoked by $callerId (day grant removed)" }
+            return@traced result
+        }
     }
 
     /**

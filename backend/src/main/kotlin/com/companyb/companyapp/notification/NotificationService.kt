@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.notification.NotificationHistoryRespons
 import com.companyb.companyapp.contracts.notification.NotificationResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -52,12 +53,14 @@ object NotificationService {
     }
 
     fun markAllRead(callerId: UUID): Int =
-        transaction {
-            NotificationRepository.markAllReadInTransaction(callerId)
-        }.also { remainingUnread ->
-            logger.info {
-                "[MARK-ALL-READ] Marked all notifications as read for user ${callerId.toString().maskUUID()}, " +
-                    "$remainingUnread unread remaining"
+        traced("NotificationService.markAllRead") {
+            transaction {
+                NotificationRepository.markAllReadInTransaction(callerId)
+            }.also { remainingUnread ->
+                logger.info {
+                    "[MARK-ALL-READ] Marked all notifications as read for user ${callerId.toString().maskUUID()}, " +
+                        "$remainingUnread unread remaining"
+                }
             }
         }
 
@@ -65,16 +68,18 @@ object NotificationService {
         callerId: UUID,
         notificationId: UUID,
     ): Notification {
-        // Ownership is enforced inside the store's WHERE clause — the 404-on-foreign-row
-        // case must never have mutated the other user's row (the old
-        // version updated by id first, then threw 404 after the foreign row committed).
-        val notification =
-            transaction {
-                NotificationRepository.markReadInTransaction(callerId, notificationId)
-            } ?: throw NotFoundException("Notification not found")
+        return traced("NotificationService.markRead") {
+            // Ownership is enforced inside the store's WHERE clause — the 404-on-foreign-row
+            // case must never have mutated the other user's row (the old
+            // version updated by id first, then threw 404 after the foreign row committed).
+            val notification =
+                transaction {
+                    NotificationRepository.markReadInTransaction(callerId, notificationId)
+                } ?: throw NotFoundException("Notification not found")
 
-        logger.info { "[MARK-READ] Notification ${notification.id.toString().maskUUID()} marked as read" }
-        return notification
+            logger.info { "[MARK-READ] Notification ${notification.id.toString().maskUUID()} marked as read" }
+            return@traced notification
+        }
     }
 }
 

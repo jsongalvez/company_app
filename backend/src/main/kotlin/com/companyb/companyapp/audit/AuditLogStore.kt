@@ -6,6 +6,7 @@ import com.companyb.companyapp.client.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.SessionVoidTable
@@ -387,17 +388,19 @@ internal object AuditLogStore {
         branchlessTables: Set<String>,
         canReadNullRows: Boolean,
     ): List<AuditLogEntry> =
-        transaction {
-            scopedQuery(
-                windowBranchIds = windowBranchIds,
-                branchlessTables = branchlessTables,
-                canReadNullRows = canReadNullRows,
-                base = recordAndParts(tableName, recordId),
-            ).map { it.toAuditLogEntry() }
-        }.also {
-            logger.info {
-                "[FIND-AUDIT] Found ${it.size} entries " +
-                    "for $tableName/${recordId.toString().maskUUID()}"
+        traced("AuditLogStore.findByTableAndRecord") {
+            transaction {
+                scopedQuery(
+                    windowBranchIds = windowBranchIds,
+                    branchlessTables = branchlessTables,
+                    canReadNullRows = canReadNullRows,
+                    base = recordAndParts(tableName, recordId),
+                ).map { it.toAuditLogEntry() }
+            }.also {
+                logger.info {
+                    "[FIND-AUDIT] Found ${it.size} entries " +
+                        "for $tableName/${recordId.toString().maskUUID()}"
+                }
             }
         }
 
@@ -451,14 +454,16 @@ internal object AuditLogStore {
         branchlessTables: Set<String>,
         canReadNullRows: Boolean,
     ): List<AuditLogEntry> =
-        transaction {
-            scopedQuery(
-                windowBranchIds = windowBranchIds,
-                branchlessTables = branchlessTables,
-                canReadNullRows = canReadNullRows,
-                base = (AuditLogTable.isFlagged eq true) and AuditLogTable.acknowledgedAt.isNull(),
-            ).map { it.toAuditLogEntry() }
-        }.also { logger.info { "[FIND-FLAGGED] Found ${it.size} unacknowledged flagged entries" } }
+        traced("AuditLogStore.findFlagged") {
+            transaction {
+                scopedQuery(
+                    windowBranchIds = windowBranchIds,
+                    branchlessTables = branchlessTables,
+                    canReadNullRows = canReadNullRows,
+                    base = (AuditLogTable.isFlagged eq true) and AuditLogTable.acknowledgedAt.isNull(),
+                ).map { it.toAuditLogEntry() }
+            }.also { logger.info { "[FIND-FLAGGED] Found ${it.size} unacknowledged flagged entries" } }
+        }
 
     /**
      * Keyset browse over `(changed_at DESC, id DESC)`. [cursor] is the
@@ -471,58 +476,64 @@ internal object AuditLogStore {
         cursor: AuditBrowseCursor?,
         limit: Int,
     ): List<AuditLogEntry> =
-        transaction {
-            var base: Op<Boolean> = Op.TRUE
-            if (filter.tableName != null) base = base and (AuditLogTable.auditTableName eq filter.tableName)
-            if (filter.action != null) base = base and (AuditLogTable.action eq filter.action)
-            if (filter.callerName != null) {
-                base = base and ilike(AppUserTable.displayName, "%${filter.callerName}%")
-            }
-            if (filter.dateFrom != null) {
-                base = base and (AuditLogTable.changedAt greaterEq filter.dateFrom)
-            }
-            if (filter.dateTo != null) {
-                base = base and (AuditLogTable.changedAt less filter.dateTo)
-            }
-            if (cursor != null) {
-                val keyset =
-                    (AuditLogTable.changedAt less cursor.changedAt) or
-                        (
-                            (AuditLogTable.changedAt eq cursor.changedAt) and
-                                (AuditLogTable.id less cursor.id)
-                        )
-                base = base and keyset
-            }
-            scopedQuery(
-                windowBranchIds = window.windowBranchIds,
-                branchlessTables = window.branchlessTables,
-                canReadNullRows = window.canReadNullRows,
-                base = base,
-            ).limit(limit).map { it.toAuditLogEntry() }
-        }.also { logger.info { "[AUDIT-BROWSE] Returned ${it.size} entries" } }
+        traced("AuditLogStore.browse") {
+            transaction {
+                var base: Op<Boolean> = Op.TRUE
+                if (filter.tableName != null) base = base and (AuditLogTable.auditTableName eq filter.tableName)
+                if (filter.action != null) base = base and (AuditLogTable.action eq filter.action)
+                if (filter.callerName != null) {
+                    base = base and ilike(AppUserTable.displayName, "%${filter.callerName}%")
+                }
+                if (filter.dateFrom != null) {
+                    base = base and (AuditLogTable.changedAt greaterEq filter.dateFrom)
+                }
+                if (filter.dateTo != null) {
+                    base = base and (AuditLogTable.changedAt less filter.dateTo)
+                }
+                if (cursor != null) {
+                    val keyset =
+                        (AuditLogTable.changedAt less cursor.changedAt) or
+                            (
+                                (AuditLogTable.changedAt eq cursor.changedAt) and
+                                    (AuditLogTable.id less cursor.id)
+                            )
+                    base = base and keyset
+                }
+                scopedQuery(
+                    windowBranchIds = window.windowBranchIds,
+                    branchlessTables = window.branchlessTables,
+                    canReadNullRows = window.canReadNullRows,
+                    base = base,
+                ).limit(limit).map { it.toAuditLogEntry() }
+            }.also { logger.info { "[AUDIT-BROWSE] Returned ${it.size} entries" } }
+        }
 
     fun findById(entryId: UUID): AuditLogEntry? =
-        transaction {
-            AuditLogTable
-                .withDisplayJoins()
-                .selectAll()
-                .where { AuditLogTable.id eq entryId }
-                .singleOrNull()
-                ?.toAuditLogEntry()
-        }.also { logger.info { "[FIND-AUDIT-ID] Entry $entryId found=${it != null}" } }
+        traced("AuditLogStore.findById") {
+            transaction {
+                AuditLogTable
+                    .withDisplayJoins()
+                    .selectAll()
+                    .where { AuditLogTable.id eq entryId }
+                    .singleOrNull()
+                    ?.toAuditLogEntry()
+            }.also { logger.info { "[FIND-AUDIT-ID] Entry $entryId found=${it != null}" } }
+        }
 
     fun acknowledge(
         entryId: UUID,
         acknowledgedBy: UUID,
     ): Boolean =
-        transaction {
-            AuditLogTable.update({
-                (AuditLogTable.id eq entryId) and AuditLogTable.acknowledgedAt.isNull()
-            }) {
-                it[AuditLogTable.acknowledgedBy] = acknowledgedBy
-                it[AuditLogTable.acknowledgedAt] = CurrentTimestampWithTimeZone
-            } > 0
-        }.also { acknowledged -> logger.info { "[ACKNOWLEDGE] Entry $entryId acknowledged=$acknowledged" } }
+        traced("AuditLogStore.acknowledge") {
+            transaction {
+                AuditLogTable.update({
+                    (AuditLogTable.id eq entryId) and AuditLogTable.acknowledgedAt.isNull()
+                }) {
+                    it[AuditLogTable.acknowledgedBy] = acknowledgedBy
+                    it[AuditLogTable.acknowledgedAt] = CurrentTimestampWithTimeZone
+                } > 0
+            }.also { acknowledged -> logger.info { "[ACKNOWLEDGE] Entry $entryId acknowledged=$acknowledged" } }
+        }
 
     private fun ResultRow.toAuditLogEntry(): AuditLogEntry =
         AuditLogEntry(

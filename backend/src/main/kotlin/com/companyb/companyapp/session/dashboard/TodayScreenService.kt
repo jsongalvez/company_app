@@ -9,6 +9,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.SessionRepository
 import com.companyb.companyapp.session.VisitBookingService
 import com.companyb.companyapp.workforce.AttendancePresence
@@ -38,24 +39,33 @@ object TodayScreenService {
         callerId: UUID,
         branchId: UUID,
     ): TodayScreenData =
-        transaction {
-            BranchService.findById(branchId)
-            val day = BranchDayService.findToday(branchId)
-            val canView =
-                Access.allows(callerId, Act.SEE_DAY, day?.let { Place.Day(it.id, branchId) } ?: Place.Branch(branchId))
-            val presence = AttendancePresence.read(branchId, day?.id)
-            val clockedIn = day != null && presence.isClockedIn(callerId)
-            TodayScreenData(
-                dashboard = if (clockedIn) DashboardService.readToday(callerId, branchId, day.id) else null,
-                dashboardRefusal = if (clockedIn) null else NOT_CLOCKED_IN,
-                bookings = if (canView) VisitBookingService.upcoming(branchId) else null,
-                roster = if (presence.isMember(callerId)) presence.entries() else null,
-                earlierWaitingDays =
-                    if (canView) {
-                        SessionRepository.findEarlierWaitingDays(branchId, BranchDayService.currentOperationalDate())
-                    } else {
-                        null
-                    },
-            )
+        traced("TodayScreenService.get") {
+            transaction {
+                BranchService.findById(branchId)
+                val day = BranchDayService.findToday(branchId)
+                val canView =
+                    Access.allows(
+                        callerId,
+                        Act.SEE_DAY,
+                        day?.let { Place.Day(it.id, branchId) } ?: Place.Branch(branchId),
+                    )
+                val presence = AttendancePresence.read(branchId, day?.id)
+                val clockedIn = day != null && presence.isClockedIn(callerId)
+                TodayScreenData(
+                    dashboard = if (clockedIn) DashboardService.readToday(callerId, branchId, day.id) else null,
+                    dashboardRefusal = if (clockedIn) null else NOT_CLOCKED_IN,
+                    bookings = if (canView) VisitBookingService.upcoming(branchId) else null,
+                    roster = if (presence.isMember(callerId)) presence.entries() else null,
+                    earlierWaitingDays =
+                        if (canView) {
+                            SessionRepository.findEarlierWaitingDays(
+                                branchId,
+                                BranchDayService.currentOperationalDate(),
+                            )
+                        } else {
+                            null
+                        },
+                )
+            }
         }
 }

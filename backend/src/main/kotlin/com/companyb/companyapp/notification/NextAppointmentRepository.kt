@@ -6,6 +6,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
@@ -59,8 +60,10 @@ internal object NextAppointmentRepository {
             }
 
     fun findActiveCoordinatorsForBranches(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
-        transaction {
-            findActiveCoordinatorsForBranchesInTransaction(branchIds)
+        traced("NextAppointmentRepository.findActiveCoordinatorsForBranches") {
+            transaction {
+                findActiveCoordinatorsForBranchesInTransaction(branchIds)
+            }
         }
 
     fun findActiveCoordinatorsForBranchesInTransaction(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =

@@ -16,6 +16,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -50,41 +51,45 @@ object UserBranchAssignmentService {
         userId: UUID,
         slot: Short,
     ): CreateResult {
-        requireManageUsers(callerId, "MANAGE_USERS capability required to create assignments")
+        return traced("UserBranchAssignmentService.create") {
+            requireManageUsers(callerId, "MANAGE_USERS capability required to create assignments")
 
-        // Existence checks stay here for 404 precedence; ownership (same-ID replay vs
-        // conflict, active-key guard) lives in the single transaction-local seam
-        //  (UserBranchAssignmentRepository.createInTransaction).
-        requireTakesStaff(branchId)
+            // Existence checks stay here for 404 precedence; ownership (same-ID replay vs
+            // conflict, active-key guard) lives in the single transaction-local seam
+            //  (UserBranchAssignmentRepository.createInTransaction).
+            requireTakesStaff(branchId)
 
-        if (!AccountReads.userExists(userId)) {
-            throw NotFoundException("User not found")
-        }
-
-        val result =
-            transaction {
-                requireNotAccountant(userId)
-                val r =
-                    UserBranchAssignmentRepository.createInTransaction(
-                        UserBranchAssignmentCreateParams(
-                            id = id,
-                            userId = userId,
-                            branchId = branchId,
-                            slot = slot,
-                            assignedBy = callerId,
-                        ),
-                    )
-                if (r.created) {
-                    UserBranchAssignmentAudit.inserted(AuditContext(callerId, branchId), r.assignment)
-                }
-                r
+            if (!AccountReads.userExists(userId)) {
+                throw NotFoundException("User not found")
             }
 
-        if (result.created) {
-            logger.info { "[CREATE-ASSIGNMENT] Created assignment $id for user $userId at branch $branchId slot=$slot" }
-        }
+            val result =
+                transaction {
+                    requireNotAccountant(userId)
+                    val r =
+                        UserBranchAssignmentRepository.createInTransaction(
+                            UserBranchAssignmentCreateParams(
+                                id = id,
+                                userId = userId,
+                                branchId = branchId,
+                                slot = slot,
+                                assignedBy = callerId,
+                            ),
+                        )
+                    if (r.created) {
+                        UserBranchAssignmentAudit.inserted(AuditContext(callerId, branchId), r.assignment)
+                    }
+                    r
+                }
 
-        return CreateResult(result.assignment, result.created)
+            if (result.created) {
+                logger.info {
+                    "[CREATE-ASSIGNMENT] Created assignment $id for user $userId at branch $branchId slot=$slot"
+                }
+            }
+
+            return@traced CreateResult(result.assignment, result.created)
+        }
     }
 
     /** A medical mission or provincial tour takes only helpers. */
@@ -107,24 +112,26 @@ object UserBranchAssignmentService {
         branchId: UUID,
         assignmentId: UUID,
     ) {
-        requireManageUsers(callerId, "MANAGE_USERS capability required to remove assignments")
+        traced("UserBranchAssignmentService.remove") {
+            requireManageUsers(callerId, "MANAGE_USERS capability required to remove assignments")
 
-        val branchExists = BranchService.findByIdOrNull(branchId)
-        if (branchExists == null) {
-            throw NotFoundException("Branch not found")
-        }
-
-        val assignment =
-            transaction {
-                val target =
-                    UserBranchAssignmentRepository
-                        .findActiveByIdInTransaction(branchId, assignmentId, forUpdate = true)
-                        ?: throw NotFoundException("Active assignment not found")
-                val mutation = UserBranchAssignmentRepository.setEndedAtInTransaction(target.id)
-                UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
-                mutation.after
+            val branchExists = BranchService.findByIdOrNull(branchId)
+            if (branchExists == null) {
+                throw NotFoundException("Branch not found")
             }
-        logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} at branch $branchId" }
+
+            val assignment =
+                transaction {
+                    val target =
+                        UserBranchAssignmentRepository
+                            .findActiveByIdInTransaction(branchId, assignmentId, forUpdate = true)
+                            ?: throw NotFoundException("Active assignment not found")
+                    val mutation = UserBranchAssignmentRepository.setEndedAtInTransaction(target.id)
+                    UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
+                    mutation.after
+                }
+            logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} at branch $branchId" }
+        }
     }
 
     fun updateSlot(
@@ -133,21 +140,23 @@ object UserBranchAssignmentService {
         assignmentId: UUID,
         newSlot: Short,
     ) {
-        val canManage = canManageUsers(callerId)
-        val assignment =
-            transaction {
-                val target =
-                    UserBranchAssignmentRepository
-                        .findActiveByIdInTransaction(branchId, assignmentId, forUpdate = true)
-                        ?: throw NotFoundException("Active assignment not found for user at this branch")
-                if (!canManage && callerId != target.userId) {
-                    throw ForbiddenException("MANAGE_USERS capability required to change another user's slot")
+        traced("UserBranchAssignmentService.updateSlot") {
+            val canManage = canManageUsers(callerId)
+            val assignment =
+                transaction {
+                    val target =
+                        UserBranchAssignmentRepository
+                            .findActiveByIdInTransaction(branchId, assignmentId, forUpdate = true)
+                            ?: throw NotFoundException("Active assignment not found for user at this branch")
+                    if (!canManage && callerId != target.userId) {
+                        throw ForbiddenException("MANAGE_USERS capability required to change another user's slot")
+                    }
+                    val mutation = UserBranchAssignmentRepository.updateSlotInTransaction(target.id, newSlot)
+                    UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
+                    mutation.after
                 }
-                val mutation = UserBranchAssignmentRepository.updateSlotInTransaction(target.id, newSlot)
-                UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
-                mutation.after
-            }
-        logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} to $newSlot" }
+            logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} to $newSlot" }
+        }
     }
 
     fun swapSlots(
@@ -156,33 +165,35 @@ object UserBranchAssignmentService {
         assignmentIdA: UUID,
         assignmentIdB: UUID,
     ) {
-        // swap guards split into named checks (ThrowsCount budget is 2 per function).
-        requireDistinctAssignments(assignmentIdA, assignmentIdB)
+        traced("UserBranchAssignmentService.swapSlots") {
+            // swap guards split into named checks (ThrowsCount budget is 2 per function).
+            requireDistinctAssignments(assignmentIdA, assignmentIdB)
 
-        val canManage = canManageUsers(callerId)
-        transaction {
-            // FOR UPDATE on both rows (materialized via singleOrNull — the lazy-lock
-            // lesson) serializes swap against concurrent remove/updateSlot on either user.
-            // Locks are taken in ascending assignment-ID order so concurrent opposite-direction
-            // swaps (A,B vs B,A) cannot cross-deadlock.
-            val lockOrder = listOf(assignmentIdA, assignmentIdB).sorted()
-            val assignments =
-                lockOrder.associateWith { id ->
-                    UserBranchAssignmentRepository
-                        .findActiveByIdInTransaction(branchId, id, forUpdate = true)
-                        ?: throw NotFoundException("Active assignment not found at this branch")
-                }
-            val a = assignments.getValue(assignmentIdA)
-            val b = assignments.getValue(assignmentIdB)
-            requireDistinctUsers(a, b)
-            requireSwapAuthority(callerId, canManage, a, b)
+            val canManage = canManageUsers(callerId)
+            transaction {
+                // FOR UPDATE on both rows (materialized via singleOrNull — the lazy-lock
+                // lesson) serializes swap against concurrent remove/updateSlot on either user.
+                // Locks are taken in ascending assignment-ID order so concurrent opposite-direction
+                // swaps (A,B vs B,A) cannot cross-deadlock.
+                val lockOrder = listOf(assignmentIdA, assignmentIdB).sorted()
+                val assignments =
+                    lockOrder.associateWith { id ->
+                        UserBranchAssignmentRepository
+                            .findActiveByIdInTransaction(branchId, id, forUpdate = true)
+                            ?: throw NotFoundException("Active assignment not found at this branch")
+                    }
+                val a = assignments.getValue(assignmentIdA)
+                val b = assignments.getValue(assignmentIdB)
+                requireDistinctUsers(a, b)
+                requireSwapAuthority(callerId, canManage, a, b)
 
-            UserBranchAssignmentRepository.swapSlotsInTransaction(a.id, a.slot, b.id, b.slot)
+                UserBranchAssignmentRepository.swapSlotsInTransaction(a.id, a.slot, b.id, b.slot)
 
-            UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), a, a.copy(slot = b.slot))
-            UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), b, b.copy(slot = a.slot))
+                UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), a, a.copy(slot = b.slot))
+                UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), b, b.copy(slot = a.slot))
+            }
+            logger.info { "[SWAP-SLOTS] Swapped assignments at branch $branchId: $assignmentIdA <-> $assignmentIdB" }
         }
-        logger.info { "[SWAP-SLOTS] Swapped assignments at branch $branchId: $assignmentIdA <-> $assignmentIdB" }
     }
 
     private fun requireDistinctAssignments(

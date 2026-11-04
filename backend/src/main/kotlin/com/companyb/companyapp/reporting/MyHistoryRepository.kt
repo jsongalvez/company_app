@@ -9,6 +9,7 @@ import com.companyb.companyapp.contracts.reporting.MyHistoryResponse
 import com.companyb.companyapp.contracts.reporting.MyShift
 import com.companyb.companyapp.finance.AllowanceTable
 import com.companyb.companyapp.finance.CompensationTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -32,44 +33,46 @@ internal object MyHistoryRepository {
         from: LocalDate,
         to: LocalDate,
     ): MyHistoryResponse =
-        transaction {
-            val shifts = findShifts(userId, from, to)
-            val range = Range(userId, from, to)
-            val earnings =
-                (
-                    findEarnings(
-                        CompensationTable,
-                        CompensationTable.payingBranchDayId,
-                        CompensationTable.userId,
-                        range,
-                    ) {
-                        MyEarningRow(EarningKind.PAY, it[CompensationTable.amount], it[CompensationTable.note])
-                    } +
+        traced("MyHistoryRepository.load") {
+            transaction {
+                val shifts = findShifts(userId, from, to)
+                val range = Range(userId, from, to)
+                val earnings =
+                    (
                         findEarnings(
-                            AllowanceTable,
-                            AllowanceTable.branchDayId,
-                            AllowanceTable.userId,
+                            CompensationTable,
+                            CompensationTable.payingBranchDayId,
+                            CompensationTable.userId,
                             range,
                         ) {
-                            MyEarningRow(EarningKind.ALLOWANCE, it[AllowanceTable.amount], null)
+                            MyEarningRow(EarningKind.PAY, it[CompensationTable.amount], it[CompensationTable.note])
                         } +
-                        findEarnings(
-                            CommissionSplitTable,
-                            CommissionSplitTable.branchDayId,
-                            CommissionSplitTable.userId,
-                            range,
-                        ) {
-                            MyEarningRow(EarningKind.COMMISSION, it[CommissionSplitTable.amount], null)
-                        }
-                ).sortedWith(compareByDescending<Pair<LocalDate, MyEarning>> { it.first }.thenBy { it.second.kind })
-            val total = earnings.fold(BigDecimal.ZERO) { sum, e -> sum + BigDecimal(e.second.amount) }
-            MyHistoryResponse(
-                from = from.toString(),
-                to = to.toString(),
-                shifts = shifts,
-                earnings = earnings.map { it.second },
-                totalEarned = money(total),
-            )
+                            findEarnings(
+                                AllowanceTable,
+                                AllowanceTable.branchDayId,
+                                AllowanceTable.userId,
+                                range,
+                            ) {
+                                MyEarningRow(EarningKind.ALLOWANCE, it[AllowanceTable.amount], null)
+                            } +
+                            findEarnings(
+                                CommissionSplitTable,
+                                CommissionSplitTable.branchDayId,
+                                CommissionSplitTable.userId,
+                                range,
+                            ) {
+                                MyEarningRow(EarningKind.COMMISSION, it[CommissionSplitTable.amount], null)
+                            }
+                    ).sortedWith(compareByDescending<Pair<LocalDate, MyEarning>> { it.first }.thenBy { it.second.kind })
+                val total = earnings.fold(BigDecimal.ZERO) { sum, e -> sum + BigDecimal(e.second.amount) }
+                MyHistoryResponse(
+                    from = from.toString(),
+                    to = to.toString(),
+                    shifts = shifts,
+                    earnings = earnings.map { it.second },
+                    totalEarned = money(total),
+                )
+            }
         }
 
     private data class MyEarningRow(

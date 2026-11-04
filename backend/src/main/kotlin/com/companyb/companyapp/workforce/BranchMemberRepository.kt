@@ -2,6 +2,7 @@ package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -24,17 +25,19 @@ data class BranchMemberRow(
  */
 internal object BranchMemberRepository {
     fun findActiveMemberNames(branchId: UUID): List<BranchMemberRow> =
-        transaction {
-            activeMembersQuery(branchId)
-                .orderBy(
-                    UserBranchAssignmentTable.slot to SortOrder.ASC,
-                    AppUserTable.displayName to SortOrder.ASC,
-                ).map { row ->
-                    BranchMemberRow(
-                        id = row[AppUserTable.id],
-                        displayName = row[AppUserTable.displayName],
-                    )
-                }
+        traced("BranchMemberRepository.findActiveMemberNames") {
+            transaction {
+                activeMembersQuery(branchId)
+                    .orderBy(
+                        UserBranchAssignmentTable.slot to SortOrder.ASC,
+                        AppUserTable.displayName to SortOrder.ASC,
+                    ).map { row ->
+                        BranchMemberRow(
+                            id = row[AppUserTable.id],
+                            displayName = row[AppUserTable.displayName],
+                        )
+                    }
+            }
         }
 
     /** Create-path revalidation: an ACTIVE member currently assigned to the branch. */
@@ -42,23 +45,27 @@ internal object BranchMemberRepository {
         branchId: UUID,
         userId: UUID,
     ): Boolean =
-        transaction {
-            UserBranchAssignmentTable
-                .innerJoin(AppUserTable, { UserBranchAssignmentTable.userId }, { AppUserTable.id })
-                .selectAll()
-                .where {
-                    (UserBranchAssignmentTable.branchId eq branchId) and
-                        (UserBranchAssignmentTable.userId eq userId) and
-                        (UserBranchAssignmentTable.endedAt.isNull()) and
-                        (AppUserTable.status eq UserStatus.ACTIVE)
-                }.empty()
-                .not()
+        traced("BranchMemberRepository.hasActiveMember") {
+            transaction {
+                UserBranchAssignmentTable
+                    .innerJoin(AppUserTable, { UserBranchAssignmentTable.userId }, { AppUserTable.id })
+                    .selectAll()
+                    .where {
+                        (UserBranchAssignmentTable.branchId eq branchId) and
+                            (UserBranchAssignmentTable.userId eq userId) and
+                            (UserBranchAssignmentTable.endedAt.isNull()) and
+                            (AppUserTable.status eq UserStatus.ACTIVE)
+                    }.empty()
+                    .not()
+            }
         }
 
     /** Active member ids only (no display names) — notification audiences. */
     fun findActiveMemberIds(branchId: UUID): List<UUID> =
-        transaction {
-            activeMembersQuery(branchId).map { row -> row[AppUserTable.id] }
+        traced("BranchMemberRepository.findActiveMemberIds") {
+            transaction {
+                activeMembersQuery(branchId).map { row -> row[AppUserTable.id] }
+            }
         }
 
     private fun activeMembersQuery(branchId: UUID) =

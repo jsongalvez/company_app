@@ -32,7 +32,6 @@ class RequestLogTest {
                         RequestElapsedConverter.startRequest()
                         DeltaTimeConverter.startRequest()
                         TraceIdFilter.before(it)
-                        RequestLog.start(it)
                     }
                     cfg.routes.after {
                         TraceIdFilter.echo(it)
@@ -122,13 +121,6 @@ class RequestLogTest {
         val booms = completed.filter { it["route"]!!.jsonPrimitive.content == "/boom" }
         assertEquals(1, booms.size)
         assertEquals(400, booms.single()["status"]!!.jsonPrimitive.int)
-    }
-
-    @Test
-    fun `format helpers emit no query string`() {
-        val started = Json.parseToJsonElement(RequestLog.formatStart("t", "GET", "/api/clients/search")).jsonObject
-        assertEquals("/api/clients/search", started["route"]!!.jsonPrimitive.content)
-        assertTrue(started.keys.none { it.contains("query", ignoreCase = true) })
     }
 
     private companion object {

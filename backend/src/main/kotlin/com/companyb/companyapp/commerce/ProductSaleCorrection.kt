@@ -6,6 +6,7 @@ import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.validateMoneyAmount
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -58,25 +59,33 @@ object ProductSaleCorrection {
         reason: String?,
         write: (before: ProductSale, branchId: UUID) -> ProductSale,
     ): ProductSale =
-        transaction {
-            val before =
-                ProductSaleRepository.findByIdInTransaction(saleId) ?: throw NotFoundException("Product sale not found")
-            // Day row first, then product, then card: the lock order every stock write shares.
-            val (day, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
-            val after = write(before, day.branchId)
-            val context = AuditContext(callerId, day.branchId, isRemitted, reason)
-            for ((productId, delta) in stockMoves(before, after).toSortedMap()) {
-                val card =
-                    BranchInventoryRepository.findCardForUpdateInTransaction(day.branchId, productId)
-                        ?: throw NotFoundException("Inventory card not found")
-                val moved = BranchInventoryRepository.requireCardForUpdateInTransaction(card, card.version, delta)
-                ProductSaleRepository.insertStockMoveInTransaction(after, day.branchId, productId, delta, callerId)
-                ProductSaleAudit.updated(context, card, moved)
+        traced("ProductSaleCorrection.correct") {
+            transaction {
+                val before =
+                    ProductSaleRepository.findByIdInTransaction(saleId)
+                        ?: throw NotFoundException("Product sale not found")
+                // Day row first, then product, then card: the lock order every stock write shares.
+                val (day, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        before.branchDayId,
+                        reason,
+                        DayWrite.FIX,
+                    )
+                val after = write(before, day.branchId)
+                val context = AuditContext(callerId, day.branchId, isRemitted, reason)
+                for ((productId, delta) in stockMoves(before, after).toSortedMap()) {
+                    val card =
+                        BranchInventoryRepository.findCardForUpdateInTransaction(day.branchId, productId)
+                            ?: throw NotFoundException("Inventory card not found")
+                    val moved = BranchInventoryRepository.requireCardForUpdateInTransaction(card, card.version, delta)
+                    ProductSaleRepository.insertStockMoveInTransaction(after, day.branchId, productId, delta, callerId)
+                    ProductSaleAudit.updated(context, card, moved)
+                }
+                ProductSaleAudit.changed(context, before, after)
+                CommissionService.recalculateInTransaction(before.branchDayId, force = true)
+                after
             }
-            ProductSaleAudit.changed(context, before, after)
-            CommissionService.recalculateInTransaction(before.branchDayId, force = true)
-            after
         }
 
     private fun priceOf(

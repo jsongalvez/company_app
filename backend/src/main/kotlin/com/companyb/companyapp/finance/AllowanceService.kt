@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.identity.AccountReads
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.validateMoneyAmount
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -35,46 +36,48 @@ object AllowanceService {
         if (!AccountReads.userExists(userId)) {
             throw NotFoundException("User not found")
         }
-        validateMoneyAmount(amount, "amount")
-        return transaction {
-            // In-tx replay classification before the day gate:
-            // a same-id row already committed acks without gating so retries landing
-            // after a day transition still ack; ownership matches createInTransaction below.
-            AllowanceRepository.findByIdInTransaction(id)?.let { existing ->
-                if (existing.branchDayId != branchDayId) {
-                    throw NotFoundException("Allowance not found for this branch day")
+        return traced("AllowanceService.create") {
+            validateMoneyAmount(amount, "amount")
+            return@traced transaction {
+                // In-tx replay classification before the day gate:
+                // a same-id row already committed acks without gating so retries landing
+                // after a day transition still ack; ownership matches createInTransaction below.
+                AllowanceRepository.findByIdInTransaction(id)?.let { existing ->
+                    if (existing.branchDayId != branchDayId) {
+                        throw NotFoundException("Allowance not found for this branch day")
+                    }
+                    if (existing.userId != userId ||
+                        existing.assignedBy != callerId ||
+                        existing.amount.compareTo(amount) != 0
+                    ) {
+                        throw ConflictException("Allowance id already belongs to another create request")
+                    }
+                    return@transaction existing
                 }
-                if (existing.userId != userId ||
-                    existing.assignedBy != callerId ||
-                    existing.amount.compareTo(amount) != 0
-                ) {
-                    throw ConflictException("Allowance id already belongs to another create request")
-                }
-                return@transaction existing
-            }
-            // Locked day read: serializes this create with remittance's REMITTED transition.
-            val (branchDay, isRemitted) =
-                BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason, DayWrite.PAY)
+                // Locked day read: serializes this create with remittance's REMITTED transition.
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason, DayWrite.PAY)
 
-            val result =
-                AllowanceRepository.createInTransaction(
-                    AllowanceCreateParams(
-                        id = id,
-                        branchDayId = branchDayId,
-                        userId = userId,
-                        amount = amount,
-                        assignedBy = callerId,
-                    ),
-                )
-            if (result.created) {
-                AllowanceAudit.inserted(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                    result.allowance,
-                )
+                val result =
+                    AllowanceRepository.createInTransaction(
+                        AllowanceCreateParams(
+                            id = id,
+                            branchDayId = branchDayId,
+                            userId = userId,
+                            amount = amount,
+                            assignedBy = callerId,
+                        ),
+                    )
+                if (result.created) {
+                    AllowanceAudit.inserted(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        result.allowance,
+                    )
+                }
+                result.allowance
+            }.also { created ->
+                logger.info { "[CREATE-ALLOWANCE] Allowance ${created.id.toString().maskUUID()} created" }
             }
-            result.allowance
-        }.also { created ->
-            logger.info { "[CREATE-ALLOWANCE] Allowance ${created.id.toString().maskUUID()} created" }
         }
     }
 

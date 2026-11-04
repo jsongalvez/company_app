@@ -3,6 +3,7 @@ package com.companyb.companyapp.finance
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -69,13 +70,15 @@ internal object AllowanceRepository {
     ): Boolean = existing.amount.compareTo(params.amount) == 0
 
     fun findByBranchDayId(branchDayId: UUID): List<Allowance> =
-        transaction {
-            AllowanceTable
-                .selectAll()
-                .where { AllowanceTable.branchDayId eq branchDayId }
-                .map { it.toAllowance() }
-        }.also {
-            logger.info { "[FIND-ALLOWANCES] Found ${it.size} allowances for branchDay $branchDayId" }
+        traced("AllowanceRepository.findByBranchDayId") {
+            transaction {
+                AllowanceTable
+                    .selectAll()
+                    .where { AllowanceTable.branchDayId eq branchDayId }
+                    .map { it.toAllowance() }
+            }.also {
+                logger.info { "[FIND-ALLOWANCES] Found ${it.size} allowances for branchDay $branchDayId" }
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */

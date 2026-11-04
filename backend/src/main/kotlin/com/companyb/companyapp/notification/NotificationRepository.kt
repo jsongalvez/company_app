@@ -2,6 +2,7 @@ package com.companyb.companyapp.notification
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.notification.NotificationMapper.toNotification
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.utils.decodeOpaqueCursor
 import com.companyb.companyapp.utils.encodeOpaqueCursor
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -49,10 +50,12 @@ internal object NotificationRepository {
     // so concurrent batches and job re-runs collapse to one delivery per recipient
     // atomically (insertIgnore = ON CONFLICT DO NOTHING). Returns rows actually created.
     fun insertBatch(params: List<NotificationCreateParams>): Int =
-        transaction {
-            insertBatchInTransaction(params)
-        }.also {
-            logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
+        traced("NotificationRepository.insertBatch") {
+            transaction {
+                insertBatchInTransaction(params)
+            }.also {
+                logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
+            }
         }
 
     // Store operation for the owning command (ADR-0024): runs on the caller's transaction
@@ -98,28 +101,32 @@ internal object NotificationRepository {
     }
 
     fun findUnreadByUserId(userId: UUID): List<Notification> =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
-                .orderBy(NotificationTable.createdAt, SortOrder.DESC)
-                .orderBy(NotificationTable.id, SortOrder.DESC)
-                .map { it.toNotification() }
-        }.also {
-            logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
+        traced("NotificationRepository.findUnreadByUserId") {
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
+                    .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                    .orderBy(NotificationTable.id, SortOrder.DESC)
+                    .map { it.toNotification() }
+            }.also {
+                logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
+            }
         }
 
     // history: every row the caller owns, read + unread, newest first. Read rows are
     // never deleted (they carry session access), so the list is stable indefinitely.
     // Kept for server-side/test reads; the HTTP history response is keyset-paged below.
     fun findHistoryByUserId(userId: UUID): List<Notification> =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where { NotificationTable.userId eq userId }
-                .orderBy(NotificationTable.createdAt, SortOrder.DESC)
-                .orderBy(NotificationTable.id, SortOrder.DESC)
-                .map { it.toNotification() }
+        traced("NotificationRepository.findHistoryByUserId") {
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.userId eq userId }
+                    .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                    .orderBy(NotificationTable.id, SortOrder.DESC)
+                    .map { it.toNotification() }
+            }
         }
 
     /**
@@ -134,37 +141,41 @@ internal object NotificationRepository {
         cursor: NotificationHistoryCursor?,
         limit: Int,
     ): List<Notification> =
-        transaction {
-            var condition = (NotificationTable.userId eq userId)
-            if (cursor != null) {
-                val keyset =
-                    (NotificationTable.createdAt less cursor.createdAt) or
-                        (
-                            (NotificationTable.createdAt eq cursor.createdAt) and
-                                (NotificationTable.id less cursor.id)
-                        )
-                condition = condition and keyset
+        traced("NotificationRepository.findHistoryPage") {
+            transaction {
+                var condition = (NotificationTable.userId eq userId)
+                if (cursor != null) {
+                    val keyset =
+                        (NotificationTable.createdAt less cursor.createdAt) or
+                            (
+                                (NotificationTable.createdAt eq cursor.createdAt) and
+                                    (NotificationTable.id less cursor.id)
+                            )
+                    condition = condition and keyset
+                }
+                NotificationTable
+                    .selectAll()
+                    .where { condition }
+                    .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                    .orderBy(NotificationTable.id, SortOrder.DESC)
+                    .limit(limit)
+                    .map { it.toNotification() }
+            }.also {
+                logger.info { "[HISTORY-PAGE] user=${userId.toString().maskUUID()} returned=${it.size}" }
             }
-            NotificationTable
-                .selectAll()
-                .where { condition }
-                .orderBy(NotificationTable.createdAt, SortOrder.DESC)
-                .orderBy(NotificationTable.id, SortOrder.DESC)
-                .limit(limit)
-                .map { it.toNotification() }
-        }.also {
-            logger.info { "[HISTORY-PAGE] user=${userId.toString().maskUUID()} returned=${it.size}" }
         }
 
     // badge count without row hydration: the 60s poller reads one integer, never the
     // mailbox. Served by idx_notification_unread.
     fun countUnreadByUserId(userId: UUID): Int =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
-                .count()
-                .toInt()
+        traced("NotificationRepository.countUnreadByUserId") {
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
+                    .count()
+                    .toInt()
+            }
         }
 
     // bearer check for the session-detail read with the lifetime bound:
@@ -176,14 +187,16 @@ internal object NotificationRepository {
         sessionId: UUID,
         userId: UUID,
     ): Boolean =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where {
-                    (NotificationTable.sessionId eq sessionId) and
-                        (NotificationTable.userId eq userId)
-                }.empty()
-                .not()
+        traced("NotificationRepository.existsForSessionAndUser") {
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where {
+                        (NotificationTable.sessionId eq sessionId) and
+                            (NotificationTable.userId eq userId)
+                    }.empty()
+                    .not()
+            }
         }
 
     // the original ping list of a relief request: distinct users holding a
@@ -192,14 +205,16 @@ internal object NotificationRepository {
         eventType: String,
         sourceId: UUID,
     ): List<UUID> =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where {
-                    (NotificationTable.eventType eq eventType) and
-                        (NotificationTable.sourceId eq sourceId)
-                }.map { it[NotificationTable.userId] }
-                .distinct()
+        traced("NotificationRepository.findUsersBySource") {
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where {
+                        (NotificationTable.eventType eq eventType) and
+                            (NotificationTable.sourceId eq sourceId)
+                    }.map { it[NotificationTable.userId] }
+                    .distinct()
+            }
         }
 
     // Store operation for the owning command (ADR-0024): runs on the caller's transaction and

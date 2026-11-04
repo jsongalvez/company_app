@@ -11,6 +11,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.AccountReads
+import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
@@ -66,35 +67,37 @@ object AttendanceService {
         present: Boolean,
         attendanceId: UUID?,
     ): AttendanceMarkResult {
-        // 404 precedence for an unknown branch before the membership gate:
-        // findActiveMembers would otherwise yield empty membership and surface 403
-        //  (403-masking-404; same position as clockIn guard).
-        BranchService.findById(branchId)
-        // 404 precedence for an unknown target before the membership gate:
-        // findActiveMembers would otherwise yield non-membership and surface 403
-        //  (403-masking-404; same position as/ userExists guard).
-        // Extracted so [mark] stays under the ThrowsCount gate (RED repair).
-        requireTargetExists(targetUserId)
-        return transaction {
-            // Gate inside the command transaction, under the assignment row lock:
-            // a concurrent revocation or deactivation serializes with the mark
-            // instead of racing a pre-transaction check. Reciprocal marks took
-            // caller-first order, a wait-for cycle on the membership rows. Lock the
-            // distinct participant set in stable user-ID order, then evaluate both
-            // memberships from those locked facts (a self-mark locks once).
-            val activeMembers =
-                AttendanceRepository.findActiveMembersInTransaction(branchId, listOf(callerId, targetUserId))
-            if (callerId !in activeMembers) {
-                throw ForbiddenException("Home-branch membership required to mark attendance")
-            }
-            if (targetUserId !in activeMembers) {
-                throw ForbiddenException("Only home-branch members can be marked present or absent at this branch")
-            }
+        return traced("AttendanceService.mark") {
+            // 404 precedence for an unknown branch before the membership gate:
+            // findActiveMembers would otherwise yield empty membership and surface 403
+            //  (403-masking-404; same position as clockIn guard).
+            BranchService.findById(branchId)
+            // 404 precedence for an unknown target before the membership gate:
+            // findActiveMembers would otherwise yield non-membership and surface 403
+            //  (403-masking-404; same position as/ userExists guard).
+            // Extracted so [mark] stays under the ThrowsCount gate (RED repair).
+            requireTargetExists(targetUserId)
+            return@traced transaction {
+                // Gate inside the command transaction, under the assignment row lock:
+                // a concurrent revocation or deactivation serializes with the mark
+                // instead of racing a pre-transaction check. Reciprocal marks took
+                // caller-first order, a wait-for cycle on the membership rows. Lock the
+                // distinct participant set in stable user-ID order, then evaluate both
+                // memberships from those locked facts (a self-mark locks once).
+                val activeMembers =
+                    AttendanceRepository.findActiveMembersInTransaction(branchId, listOf(callerId, targetUserId))
+                if (callerId !in activeMembers) {
+                    throw ForbiddenException("Home-branch membership required to mark attendance")
+                }
+                if (targetUserId !in activeMembers) {
+                    throw ForbiddenException("Only home-branch members can be marked present or absent at this branch")
+                }
 
-            if (present) {
-                markPresent(callerId, branchId, targetUserId, attendanceId)
-            } else {
-                markAbsent(callerId, branchId, targetUserId)
+                if (present) {
+                    markPresent(callerId, branchId, targetUserId, attendanceId)
+                } else {
+                    markAbsent(callerId, branchId, targetUserId)
+                }
             }
         }
     }
@@ -204,42 +207,44 @@ object AttendanceService {
         attendanceId: UUID,
         callerId: UUID,
     ): AttendanceServiceResult =
-        transaction {
-            // Transaction-local before-state (ADR-0019): read inside the command's transaction,
-            // never held across a method boundary where a concurrent write could stale it.
-            val existing =
-                AttendanceRepository.findByIdInTransaction(attendanceId)
-                    ?: throw NotFoundException("Attendance record not found")
+        traced("AttendanceService.clockOut") {
+            transaction {
+                // Transaction-local before-state (ADR-0019): read inside the command's transaction,
+                // never held across a method boundary where a concurrent write could stale it.
+                val existing =
+                    AttendanceRepository.findByIdInTransaction(attendanceId)
+                        ?: throw NotFoundException("Attendance record not found")
 
-            if (existing.userId != callerId) {
-                throw ForbiddenException("Only attendance owner can clock out")
+                if (existing.userId != callerId) {
+                    throw ForbiddenException("Only attendance owner can clock out")
+                }
+
+                if (existing.clockOut != null) {
+                    val isRelief = getIsRelief(existing.branchDayId, existing.userId)
+                    return@transaction AttendanceServiceResult(existing, false, isRelief)
+                }
+
+                val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
+
+                val (attendance, wasClockedOut) = AttendanceRepository.clockOutInTransaction(attendanceId)
+
+                if (wasClockedOut) {
+                    AttendanceAudit.updated(
+                        AuditContext(changedBy = callerId, branchId = branchId),
+                        existing,
+                        attendance,
+                    )
+                }
+
+                logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
+
+                if (wasClockedOut) {
+                    CommissionService.recalculateInTransaction(attendance.branchDayId)
+                }
+
+                val isRelief = getIsRelief(attendance.branchDayId, attendance.userId)
+                AttendanceServiceResult(attendance, false, isRelief)
             }
-
-            if (existing.clockOut != null) {
-                val isRelief = getIsRelief(existing.branchDayId, existing.userId)
-                return@transaction AttendanceServiceResult(existing, false, isRelief)
-            }
-
-            val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
-
-            val (attendance, wasClockedOut) = AttendanceRepository.clockOutInTransaction(attendanceId)
-
-            if (wasClockedOut) {
-                AttendanceAudit.updated(
-                    AuditContext(changedBy = callerId, branchId = branchId),
-                    existing,
-                    attendance,
-                )
-            }
-
-            logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
-
-            if (wasClockedOut) {
-                CommissionService.recalculateInTransaction(attendance.branchDayId)
-            }
-
-            val isRelief = getIsRelief(attendance.branchDayId, attendance.userId)
-            AttendanceServiceResult(attendance, false, isRelief)
         }
 
     fun clockIn(
@@ -247,57 +252,60 @@ object AttendanceService {
         branchId: UUID,
         callerId: UUID,
     ): AttendanceServiceResult {
-        BranchService.findById(branchId)
-        return transaction {
-            retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
+        return traced("AttendanceService.clockIn") {
+            BranchService.findById(branchId)
+            return@traced transaction {
+                retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
-            val today = BranchDayService.currentOperationalDate()
-            val branchDay = BranchDayService.resolveOrCreate(branchId, today)
+                val today = BranchDayService.currentOperationalDate()
+                val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
-            // take the branch-day row lock BEFORE the guard so clock-in serializes
-            // against the retraction cutoff commands (they hold it while deciding); the
-            // commission recalculation below re-acquires it harmlessly in this transaction.
-            BranchDayService.lockDayInTransaction(branchDay.id)
+                // take the branch-day row lock BEFORE the guard so clock-in serializes
+                // against the retraction cutoff commands (they hold it while deciding); the
+                // commission recalculation below re-acquires it harmlessly in this transaction.
+                BranchDayService.lockDayInTransaction(branchDay.id)
 
-            // A concurrent same-id retry may have committed while this transaction waited
-            // on the lock — the idempotent readback must run again under it (review).
-            retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
+                // A concurrent same-id retry may have committed while this transaction waited
+                // on the lock — the idempotent readback must run again under it (review).
+                retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
-            ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
+                ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
 
-            val isRelief = resolveIsRelief(branchId, callerId)
+                val isRelief = resolveIsRelief(branchId, callerId)
 
-            val branchDayAssignmentId = UUID.randomUUID()
+                val branchDayAssignmentId = UUID.randomUUID()
 
-            val (attendance, wasCreated) =
-                AttendanceRepository.clockInInTransaction(
-                    ClockInParams(
-                        attendanceId = attendanceId,
-                        branchDayId = branchDay.id,
-                        userId = callerId,
-                        markedBy = callerId,
-                        branchDayAssignmentId = branchDayAssignmentId,
-                        isRelief = isRelief,
-                        branchId = branchId,
-                    ),
-                )
+                val (attendance, wasCreated) =
+                    AttendanceRepository.clockInInTransaction(
+                        ClockInParams(
+                            attendanceId = attendanceId,
+                            branchDayId = branchDay.id,
+                            userId = callerId,
+                            markedBy = callerId,
+                            branchDayAssignmentId = branchDayAssignmentId,
+                            isRelief = isRelief,
+                            branchId = branchId,
+                        ),
+                    )
 
-            if (wasCreated) {
-                AttendanceAudit.inserted(
-                    AuditContext(changedBy = callerId, branchId = branchId),
-                    attendance,
-                )
+                if (wasCreated) {
+                    AttendanceAudit.inserted(
+                        AuditContext(changedBy = callerId, branchId = branchId),
+                        attendance,
+                    )
+                }
+
+                logger.info {
+                    "[CLOCK-IN] User $callerId clocked in at branch $branchId " +
+                        "(relief=$isRelief, attendance=$attendanceId)"
+                }
+
+                if (wasCreated) {
+                    CommissionService.recalculateInTransaction(branchDay.id)
+                }
+
+                AttendanceServiceResult(attendance, wasCreated, isRelief)
             }
-
-            logger.info {
-                "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
-            }
-
-            if (wasCreated) {
-                CommissionService.recalculateInTransaction(branchDay.id)
-            }
-
-            AttendanceServiceResult(attendance, wasCreated, isRelief)
         }
     }
 

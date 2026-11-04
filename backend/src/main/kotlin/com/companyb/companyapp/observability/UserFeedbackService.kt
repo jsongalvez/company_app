@@ -12,9 +12,11 @@ object UserFeedbackService {
     private val logger = KotlinLogging.logger {}
 
     fun send(note: NewUserFeedback): UserFeedback =
-        transaction { UserFeedbackRepository.insertInTransaction(note) }.also {
-            logger.info {
-                "[FEEDBACK] ${it.kind} ${it.id.toString().maskUUID()} from ${it.userId.toString().maskUUID()}"
+        traced("UserFeedbackService.send") {
+            transaction { UserFeedbackRepository.insertInTransaction(note) }.also {
+                logger.info {
+                    "[FEEDBACK] ${it.kind} ${it.id.toString().maskUUID()} from ${it.userId.toString().maskUUID()}"
+                }
             }
         }
 
@@ -24,6 +26,8 @@ object UserFeedbackService {
         id: UUID,
         status: FeedbackStatus,
     ): UserFeedback =
-        transaction { UserFeedbackRepository.setStatusInTransaction(id, status) }
-            ?: throw NotFoundException("Feedback not found")
+        traced("UserFeedbackService.setStatus") {
+            transaction { UserFeedbackRepository.setStatusInTransaction(id, status) }
+                ?: throw NotFoundException("Feedback not found")
+        }
 }

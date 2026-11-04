@@ -10,6 +10,7 @@ import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.identity.StartResponse
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.notification.NotificationService
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.dashboard.TodayScreenRoutes
 import com.companyb.companyapp.session.dashboard.TodayScreenService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -29,36 +30,41 @@ object StartService {
         asked: UUID?,
         withToday: Boolean,
     ): StartResponse =
-        transaction {
-            val branches = MeService.getBranches(callerId)
-            val accessible = BranchRoutes.accessibleBranches(callerId)
-            val known = branches.map { it.branchId } + accessible.map { it.id }
-            val branchId =
-                (
-                    asked?.takeIf { it.toString() in known }?.toString()
-                        ?: branches.firstOrNull { it.clockInStatus == BranchClockInStatus.CLOCKED_IN_HERE }?.branchId
-                        ?: branches.firstOrNull()?.branchId
-                        ?: accessible.firstOrNull()?.id
-                )?.let(UUID::fromString)
-            val today = branchId?.let { dayAt(callerId, it) }
-            StartResponse(
-                me = MeService.getMe(callerId),
-                capabilities = MeService.getCapabilities(callerId),
-                branches = branches,
-                accessible = accessible,
-                branchId = branchId?.toString(),
-                today = today,
-                shift = MeService.getActiveAttendance(callerId).shift,
-                unreadCount = NotificationService.countUnread(callerId),
-                todayScreen =
-                    if (withToday &&
-                        branchId != null
-                    ) {
-                        TodayScreenRoutes.response(TodayScreenService.get(callerId, branchId))
-                    } else {
-                        null
-                    },
-            )
+        traced("StartService.get") {
+            transaction {
+                val branches = MeService.getBranches(callerId)
+                val accessible = BranchRoutes.accessibleBranches(callerId)
+                val known = branches.map { it.branchId } + accessible.map { it.id }
+                val branchId =
+                    (
+                        asked?.takeIf { it.toString() in known }?.toString()
+                            ?: branches
+                                .firstOrNull {
+                                    it.clockInStatus == BranchClockInStatus.CLOCKED_IN_HERE
+                                }?.branchId
+                            ?: branches.firstOrNull()?.branchId
+                            ?: accessible.firstOrNull()?.id
+                    )?.let(UUID::fromString)
+                val today = branchId?.let { dayAt(callerId, it) }
+                StartResponse(
+                    me = MeService.getMe(callerId),
+                    capabilities = MeService.getCapabilities(callerId),
+                    branches = branches,
+                    accessible = accessible,
+                    branchId = branchId?.toString(),
+                    today = today,
+                    shift = MeService.getActiveAttendance(callerId).shift,
+                    unreadCount = NotificationService.countUnread(callerId),
+                    todayScreen =
+                        if (withToday &&
+                            branchId != null
+                        ) {
+                            TodayScreenRoutes.response(TodayScreenService.get(callerId, branchId))
+                        } else {
+                            null
+                        },
+                )
+            }
         }
 
     /** The branch's day for people who work there (or hold a relief grant for it); null for those who only oversee. */

@@ -5,6 +5,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -45,8 +46,10 @@ data class ReliefRequestWithBranch(
 
 internal object ReliefAccessRepository {
     fun findById(id: UUID): ReliefAccess? =
-        transaction {
-            findByIdInTransaction(id)
+        traced("ReliefAccessRepository.findById") {
+            transaction {
+                findByIdInTransaction(id)
+            }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
@@ -59,23 +62,27 @@ internal object ReliefAccessRepository {
 
     /** Every request on one branch day — the member surface (broadcast model). */
     fun findByBranchDayId(branchDayId: UUID): List<ReliefAccess> =
-        transaction {
-            GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.branchDayId eq branchDayId }
-                .map { it.toReliefAccess() }
+        traced("ReliefAccessRepository.findByBranchDayId") {
+            transaction {
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.branchDayId eq branchDayId }
+                    .map { it.toReliefAccess() }
+            }
         }
 
     /** The caller's own requests across all branches/days, newest day first. */
     fun findMine(userId: UUID): List<ReliefRequestWithBranch> =
-        transaction {
-            GrantReliefAccessTable
-                .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
-                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
-                .selectAll()
-                .where { GrantReliefAccessTable.requestedBy eq userId }
-                .orderBy(BranchDayTable.date to SortOrder.DESC)
-                .map { it.toReliefRequestWithBranch() }
+        traced("ReliefAccessRepository.findMine") {
+            transaction {
+                GrantReliefAccessTable
+                    .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
+                    .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                    .selectAll()
+                    .where { GrantReliefAccessTable.requestedBy eq userId }
+                    .orderBy(BranchDayTable.date to SortOrder.DESC)
+                    .map { it.toReliefRequestWithBranch() }
+            }
         }
 
     /** Requests at one branch for days from [fromDate] on, soonest first (relief page list). */
@@ -83,14 +90,16 @@ internal object ReliefAccessRepository {
         branchId: UUID,
         fromDate: LocalDate,
     ): List<ReliefRequestWithBranch> =
-        transaction {
-            GrantReliefAccessTable
-                .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
-                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
-                .selectAll()
-                .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date greaterEq fromDate) }
-                .orderBy(BranchDayTable.date to SortOrder.ASC)
-                .map { it.toReliefRequestWithBranch() }
+        traced("ReliefAccessRepository.findUpcomingForBranch") {
+            transaction {
+                GrantReliefAccessTable
+                    .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
+                    .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                    .selectAll()
+                    .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date greaterEq fromDate) }
+                    .orderBy(BranchDayTable.date to SortOrder.ASC)
+                    .map { it.toReliefRequestWithBranch() }
+            }
         }
 
     /**
@@ -99,15 +108,17 @@ internal object ReliefAccessRepository {
      * notice is the only expiry marker.
      */
     fun findPendingWithPastDay(beforeDate: LocalDate): List<ReliefRequestWithBranch> =
-        transaction {
-            GrantReliefAccessTable
-                .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
-                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
-                .selectAll()
-                .where {
-                    (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING) and
-                        (BranchDayTable.date less beforeDate)
-                }.map { it.toReliefRequestWithBranch() }
+        traced("ReliefAccessRepository.findPendingWithPastDay") {
+            transaction {
+                GrantReliefAccessTable
+                    .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
+                    .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                    .selectAll()
+                    .where {
+                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING) and
+                            (BranchDayTable.date less beforeDate)
+                    }.map { it.toReliefRequestWithBranch() }
+            }
         }
 
     fun findByRequestedByAndBranchDayId(
@@ -115,15 +126,17 @@ internal object ReliefAccessRepository {
         branchDayId: UUID,
         status: ReliefAccessStatus,
     ): ReliefAccess? =
-        transaction {
-            GrantReliefAccessTable
-                .selectAll()
-                .where {
-                    (GrantReliefAccessTable.requestedBy eq requestedBy) and
-                        (GrantReliefAccessTable.branchDayId eq branchDayId) and
-                        (GrantReliefAccessTable.requestStatus eq status)
-                }.singleOrNull()
-                ?.toReliefAccess()
+        traced("ReliefAccessRepository.findByRequestedByAndBranchDayId") {
+            transaction {
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where {
+                        (GrantReliefAccessTable.requestedBy eq requestedBy) and
+                            (GrantReliefAccessTable.branchDayId eq branchDayId) and
+                            (GrantReliefAccessTable.requestStatus eq status)
+                    }.singleOrNull()
+                    ?.toReliefAccess()
+            }
         }
 
     /**
@@ -302,7 +315,10 @@ internal object ReliefAccessRepository {
     fun hasActiveClockIn(
         targetUser: UUID,
         branchDayId: UUID,
-    ): Boolean = transaction { hasActiveClockInInTransaction(targetUser, branchDayId) }
+    ): Boolean =
+        traced("ReliefAccessRepository.hasActiveClockIn") {
+            transaction { hasActiveClockInInTransaction(targetUser, branchDayId) }
+        }
 
     /**
      * In-transaction presence read — runs on the caller's command transaction so the
@@ -323,7 +339,10 @@ internal object ReliefAccessRepository {
             .not()
 
     /** Read wrapper — see [isActiveUserInTransaction]. */
-    fun isActiveUser(userId: UUID): Boolean = transaction { isActiveUserInTransaction(userId) }
+    fun isActiveUser(userId: UUID): Boolean =
+        traced("ReliefAccessRepository.isActiveUser") {
+            transaction { isActiveUserInTransaction(userId) }
+        }
 
     /**
      * In-transaction status read (edge 4) — a deactivated user must not hold a live
