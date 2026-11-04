@@ -2,6 +2,7 @@ package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.postgresql.util.PGobject
@@ -10,30 +11,8 @@ object ActiveUserCapabilitiesView : Table("active_user_capabilities") {
     val userId = javaUUID("user_id")
     val capabilityId = javaUUID("capability_id")
     val contextType =
-        customEnumeration<CapabilityContextType>(
-            name = "context_type",
-            sql = "capability_context_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> CapabilityContextType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "capability_context_type"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("context_type", "capability_context_type", CapabilityContextType.entries)
     val contextId = javaUUID("context_id")
     val sourceType =
-        customEnumeration<CapabilitySourceType>(
-            name = "source_type",
-            sql = "capability_source_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> CapabilitySourceType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "capability_source_type"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("source_type", "capability_source_type", CapabilitySourceType.entries)
 }

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.contracts.commerce.InventoryMovementReason
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -16,7 +17,6 @@ data class BranchInventory(
     val productId: UUID,
     val currentStock: Int,
     val version: Int,
-    // This branch's own list price and commission for the product (503bf228, a6946922).
     val unitPrice: BigDecimal,
     val commissionAmount: BigDecimal,
 )
@@ -74,18 +74,7 @@ internal object InventoryMovementTable : Table("inventory_movement") {
     val branchId = javaUUID("branch_id")
     val branchDayId = javaUUID("branch_day_id")
     val reason =
-        customEnumeration<InventoryMovementReason>(
-            name = "reason",
-            sql = "inventory_movement_reason",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> InventoryMovementReason.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "inventory_movement_reason"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("reason", "inventory_movement_reason", InventoryMovementReason.entries)
     val quantityChange = integer("quantity_change")
     val movedBy = javaUUID("moved_by")
     val movedAt = timestampWithTimeZone("moved_at").defaultExpression(CurrentTimestampWithTimeZone)

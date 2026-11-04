@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
@@ -22,18 +23,7 @@ internal object CredentialTokenTable : Table("credential_token") {
     val id = javaUUID("id").autoGenerate()
     val tokenHash = varchar("token_hash", TOKEN_HASH_LENGTH)
     val purpose =
-        customEnumeration<CredentialTokenPurpose>(
-            name = "purpose",
-            sql = "credential_purpose",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> CredentialTokenPurpose.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "credential_purpose"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("purpose", "credential_purpose", CredentialTokenPurpose.entries)
     val userId = javaUUID("user_id").references(AppUserTable.id)
     val expiresAt = timestampWithTimeZone("expires_at")
     val consumedAt = timestampWithTimeZone("consumed_at").nullable()

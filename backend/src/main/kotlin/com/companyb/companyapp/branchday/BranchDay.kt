@@ -1,6 +1,7 @@
 package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.date
@@ -20,18 +21,7 @@ object BranchDayTable : Table("branch_day") {
     val branchId = javaUUID("branch_id")
     val date = date("date")
     val status =
-        customEnumeration<DayStatus>(
-            name = "status",
-            sql = "day_status",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> DayStatus.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "day_status"
-                obj.value = it.name
-                obj
-            },
-        ).default(DayStatus.OPEN)
+        pgEnum("status", "day_status", DayStatus.entries).default(DayStatus.OPEN)
 
     override val primaryKey = PrimaryKey(id)
 

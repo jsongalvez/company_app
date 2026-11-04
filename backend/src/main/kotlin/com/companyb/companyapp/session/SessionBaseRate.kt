@@ -2,6 +2,7 @@ package com.companyb.companyapp.session
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.database.pgEnum
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -39,18 +40,7 @@ internal object SessionBaseRateTable : Table("session_base_rate") {
     val setBy = javaUUID("set_by").references(AppUserTable.id)
     val branchId = javaUUID("branch_id").references(BranchTable.id)
     val sessionType =
-        customEnumeration<SessionType>(
-            name = "session_type",
-            sql = "session_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> SessionType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "session_type"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("session_type", "session_type", SessionType.entries)
     val rate = decimal("rate", RATE_PRECISION, RATE_SCALE)
     val effectiveFrom = timestampWithTimeZone("effective_from").defaultExpression(CurrentTimestampWithTimeZone)
     val effectiveUntil = timestampWithTimeZone("effective_until")

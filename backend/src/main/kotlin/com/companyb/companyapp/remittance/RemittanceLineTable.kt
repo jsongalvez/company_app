@@ -2,6 +2,7 @@ package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.contracts.remittance.RemittanceLineType
+import com.companyb.companyapp.database.pgEnum
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.session.SessionTable
 import org.jetbrains.exposed.v1.core.Table
@@ -18,18 +19,7 @@ internal object RemittanceLineTable : Table("remittance_line") {
     val id = javaUUID("id")
     val remittanceId = javaUUID("remittance_id").references(RemittanceTable.id)
     val type =
-        customEnumeration<RemittanceLineType>(
-            name = "type",
-            sql = "remittance_line_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> RemittanceLineType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "remittance_line_type"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("type", "remittance_line_type", RemittanceLineType.entries)
     val sessionId = javaUUID("session_id").references(SessionTable.id).nullable()
     val productSaleId = javaUUID("product_sale_id").references(ProductSaleTable.id).nullable()
     val createdBy = javaUUID("created_by").references(AppUserTable.id)

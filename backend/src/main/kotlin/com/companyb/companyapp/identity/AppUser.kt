@@ -1,6 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -29,18 +30,7 @@ internal object AppUserTable : Table("app_user") {
     val username = varchar("username", USERNAME_LENGTH).uniqueIndex()
     val passwordHash = varchar("password_hash", PASSWORD_HASH_LENGTH)
     val status =
-        customEnumeration<UserStatus>(
-            name = "status",
-            sql = "user_status",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> UserStatus.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "user_status"
-                obj.value = it.name
-                obj
-            },
-        ).default(UserStatus.ACTIVE)
+        pgEnum("status", "user_status", UserStatus.entries).default(UserStatus.ACTIVE)
     val email = varchar("email", EMAIL_LENGTH).uniqueIndex()
     val displayName = varchar("display_name", DISPLAY_NAME_LENGTH).default("User")
     val deactivatedAt = timestampWithTimeZone("deactivated_at").nullable()

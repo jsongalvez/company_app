@@ -1,6 +1,7 @@
 package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.postgresql.util.PGobject
@@ -22,18 +23,7 @@ data class BranchCreateParams(
 object BranchTable : Table("branch") {
     val id = javaUUID("id").autoGenerate()
     val branchType =
-        customEnumeration<BranchType>(
-            name = "branch_type",
-            sql = "branch_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> BranchType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "branch_type"
-                obj.value = it.name
-                obj
-            },
-        ).default(BranchType.CLINIC)
+        pgEnum("branch_type", "branch_type", BranchType.entries).default(BranchType.CLINIC)
     val name = text("name")
     val hidden = bool("hidden").default(false)
 

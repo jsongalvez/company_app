@@ -1,6 +1,7 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
+import com.companyb.companyapp.database.pgEnum
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -52,18 +53,7 @@ internal object ReliefInviteTable : Table("relief_invite") {
     val invitedBy = javaUUID("invited_by").references(AppUserTable.id)
     val invitee = javaUUID("invitee").references(AppUserTable.id)
     val status =
-        customEnumeration<ReliefInviteStatus>(
-            name = "status",
-            sql = "relief_invite_status",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> ReliefInviteStatus.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "relief_invite_status"
-                obj.value = it.name
-                obj
-            },
-        ).default(ReliefInviteStatus.PENDING)
+        pgEnum("status", "relief_invite_status", ReliefInviteStatus.entries).default(ReliefInviteStatus.PENDING)
     val respondedAt = timestampWithTimeZone("responded_at").nullable()
     val createdAt =
         timestampWithTimeZone("created_at")

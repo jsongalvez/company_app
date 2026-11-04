@@ -1,6 +1,7 @@
 package com.companyb.companyapp.finance
 
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -41,18 +42,7 @@ internal object ExpenseTable : Table("expense") {
     val branchDayId = javaUUID("branch_day_id")
     val amount = decimal("amount", AMOUNT_PRECISION, AMOUNT_SCALE)
     val category =
-        customEnumeration<ExpenseCategory>(
-            name = "category",
-            sql = "expense_category",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> ExpenseCategory.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "expense_category"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("category", "expense_category", ExpenseCategory.entries)
     val notes = text("notes").nullable()
     val createdBy = javaUUID("created_by")
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)

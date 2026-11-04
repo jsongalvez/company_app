@@ -1,5 +1,6 @@
 package com.companyb.companyapp.audit
 import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.ColumnType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -12,18 +13,7 @@ object AuditLogTable : Table("audit_log") {
     val auditTableName = text("table_name")
     val recordId = javaUUID("record_id")
     val action =
-        customEnumeration<AuditAction>(
-            name = "action",
-            sql = "audit_action",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> AuditAction.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "audit_action"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("action", "audit_action", AuditAction.entries)
 
     // No Exposed `.references()` FKs: Flyway SQL owns the schema and joins use
     // explicit column pairs, matching the other feature tables.

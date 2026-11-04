@@ -3,6 +3,7 @@ package com.companyb.companyapp.remittance
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceType
+import com.companyb.companyapp.database.pgEnum
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -14,45 +15,12 @@ import java.util.UUID
 internal object RemittanceTable : Table("remittance") {
     val id = javaUUID("id").autoGenerate()
     val type =
-        customEnumeration<RemittanceType>(
-            name = "type",
-            sql = "remittance_type",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> RemittanceType.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "remittance_type"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("type", "remittance_type", RemittanceType.entries)
     val status =
-        customEnumeration<RemittanceStatus>(
-            name = "status",
-            sql = "remittance_status",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> RemittanceStatus.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "remittance_status"
-                obj.value = it.name
-                obj
-            },
-        ).default(RemittanceStatus.DRAFT)
+        pgEnum("status", "remittance_status", RemittanceStatus.entries).default(RemittanceStatus.DRAFT)
     val branchId = javaUUID("branch_id")
     val method =
-        customEnumeration<RemittanceMethod>(
-            name = "method",
-            sql = "remittance_method",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> RemittanceMethod.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "remittance_method"
-                obj.value = it.name
-                obj
-            },
-        )
+        pgEnum("method", "remittance_method", RemittanceMethod.entries)
     val submittedDate = date("submitted_date")
     val submittedAt = timestampWithTimeZone("submitted_at").nullable()
     val submittedBy = javaUUID("submitted_by")

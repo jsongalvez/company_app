@@ -1,6 +1,7 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
+import com.companyb.companyapp.database.pgEnum
 import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -23,18 +24,7 @@ internal object GrantReliefAccessTable : Table("grant_relief_access") {
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val requestedBy = javaUUID("requested_by").references(AppUserTable.id)
     val requestStatus =
-        customEnumeration<ReliefAccessStatus>(
-            name = "request_status",
-            sql = "relief_status",
-            // SAFETY: PG enum column binds as String via customEnumeration #467
-            fromDb = { value -> ReliefAccessStatus.valueOf(value as String) },
-            toDb = {
-                val obj = PGobject()
-                obj.type = "relief_status"
-                obj.value = it.name
-                obj
-            },
-        ).default(ReliefAccessStatus.PENDING)
+        pgEnum("request_status", "relief_status", ReliefAccessStatus.entries).default(ReliefAccessStatus.PENDING)
     val grantedBy = javaUUID("granted_by").references(AppUserTable.id).nullable()
     val grantedAt = timestampWithTimeZone("granted_at").nullable()
 
