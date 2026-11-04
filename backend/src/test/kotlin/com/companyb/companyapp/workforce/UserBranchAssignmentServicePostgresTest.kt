@@ -302,7 +302,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                 assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
             }
 
-        assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
+        assertEquals(1, results.count { it.isSuccess && it.getOrThrow() }, "one winner, results: $results")
         val conflict = results.single { it.isFailure }.exceptionOrNull()
         assertTrue(conflict is ConflictException || conflict is ValidationException)
         assertEquals(1, activeAssignmentCount(userAId))
@@ -356,7 +356,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                 assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
             }
 
-        assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
+        assertEquals(1, results.count { it.isSuccess && it.getOrThrow() }, "one winner, results: $results")
         assertTrue(results.single { it.isFailure }.exceptionOrNull() is ConflictException)
         val winningId = assignmentIds[results.indexOfFirst { it.isSuccess }]
         val losingId = assignmentIds.single { it != winningId }
