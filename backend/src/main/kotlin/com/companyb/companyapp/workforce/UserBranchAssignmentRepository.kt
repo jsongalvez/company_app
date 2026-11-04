@@ -86,11 +86,9 @@ internal object UserBranchAssignmentRepository {
                 .where { UserBranchAssignmentTable.id eq params.id }
                 .empty()
                 .not()
-        // Same-ID reuse is idempotent only for the owning request (branch+user+slot);
-        // a different owner reusing the id fails closed with 409. A different row means
-        // the active business key won the race, so expose a deterministic domain error.
+        // A different row won the active key: answer as the non-overlapping path does.
         if (!sameIdExists) {
-            throw ConflictException("User already has an active assignment at this branch")
+            throw ValidationException("User already has an active assignment at this branch")
         }
         val existing = findByIdInTransaction(params.id) ?: error("Assignment not found after create for ${params.id}")
         ensureSameRequestOwnership(existing, params)
