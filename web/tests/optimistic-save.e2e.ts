@@ -50,6 +50,8 @@ test("a new session shows on Today before the server answers, once", { session: 
 test("a refused session stays on Today, marked, and Retry sends it", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
     await clockInHere(screen, browser);
+    const uploads: string[] = [];
+    await browser.route(/\/api\/telemetry$/, (route) => (uploads.push(route.request.postData ?? ""), route.fallback()));
     await browser.route(/\/api\/sessions(\?|$)/, (route) =>
         route.request.method === "POST" ? route.fulfill({ status: 400, json: { error: "Price is out of range" } }) : route.fallback(),
     );
@@ -57,6 +59,7 @@ test("a refused session stays on Today, marked, and Retry sends it", { session: 
     const row = screen.getByRole("row").filter({ hasText: name });
     await expect(row.getByText("Couldn't save")).toBeVisible({ timeout: 10_000 });
     await expect(row.getByText("Price is out of range")).toBeVisible();
+    await expect.poll(() => uploads.some((b) => b.includes('\\"outbox\\":\\"POST /api/sessions\\",\\"s\\":400')), { timeout: 10_000 }).toBe(true);
     await browser.unroute(/\/api\/sessions(\?|$)/);
     await app.open("/#/today");
     await expect(row.getByText("Couldn't save")).toBeVisible({ timeout: 10_000 });

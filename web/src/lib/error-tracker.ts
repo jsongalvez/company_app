@@ -21,11 +21,7 @@ export function parseDsn(raw: string | undefined): Dsn | null {
     }
 }
 
-const ID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
-/** A path safe to send: no ids, no query. */
-export function plainPath(path: string): string {
-    return path.split("?")[0]!.replace(ID, "{id}");
-}
+import { plainPath } from "./telemetry";
 
 const MESSAGE_MAX = 200;
 const STACK_MAX = 2000;

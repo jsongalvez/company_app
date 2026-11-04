@@ -21,6 +21,13 @@ export const FLUSH_MS = 15_000;
 export const PATH_DEPTH = 6;
 export const TEXT_MAX = 200;
 
+const hex = (bytes: number) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+/** A fresh W3C `traceparent` (sampled): the server joins this call's trace, and answers its trace id in X-Trace-Id. */
+export function traceparent(): string {
+    return `00-${hex(16)}-${hex(8)}-01`;
+}
+
 /** FNV-1a, 32 bits, base 36. The replay tool computes the same over its own page. */
 export function hash(text: string): string {
     let h = 0x811c9dc5;
@@ -76,6 +83,12 @@ export function fieldOf(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaE
         d.val = el.value.slice(0, 60);
     else d.len = el.value.length;
     return d;
+}
+
+const ID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+/** A path safe to send: no ids, no query. */
+export function plainPath(path: string): string {
+    return path.split("?")[0]!.replace(ID, "{id}");
 }
 
 /** The screen, with query values dropped except the few that pick what's shown. */

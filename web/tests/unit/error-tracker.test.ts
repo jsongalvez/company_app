@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createTracker, parseDsn, plainPath } from "../../src/lib/error-tracker";
+import { createTracker, parseDsn } from "../../src/lib/error-tracker";
+import { plainPath } from "../../src/lib/telemetry";
 
 const DSN = "https://abc123@tracker.example/42";
 const UUID = "123e4567-e89b-42d3-a456-426614174000";

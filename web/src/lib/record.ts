@@ -1,5 +1,6 @@
 import { api, getToken, uuid } from "../api/client";
-import { createRecorder, describe, fieldOf, norm, routeOf, type Outcome } from "./telemetry";
+import { REFUSED, type Refused } from "./outbox.svelte";
+import { createRecorder, describe, fieldOf, norm, plainPath, routeOf, traceparent, type Outcome } from "./telemetry";
 import { APP_VERSION } from "./version";
 
 /** The live recorder for this page load; its id goes into problem reports so the replay tool can find it. */
@@ -11,7 +12,7 @@ export const recorder = createRecorder(uuid(), async (body): Promise<Outcome> =>
             method: "POST",
             body,
             keepalive: true,
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, traceparent: traceparent() },
         });
         return res.status === 401 || res.status === 429 || res.status >= 500 ? "retry" : "done";
     } catch {
@@ -117,6 +118,11 @@ export function installRecorder() {
     addEventListener("unhandledrejection", (e) =>
         recorder.record("error", { r: route(), msg: norm(e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason)) }),
     );
+    addEventListener(REFUSED, (e) => {
+        const f = (e as CustomEvent<Refused>).detail;
+        recorder.record("error", { r: route(), outbox: `${f.method} ${plainPath(f.path)}`, s: f.status });
+        void recorder.flush();
+    });
     addEventListener("pagehide", () => void recorder.flush());
 
     const started = new WeakMap<Request, number>();

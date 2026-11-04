@@ -4,6 +4,7 @@ import type { components, paths } from "./schema";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 import { canQueue, eager, enqueue, mustQueue, onlyEagerAhead } from "../lib/outbox.svelte";
 import { track } from "../lib/track";
+import { traceparent } from "../lib/telemetry";
 
 export type S = components["schemas"];
 
@@ -56,6 +57,7 @@ const auth: Middleware = {
     onRequest({ request }) {
         const t = getToken();
         if (t) request.headers.set("Authorization", `Bearer ${t}`);
+        request.headers.set("traceparent", traceparent());
         for (const [k, v] of Object.entries(viewAsHeaders())) request.headers.set(k, v);
         return request;
     },

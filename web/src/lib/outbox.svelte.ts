@@ -10,6 +10,7 @@ import { label, nowIso } from "./format";
 import { classify, parseBody } from "./outbox-classify";
 import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
+import { traceparent } from "./telemetry";
 import { track } from "./track";
 
 export type Item = {
@@ -62,6 +63,9 @@ export const SENT = "app:outbox-sent";
 /** One save the server took: `detail` is { item, answer }. Today takes the answer in (lib/today.svelte.ts). */
 export const LANDED = "app:outbox-landed";
 export type Landed = { item: Item; answer: unknown };
+/** A queued save the server refused on replay: `detail` is { method, path, status }. The recorder logs it. */
+export const REFUSED = "app:outbox-refused";
+export type Refused = { method: string; path: string; status: number };
 
 /** Run `fn` once the save carrying record `id` reaches the server. Returns how to stop waiting (a closing page). */
 export function whenLanded(id: string, fn: () => void): () => void {
@@ -301,7 +305,7 @@ async function send(i: Item): Promise<Response> {
     return fetch(i.query ? `${i.path}?${i.query}` : i.path, {
         method: i.method,
         body: replayBody(i) || undefined,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`, traceparent: traceparent() },
         signal: AbortSignal.timeout(20_000),
     });
 }
@@ -368,6 +372,7 @@ export async function flush(): Promise<void> {
             const cur = outbox.items.find((x) => x.id === i.id);
             if (cur) cur.failed = verdict.message;
             track.captureOutboxFailure({ method: live.method, path: live.path, status: res.status });
+            window.dispatchEvent(new CustomEvent<Refused>(REFUSED, { detail: { method: live.method, path: live.path, status: res.status } }));
             save();
         }
         finished = true;
