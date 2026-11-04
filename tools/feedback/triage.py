@@ -134,10 +134,9 @@ INSERT INTO feedback_triage (feedback_id, agent_feedback_id, verdict, reason, cl
 VALUES (NULLIF(:'a0','')::uuid, NULLIF(:'a1','')::uuid, :'a2'::feedback_verdict, :'a3', :'a4')
 ON CONFLICT DO NOTHING RETURNING 1;
 """
-CLAIM = """UPDATE feedback_triage SET notified_at = now() WHERE notified_at IS NULL
-RETURNING coalesce(feedback_id, agent_feedback_id), verdict, reason, CASE WHEN feedback_id IS NULL THEN 'agent' ELSE 'user' END;"""
-UNCLAIM = "UPDATE feedback_triage SET notified_at = NULL WHERE coalesce(feedback_id, agent_feedback_id) = :'a0'::uuid;"
-
+UNSENT = """SELECT coalesce(feedback_id, agent_feedback_id), verdict, reason, CASE WHEN feedback_id IS NULL THEN 'agent' ELSE 'user' END
+FROM feedback_triage WHERE notified_at IS NULL;"""
+MARK = "UPDATE feedback_triage SET notified_at = now() WHERE coalesce(feedback_id, agent_feedback_id) = :'a0'::uuid;"
 
 def ntfy(title, body):
     url = os.environ["NTFY_URL"].rstrip("/") + "/" + (os.environ.get("TEST_TOPIC") or os.environ["NTFY_TOPIC"])
@@ -151,15 +150,20 @@ def run():
         verdict, reason, how = classify(kind, redact(msg, names))
         psql(SAVE, fid if source == "USER" else "", fid if source == "AGENT" else "", verdict, reason, how)
         print(f"triaged {source} {fid[:8]} {verdict}")
-    for fid, verdict, reason, source in psql(CLAIM):
+    notify_pending()
+
+
+def notify_pending():
+    """Marks a row sent only after its ntfy went out; a failed or killed send is retried next run (at worst a repeat)."""
+    for fid, verdict, reason, source in psql(UNSENT):
         read = f"app-feedback show {fid[:8]}" if source == "user" else "app-feedback triage"
         try:
             ntfy(f"{source.capitalize()} feedback {fid[:8]}: {verdict.replace('_', ' ').lower()}",
                  f"{reason}\nRead it: {read}\nNothing was closed or changed.")
         except Exception as e:
-            psql(UNCLAIM, fid)
-            print(f"ntfy failed for {fid[:8]}: {e}", file=sys.stderr)
-
+            print(f"ntfy failed for {fid[:8]}, retried next run: {e}", file=sys.stderr)
+            continue
+        psql(MARK, fid)
 
 def evaluate(rows_path, labels_path, use_haiku):
     labels = dict(l.split() for l in open(labels_path) if l.strip())
@@ -207,8 +211,44 @@ def self_test():
     assert rules("PROBLEM", "does age update when a year passes?")[0] == "NOT_A_BUG"
     assert rules("PROBLEM", "I need a way to take me back to the sessions tab")[0] == "FEATURE_REQUEST"
     assert combine("AUTO_FIX", "AUTO_FIX") == "AUTO_FIX" and combine("AUTO_FIX", "NOT_A_BUG") == "FEATURE_REQUEST"
+    notify_test()
     print("triage self-test ok")
 
+
+def notify_test():
+    """A send that fails, or a run killed mid-loop, leaves every unsent row unsent for the next run."""
+    module = sys.modules[__name__]
+    order = [f"{i}0000000-0000-4000-8000-000000000000" for i in range(4)]
+    rows = dict.fromkeys(order)
+    sent = []
+
+    def fake_psql(sql, *args):
+        if sql == UNSENT:
+            return [[f, "AUTO_FIX", "r", "user"] for f in order if rows[f] is None]
+        if sql == MARK:
+            rows[args[0]] = "now"
+            return []
+        raise AssertionError(sql)
+
+    def fake_ntfy(title, body):
+        sent.append(title)
+        if len(sent) == 2:
+            raise OSError("ntfy down")
+        if len(sent) == 4:
+            raise SystemExit("killed by the timer's timeout")
+
+    real = module.psql, module.ntfy
+    module.psql, module.ntfy = fake_psql, fake_ntfy
+    try:
+        try:
+            notify_pending()
+        except SystemExit:
+            pass
+        assert [rows[f] for f in order] == ["now", None, "now", None], rows
+        notify_pending()
+        assert all(rows.values()), rows
+    finally:
+        module.psql, module.ntfy = real
 
 if __name__ == "__main__":
     a = sys.argv[1:]
