@@ -46,9 +46,14 @@ report) is also pushed to ntfy (`NtfyIncidentSender`): method, normalized
 route, status and trace id only. The first alert goes out at once, then at
 most one per 10 minutes; the next says how many were held back.
 
-`SENTRY_DSN` (optional, any Sentry-compatible server) is separate: every 5xx
-is sent as an event with the trace id, route, status and exception class and
-frames, never the exception message. Server `ErrorTracker`, web `track.ts`.
+Errors in the web app reach ntfy too (`WebErrorAlerts`, title "CompanyApp
+web error"): an uncaught script error, an offline save the server refused, or
+a refused call (4xx except 401, 409, 429), read from the page's uploaded
+telemetry. The alert names the error class, the screen and the page load's
+session id (`tools/replay/replay.sh <session id>`), never the message. A 5xx
+keeps its exception class and our frames on the request's root span in
+`trace_span`. `tools/verify/plant-web-error.mjs` and
+`tools/verify/plant-server-error.sh` plant one of each and wait for the alert.
 
 Truthful delivery (#526): receipt, queueing, and delivery are distinct. The
 complete sanitized packet is written to the structured log **before** async

@@ -42,7 +42,7 @@ ok "apply stops at a stuck item" expect_rc 1 run apply
 ok "apply refuses the prod VPS" expect_rc 3 bash -c "REPLICATE_SOURCE_ONLY=1 . '$R'; hostname() { echo company-app-vps; }; main apply"
 
 mkdir -p "$t/home/.config"
-for n in alerts backup deploy probe sentry; do (umask 077; echo "NTFY_URL=s3cr3t-value" >"$t/home/.config/company-app-$n.env"); done
+for n in alerts backup deploy probe; do (umask 077; echo "NTFY_URL=s3cr3t-value" >"$t/home/.config/company-app-$n.env"); done
 out=$(HOME="$t/home" bash -c "REPLICATE_SOURCE_ONLY=1 . '$R'; chk_env_files; echo \"rc=\$? \$DETAIL\"")
 ok "missing env names are reported" grep -q 'rc=1 missing:.*BACKUP_PASSPHRASE' <<<"$out"
 ok "env values never print" bash -c "! grep -q s3cr3t <<<'$out'"

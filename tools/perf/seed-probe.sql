@@ -6,7 +6,7 @@ INSERT INTO branch (name, branch_type, hidden) VALUES ('probe', 'CLINIC', true)
 INSERT INTO app_user (username, password_hash, display_name, email)
   VALUES ('probe', :'pass_hash', 'Latency probe', 'probe@example.com') ON CONFLICT DO NOTHING;
 -- Every session type gets a rate, as on a branch made in the app (BranchService.create): with REGULAR
--- only, opening New session for a returning client got 400 "No base rate" (Sentry COMPANY-APP-7).
+-- only, opening New session for a returning client got 400 "No base rate".
 INSERT INTO session_base_rate (set_by, branch_id, session_type, rate, effective_from, effective_until)
   SELECT u.id, b.id, t.session_type::session_type, 1.00, now(), now() + interval '10 years'
   FROM app_user u, branch b,

@@ -11,7 +11,6 @@ import { classify, parseBody } from "./outbox-classify";
 import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 import { traceparent } from "./telemetry";
-import { track } from "./track";
 
 export type Item = {
     id: string;
@@ -371,7 +370,6 @@ export async function flush(): Promise<void> {
             }
             const cur = outbox.items.find((x) => x.id === i.id);
             if (cur) cur.failed = verdict.message;
-            track.captureOutboxFailure({ method: live.method, path: live.path, status: res.status });
             window.dispatchEvent(new CustomEvent<Refused>(REFUSED, { detail: { method: live.method, path: live.path, status: res.status } }));
             save();
         }

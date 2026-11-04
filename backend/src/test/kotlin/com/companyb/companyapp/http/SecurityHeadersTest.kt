@@ -30,28 +30,21 @@ class SecurityHeadersTest {
         return dir.toString()
     }
 
-    private fun config(
-        apiDocs: Boolean,
-        dsn: String? = null,
-    ) = AppConfig(
-        appPort = 0,
-        dbHost = "",
-        dbPort = "",
-        dbName = "",
-        dbUser = "",
-        dbPassword = "",
-        jwtSecret = "x".repeat(64),
-        jwtIssuer = "i",
-        jwtAudience = "a",
-        authDummyPassword = "d",
-        errorTracker =
-            dsn?.let {
-                com.companyb.companyapp.observability.ErrorTrackerConfig
-                    .fromEnvironment(mapOf("SENTRY_DSN" to it))
-            },
-        webDir = webDir(),
-        apiDocs = apiDocs,
-    )
+    private fun config(apiDocs: Boolean) =
+        AppConfig(
+            appPort = 0,
+            dbHost = "",
+            dbPort = "",
+            dbName = "",
+            dbUser = "",
+            dbPassword = "",
+            jwtSecret = "x".repeat(64),
+            jwtIssuer = "i",
+            jwtAudience = "a",
+            authDummyPassword = "d",
+            webDir = webDir(),
+            apiDocs = apiDocs,
+        )
 
     private fun app(config: AppConfig) = Javalin.create { configureHttpSurface(it, config) }
 
@@ -88,10 +81,10 @@ class SecurityHeadersTest {
         }
 
     @Test
-    fun `error reports may reach the configured tracker and nowhere else`() =
-        JavalinTest.test(app(config(apiDocs = false, dsn = "https://abc@o1.ingest.sentry.io/42"))) { _, client ->
+    fun `the page may connect only to its own origin`() =
+        JavalinTest.test(app(config(apiDocs = false))) { _, client ->
             val connect = directive(client.get("/").h("Content-Security-Policy"), "connect-src")
-            assertEquals("connect-src 'self' https://o1.ingest.sentry.io", connect)
+            assertEquals("connect-src 'self'", connect)
         }
 
     @Test

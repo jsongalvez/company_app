@@ -2,7 +2,6 @@ package com.companyb.companyapp.app
 
 import com.companyb.companyapp.identity.PasswordResetDelivery
 import com.companyb.companyapp.identity.SmtpConfig
-import com.companyb.companyapp.observability.ErrorTrackerConfig
 import com.companyb.companyapp.observability.GithubIssueConfig
 import com.companyb.companyapp.observability.NtfyConfig
 import io.github.cdimascio.dotenv.dotenv
@@ -21,7 +20,6 @@ data class AppConfig(
     val smtp: SmtpConfig? = null,
     val passwordResetDevRelay: Boolean = false,
     val githubIssue: GithubIssueConfig? = null,
-    val errorTracker: ErrorTrackerConfig? = null,
     val ntfy: NtfyConfig? = null,
     // Built web app (web/dist). When set, served same-origin with SPA fallback.
     val webDir: String? = null,
@@ -74,7 +72,6 @@ data class AppConfig(
                         ),
                     ),
                 ntfy = NtfyConfig.fromLookup { env[it] },
-                errorTracker = ErrorTrackerConfig.fromLookup { env[it] },
                 webDir = env["WEB_DIR"]?.takeIf { it.isNotBlank() },
                 apiDocs = env["API_DOCS"]?.trim() == "on",
             )

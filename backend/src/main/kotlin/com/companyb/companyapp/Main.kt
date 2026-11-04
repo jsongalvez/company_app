@@ -43,14 +43,12 @@ import com.companyb.companyapp.logging.RequestLog
 import com.companyb.companyapp.notification.NextAppointmentScheduler
 import com.companyb.companyapp.notification.NotificationRoutes
 import com.companyb.companyapp.observability.Auto5xxReport
-import com.companyb.companyapp.observability.ErrorTracker
 import com.companyb.companyapp.observability.FeedbackRoutes
 import com.companyb.companyapp.observability.IncidentDelivery
 import com.companyb.companyapp.observability.IncidentService
 import com.companyb.companyapp.observability.LabelSeal
 import com.companyb.companyapp.observability.PostgresSpanExporter
 import com.companyb.companyapp.observability.RouteLabels
-import com.companyb.companyapp.observability.ServerErrorReport
 import com.companyb.companyapp.observability.TelemetryRoutes
 import com.companyb.companyapp.observability.Tracing
 import com.companyb.companyapp.observability.UserFeedbackRoutes
@@ -116,7 +114,7 @@ fun configureHttpSurface(
     cfg.jsonMapper(KotlinxSerializationMapper())
     if (config.apiDocs) configureApiDocs(cfg)
     cfg.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
-    configureFilters(cfg, SecurityHeaders(config.webDir, config.errorTracker))
+    configureFilters(cfg, SecurityHeaders(config.webDir))
     config.webDir?.let { configureWebApp(cfg, it) }
 }
 
@@ -301,8 +299,8 @@ internal fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) 
  * user report for the same request.
  */
 internal fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig) {
-    // Catch-all, nearest class wins: the HTTP-response and domain handlers above keep their statuses. It
-    // only takes what Javalin would have answered as an uncaught 500, to keep the exception for the tracker.
+    // Catch-all, nearest class wins: the HTTP-response and domain handlers above keep their statuses. It only
+    // takes what Javalin would have answered as an uncaught 500, to keep the exception for the wide event.
     config.routes.exception(Exception::class.java) { e, ctx ->
         logger.error(e) { "[UNHANDLED] ${ctx.method().name} ${RouteLabels.routeLabel(ctx)}" }
         ctx.attribute(RequestLog.SERVER_ERROR_ATTRIBUTE, e)
@@ -310,15 +308,6 @@ internal fun registerServerErrorHandler(config: io.javalin.config.JavalinConfig)
     }
     config.routes.error(HttpStatus.INTERNAL_SERVER_ERROR) { ctx ->
         TraceIdFilter.echo(ctx)
-        ErrorTracker.captureServerError(
-            ServerErrorReport(
-                traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
-                method = RouteLabels.normalizeMethod(ctx.method().name),
-                route = RouteLabels.routeLabel(ctx),
-                status = HTTP_INTERNAL_ERROR,
-                error = ctx.attribute<Throwable>(RequestLog.SERVER_ERROR_ATTRIBUTE),
-            ),
-        )
         IncidentService.fileAuto5xx(
             Auto5xxReport(
                 traceId = ctx.attribute<String>(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN,
@@ -378,7 +367,6 @@ private fun shutdownLifecycle(
     if (stopScheduler) shutdownScheduler()
     PasswordResetDelivery.shutdown()
     IncidentDelivery.shutdown()
-    ErrorTracker.shutdown()
     Tracing.stop()
     if (closeDb) DatabaseConfig.close()
 }
@@ -402,7 +390,6 @@ fun main(config: AppConfig) {
     PasswordResetDelivery.configure(config.smtp, config.passwordResetDevRelay)
     IncidentDelivery.configure(config.githubIssue, config.ntfy)
     WebErrorAlerts.configure(config.ntfy)
-    ErrorTracker.configure(config.errorTracker)
 
     DatabaseConfig.initialize(config)
     Tracing.start(PostgresSpanExporter())

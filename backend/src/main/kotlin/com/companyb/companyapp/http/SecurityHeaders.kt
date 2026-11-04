@@ -1,9 +1,7 @@
 package com.companyb.companyapp.http
 
-import com.companyb.companyapp.observability.ErrorTrackerConfig
 import io.javalin.http.Context
 import java.io.File
-import java.net.URI
 import java.security.MessageDigest
 import java.util.Base64
 
@@ -13,12 +11,7 @@ import java.util.Base64
  */
 class SecurityHeaders(
     private val webDir: String?,
-    errorTracker: ErrorTrackerConfig?,
 ) {
-    private val connectSrc =
-        listOfNotNull("'self'", errorTracker?.let { URI(it.envelopeUrl).let { u -> "${u.scheme}://${u.authority}" } })
-            .joinToString(" ")
-
     private var cachedFor: Long = -1
     private var cachedPolicy: String = policy(emptyList())
 
@@ -48,7 +41,7 @@ class SecurityHeaders(
             // Svelte sets style attributes, and the saved-screen script writes the last screen's styles inline.
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
-            "connect-src $connectSrc",
+            "connect-src 'self'",
             "worker-src 'self'",
             "manifest-src 'self'",
             "object-src 'none'",

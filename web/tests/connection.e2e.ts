@@ -44,7 +44,7 @@ test("the phone keeps every app file, the signed-in part included", { session: "
 });
 
 // After a deploy the server has only the new build's files, so a page from the old build can't fetch
-// its signed-in part (Sentry COMPANY-APP-8, -9). It reloads once and opens on the new build.
+// its signed-in part. It reloads once and opens on the new build.
 test("the app opens when its signed-in file is gone after a deploy", { session: "owner" }, async ({ app, screen, browser }) => {
     let pages = 0;
     let refused = 0;
