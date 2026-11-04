@@ -81,6 +81,7 @@ internal object UserRepository {
                     )
                 }.singleOrNull()
         }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
+
     fun createUserInTransaction(params: UserCreateParams): UUID {
         val insert =
             AppUserTable.insertIgnore {

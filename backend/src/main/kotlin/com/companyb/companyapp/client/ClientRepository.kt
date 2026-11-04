@@ -93,6 +93,7 @@ internal object ClientRepository {
     private const val RECENT_LIMIT = 20
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
+
     fun createInTransaction(params: ClientCreateParams): ClientCreateResult {
         val insertedCount =
             ClientTable

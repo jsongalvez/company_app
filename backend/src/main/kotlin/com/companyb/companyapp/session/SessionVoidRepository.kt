@@ -95,6 +95,7 @@ internal object SessionVoidRepository {
             VoidResult(row, created = rearmed > 0)
         }
     }
+
     fun unvoidInTransaction(
         sessionVoidId: UUID,
         unvoidedBy: UUID,

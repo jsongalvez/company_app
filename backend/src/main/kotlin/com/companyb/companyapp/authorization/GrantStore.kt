@@ -23,12 +23,6 @@ data class GrantReliefCapabilityParams(
     val validTo: OffsetDateTime?,
 )
 
-/**
- * Grant persistence: the only writer of `user_capability` rows outside test
- * fixtures. Workforce commands (relief request grant, invite accept/revoke, delegate
- * assign/revoke) reach these rows only through [AuthorizationGrants] in their own
- * command transaction — never by importing the table.
- */
 internal object GrantStore {
     /**
      * The shared relief-grant writer (moved from the workforce relief store):

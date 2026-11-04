@@ -157,6 +157,7 @@ internal object UserBranchAssignmentRepository {
             .where { UserBranchAssignmentTable.id eq id }
             .singleOrNull()
             ?.toAssignment()
+
     fun setEndedAtInTransaction(id: UUID): AssignmentMutation {
         val before =
             UserBranchAssignmentTable
@@ -177,6 +178,7 @@ internal object UserBranchAssignmentRepository {
                 .toAssignment()
         return AssignmentMutation(before, after)
     }
+
     fun updateSlotInTransaction(
         id: UUID,
         slot: Short,

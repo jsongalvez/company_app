@@ -137,6 +137,7 @@ internal object SessionRepository {
                 }.empty()
                 .not()
         }
+
     fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
         // Client-first lock order lives with the command: SessionService.create locks
         // the client row via the client seam before opening this store write, so the lock

@@ -153,6 +153,7 @@ internal object BranchInventoryRepository {
             created = true,
         )
     }
+
     fun findMovementInTransaction(movementId: UUID): InventoryMovement? =
         InventoryMovementTable
             .selectAll()

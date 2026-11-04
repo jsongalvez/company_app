@@ -34,6 +34,7 @@ internal object SessionPractitionerRepository {
                     (SessionPractitionerTable.practitionerId eq practitionerId)
             }.singleOrNull()
             ?.toSessionPractitioner()
+
     fun addInTransaction(
         id: UUID,
         sessionId: UUID,

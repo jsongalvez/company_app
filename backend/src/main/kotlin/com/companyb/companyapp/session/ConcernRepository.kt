@@ -42,6 +42,7 @@ internal object ConcernRepository {
             .where { ConcernTable.id eq id }
             .singleOrNull()
             ?.toConcern()
+
     fun addToSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
@@ -51,6 +52,7 @@ internal object ConcernRepository {
                 it[SessionConcernTable.sessionId] = sessionId
                 it[SessionConcernTable.concernId] = concernId
             }.insertedCount > 0
+
     fun removeFromSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
