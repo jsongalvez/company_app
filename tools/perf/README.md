@@ -55,7 +55,7 @@ node tools/perf/hotspot.mjs --base http://127.0.0.1:18181 --user owner --pass ow
 HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/hotspot.mjs --base https://<public address> --runs 5 --no-save
 ```
 
-`hotspot-audit.md` holds the ranked audit and the baseline; its "save a session" usable times from before Nov 4 include up to ~400ms of Playwright polling lag (the page had closed the dialog at the answer). Measure on a stack started without `SLOW_STATEMENT_MS=0`: logging every statement slows each request. `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
+From Nov 4 "save a session" is usable once the dialog has closed and the new row is on Today (the save no longer waits for the server). `hotspot-audit.md` holds the ranked audit and the baseline; its "save a session" usable times from before Nov 4 include up to ~400ms of Playwright polling lag (the page had closed the dialog at the answer). Measure on a stack started without `SLOW_STATEMENT_MS=0`: logging every statement slows each request. `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
 
 # Day volume and fixtures
 

@@ -5,7 +5,8 @@
 import { ApiError, api, ok, uuid, errText, type S } from "../api/client";
 import { key } from "./keys";
 import { wrote, fetchCached, peek, seed } from "./cache.svelte";
-import { doneText, heldClock, heldSoFar } from "./outbox.svelte";
+import { doneText, heldClock, heldSoFar, LANDED, type Landed } from "./outbox.svelte";
+import { parseBody } from "./outbox-classify";
 import { operationalDate } from "./format";
 import { seedTodayScreen } from "./data";
 import { act } from "./act.svelte";
@@ -48,6 +49,21 @@ export function restoreDay() {
 }
 export function resetDay() {
     Object.assign(s, { day: null, shift: null, shiftKnown: false, marking: null });
+}
+
+/** A new session or sale went out from the queue: its answer brings Today (`withToday`), and what it changed goes stale. */
+function takeLanded(e: Event) {
+    const { item, answer } = (e as CustomEvent<Landed>).detail;
+    const b = parseBody(item.body);
+    if (item.path === "/api/sessions") {
+        const screen = (answer as S["SessionResponse"] | null)?.todayScreen;
+        if (screen && typeof b.branchId === "string") takeLists(b.branchId, screen);
+        if (Array.isArray(b.newConcerns) && b.newConcerns.length) wrote("concerns");
+        wrote("sessionAdded", String(b.clientId), String(b.id));
+    } else if (item.path === "/api/product-sales") wrote("productSale", app.branchId, String(b.branchDayId));
+}
+export function watchLanded() {
+    window.addEventListener(LANDED, takeLanded);
 }
 export function catchUpDay() {
     s.marking = null;

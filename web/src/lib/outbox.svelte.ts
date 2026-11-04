@@ -18,6 +18,8 @@ export type Item = {
     user: string;
     method: string;
     path: string;
+    /** The request's query (no "?"), sent with it: `withToday=true` brings Today back with the save. */
+    query?: string;
     body: string;
     what: string;
     failed?: string;
@@ -26,19 +28,28 @@ export type Item = {
     from?: string;
     /** A request for this save has gone out at least once, so the server may already hold it. */
     tried?: boolean;
+    /** Made with good signal: shown as going out, not as waiting, and its answer alone updates Today. */
+    eager?: true;
 };
 
-type Rule = { method: string; path: RegExp; what: (b: Record<string, unknown>) => string; echo?: (b: Record<string, unknown>) => unknown };
+type Rule = {
+    method: string;
+    path: RegExp;
+    what: (b: Record<string, unknown>) => string;
+    echo?: (b: Record<string, unknown>) => unknown;
+    /** Always goes through the queue, signal or not: the page shows it at once and the server answers behind it. */
+    eager?: true;
+};
 
 const name = (b: Record<string, unknown>) => [b.firstName, b.lastName].filter(Boolean).join(" ");
 
 /** The saves that may wait. Everything else needs the server there and then. */
 const RULES: Rule[] = [
     { method: "POST", path: /^\/api\/clients$/, what: (b) => `New client ${name(b)}`, echo: (b) => heldClient(b) },
-    { method: "POST", path: /^\/api\/sessions$/, what: () => "New session" },
+    { method: "POST", path: /^\/api\/sessions$/, what: () => "New session", eager: true },
     { method: "POST", path: /^\/api\/sessions\/[^/]+\/practitioners$/, what: () => "Practitioner on a session" },
     { method: "PATCH", path: /^\/api\/sessions\/[^/]+\/status$/, what: (b) => `Session marked ${label(String(b.status))}` },
-    { method: "POST", path: /^\/api\/product-sales$/, what: () => "Product sale" },
+    { method: "POST", path: /^\/api\/product-sales$/, what: () => "Product sale", eager: true },
     { method: "POST", path: /^\/api\/expenses$/, what: (b) => `Expense ${String(b.amount ?? "")}`.trim() },
     { method: "POST", path: /^\/api\/allowances$/, what: (b) => `Allowance ${String(b.amount ?? "")}`.trim() },
     { method: "POST", path: /^\/api\/attendance\/clock-in$/, what: () => "Clock in" },
@@ -48,6 +59,21 @@ const RULES: Rule[] = [
 
 const KEY = "outbox";
 export const SENT = "app:outbox-sent";
+/** One save the server took: `detail` is { item, answer }. Today takes the answer in (lib/today.svelte.ts). */
+export const LANDED = "app:outbox-landed";
+export type Landed = { item: Item; answer: unknown };
+
+/** Run `fn` once the save carrying record `id` reaches the server. Returns how to stop waiting (a closing page). */
+export function whenLanded(id: string, fn: () => void): () => void {
+    const on = (e: Event) => {
+        if (parseBody((e as CustomEvent<Landed>).detail.item.body).id !== id) return;
+        stop();
+        fn();
+    };
+    const stop = () => window.removeEventListener(LANDED, on);
+    window.addEventListener(LANDED, on);
+    return stop;
+}
 
 function load(): Item[] {
     try {
@@ -135,9 +161,25 @@ export function pendingClients(): S["ClientResponse"][] {
     return pendingTo("POST", /^\/api\/clients$/).map((x) => heldClient(x.body));
 }
 
-/** New sessions made on this phone that the server's list may not show yet; `unsent` while still waiting. */
-export function pendingSessions(): { at: string; body: Record<string, unknown>; unsent: boolean }[] {
-    return pendingTo("POST", /^\/api\/sessions$/).map((x) => ({ at: x.item.at, body: x.body, unsent: x.item.sentAt === undefined }));
+/** Where a save made on this phone stands: going out now, waiting for signal, refused by the server, or taken. */
+export type Standing = "sending" | "waiting" | "failed" | "sent";
+function standing(i: Item): Standing {
+    if (i.failed) return "failed";
+    if (i.sentAt !== undefined) return "sent";
+    return i.eager && (!i.tried || outbox.sending) ? "sending" : "waiting";
+}
+
+/** New sessions made on this phone that the server's list may not show yet, refused ones included. */
+export function pendingSessions(): { id: string; at: string; body: Record<string, unknown>; state: Standing; failed?: string }[] {
+    return mine()
+        .filter((i) => (i.failed || stillShown(i)) && i.method === "POST" && i.path === "/api/sessions")
+        .map((i) => ({ id: i.id, at: i.at, body: parseBody(i.body), state: standing(i), failed: i.failed }));
+}
+
+/** Product sales made on this phone that the server hasn't taken yet, for a branch day. */
+export function pendingSales(branchDayId: string | undefined): number {
+    if (!branchDayId) return 0;
+    return pendingTo("POST", /^\/api\/product-sales$/).filter((x) => x.body.branchDayId === branchDayId).length;
 }
 
 /** A session's mark still waiting to send, so lists can show it straight away. */
@@ -160,6 +202,14 @@ function rule(method: string, path: string): Rule | undefined {
     return RULES.find((r) => r.method === method && r.path.test(path));
 }
 
+/** Does this save always go through the queue (the page shows it before the server answers)? */
+export function eager(method: string, path: string): boolean {
+    return canQueue(method, path) && !!rule(method, path)?.eager;
+}
+
+/** Only saves that go out now are ahead in the queue: a save lined up behind them isn't waiting for signal. */
+export const onlyEagerAhead = () => waiting().every((i) => i.eager);
+
 /** May this request wait for signal? (Not while viewing as someone else.) */
 export function canQueue(method: string, path: string): boolean {
     return !!rule(method, path) && !sessionStorage.getItem("viewAs") && !!tokenUser();
@@ -170,8 +220,11 @@ export function mustQueue(method: string, path: string): boolean {
     return canQueue(method, path) && waiting().length > 0;
 }
 
-/** Store a save for later; answer the page as if it went through (the record's own fields). */
-export function enqueue(method: string, path: string, body: string, shown?: string): Response {
+/**
+ * Store a save for later; answer the page as if it went through (the record's own fields).
+ * `held` is false for an eager save made with good signal: it goes out now, so the page says "added", not "saved on this phone".
+ */
+export function enqueue(method: string, path: string, body: string, shown?: string, query?: string, held = true): Response {
     const r = rule(method, path)!;
     const b = parseBody(body);
     let from: string | undefined;
@@ -199,9 +252,12 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
             body,
             what: r.what(b),
             ...(from !== undefined ? { from } : {}),
+            ...(query ? { query } : {}),
+            ...(r.eager && !held ? { eager: true as const } : {}),
         });
     save();
-    queuedCount++;
+    if (held) queuedCount++;
+    deferredCount++;
     setTimeout(() => void flush(), 0);
     return new Response(JSON.stringify(r.echo ? r.echo(b) : b), { status: 202, headers: { "Content-Type": "application/json", "X-Queued": "1" } });
 }
@@ -214,6 +270,9 @@ function bodyStatus(i: Item): string | undefined {
 let queuedCount = 0;
 /** Bumped on every save that was held; act()/forms compare it to say "saved on this phone". */
 export const heldSoFar = () => queuedCount;
+let deferredCount = 0;
+/** Bumped on every save the queue took, held or eager: the page's answer is the echo, and Today updates when it lands. */
+export const deferredSoFar = () => deferredCount;
 
 export const HELD = "Saved on this phone. It will send by itself when the signal is back.";
 
@@ -222,13 +281,24 @@ export function doneText(before: number, done?: string): string | undefined {
     return heldSoFar() > before ? HELD : done;
 }
 
+/** Send a refused save again, as it was (the person fixed what the server objected to, or it was passing). */
+export function retry(id: string) {
+    const i = outbox.items.find((x) => x.id === id);
+    if (!i) return;
+    delete i.failed;
+    i.tried = false;
+    if (rule(i.method, i.path)?.eager) i.eager = true;
+    save();
+    void flush();
+}
+
 export function discard(id: string) {
     outbox.items = outbox.items.filter((i) => i.id !== id);
     save();
 }
 
 async function send(i: Item): Promise<Response> {
-    return fetch(i.path, {
+    return fetch(i.query ? `${i.path}?${i.query}` : i.path, {
         method: i.method,
         body: replayBody(i) || undefined,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
@@ -290,7 +360,9 @@ export async function flush(): Promise<void> {
                 if (keepsAfterSend(i)) live.sentAt = Date.now();
                 else outbox.items = outbox.items.filter((x) => x.id !== i.id);
                 save();
-                sent++;
+                window.dispatchEvent(new CustomEvent<Landed>(LANDED, { detail: { item: live, answer: body } }));
+                // An eager save's own answer updates Today; only saves that waited for signal make every screen re-read.
+                if (!live.eager) sent++;
                 continue;
             }
             const cur = outbox.items.find((x) => x.id === i.id);

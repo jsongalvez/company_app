@@ -2,7 +2,7 @@ import { nowIso, plain } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
-import { canQueue, enqueue, mustQueue } from "../lib/outbox.svelte";
+import { canQueue, eager, enqueue, mustQueue, onlyEagerAhead } from "../lib/outbox.svelte";
 import { track } from "../lib/track";
 
 export type S = components["schemas"];
@@ -110,15 +110,19 @@ function repeatable(method: string, body: string | null): boolean {
  */
 async function resilientFetch(req: Request): Promise<Response> {
     const body = req.method === "GET" || req.method === "HEAD" ? null : await req.clone().text();
-    const path = new URL(req.url).pathname;
+    const url = new URL(req.url);
+    const path = url.pathname;
+    const query = url.search.slice(1) || undefined;
     // The page says what status a mark starts from (the server never sees this header).
     const shown = req.headers.get(BASE_STATUS) ?? undefined;
     req.headers.delete(BASE_STATUS);
     // Saves already waiting for signal go first: this one lines up behind them.
-    if (mustQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown);
+    if (mustQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query, net.trouble || !navigator.onLine || !onlyEagerAhead());
     const queueable = canQueue(req.method, path);
     // Signal already known to be bad: hold the save now rather than make the person wait.
-    if (queueable && (net.trouble || !navigator.onLine)) return enqueue(req.method, path, body ?? "", shown);
+    if (queueable && (net.trouble || !navigator.onLine)) return enqueue(req.method, path, body ?? "", shown, query);
+    // New sessions and sales show at once; the queue sends them now and keeps them if that fails.
+    if (eager(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query, false);
     // Retry only while the signal still looks fine: once it's known to be bad, answer at once
     // (pages show what they had and reload by themselves when the connection is back).
     const knownBad = net.trouble;
@@ -134,7 +138,7 @@ async function resilientFetch(req: Request): Promise<Response> {
             reportNetFailure();
             // Saves that can wait are held at the first failure: the queue resends them itself,
             // and each carries its own id or version, so a copy that did arrive isn't doubled.
-            if (queueable) return enqueue(req.method, path, body ?? "", shown);
+            if (queueable) return enqueue(req.method, path, body ?? "", shown, query);
             // The phone says it has no signal: say so now; waiting out retries only feels slow.
             if (!navigator.onLine || knownBad) throw new NetError(false);
             if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
@@ -145,7 +149,7 @@ async function resilientFetch(req: Request): Promise<Response> {
             await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
             continue;
         }
-        if (GATEWAY.has(res.status) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown);
+        if (GATEWAY.has(res.status) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query);
         reportNetOk();
         return res;
     }

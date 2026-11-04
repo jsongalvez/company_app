@@ -2,6 +2,8 @@
     import { api, ok, uuid, type S } from "../api/client";
     import { app } from "../lib/app.svelte";
     import { today } from "../lib/today.svelte";
+    import { deferredSoFar, whenLanded } from "../lib/outbox.svelte";
+    import { onDestroy } from "svelte";
     import { wrote, fetchCached, peek } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { askReason } from "../lib/ask.svelte";
@@ -32,6 +34,8 @@
     } = $props();
 
     const a = new Action();
+    const waits: (() => void)[] = [];
+    onDestroy(() => waits.forEach((stop) => stop()));
     let inv = $state<S["BranchInventoryResponse"][]>([]);
     let sessions = $state<S["DashboardSessionResponse"][]>([]);
     let productId = $state("");
@@ -89,10 +93,14 @@
             if (!target) throw new Error("Today isn't open at this branch yet. Try again in a moment.");
             // Opened from a session's page, the sale is that session's, on whatever day it was.
             const linked = sessionId ?? sessions.find((x) => x.id === linkSession)?.id ?? null;
+            const queued = deferredSoFar();
+            const id = uuid();
+            const landed = whenLanded(id, onsaved);
+            waits.push(landed);
             await ok(
                 api.POST("/api/product-sales", {
                     body: {
-                        id: uuid(),
+                        id,
                         branchDayId: target,
                         sessionId: linked,
                         clientId: null,
@@ -102,6 +110,12 @@
                     },
                 }),
             );
+            // The queue took it (the usual case): close now, and the page re-reads once the server has it.
+            if (deferredSoFar() > queued) {
+                open = false;
+                return;
+            }
+            landed();
             refreshAfter();
         }, "Sale recorded");
     }

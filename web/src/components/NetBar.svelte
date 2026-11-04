@@ -1,6 +1,6 @@
 <script lang="ts">
     import { net } from "../lib/net.svelte";
-    import { outbox, waiting, failed, discard, flush } from "../lib/outbox.svelte";
+    import { outbox, waiting, failed, discard, flush, retry } from "../lib/outbox.svelte";
     import { time } from "../lib/format";
     import { update } from "../lib/update.svelte";
 
@@ -46,6 +46,7 @@
                         {#each f as i (i.id)}
                             <li>
                                 <span><b>{i.what}</b> · {time(i.at)}<br /><span class="err">{i.failed}</span></span>
+                                <button class="sm primary" onclick={() => retry(i.id)}>Retry</button>
                                 <button class="sm" onclick={() => drop(i.id, i.what)}>Throw away</button>
                             </li>
                         {/each}

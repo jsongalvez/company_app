@@ -255,11 +255,18 @@ async function oneRun() {
             return !!el && el.value !== "";
         });
         await settle();
+        const probeRows = await page.locator("tbody tr").filter({ hasText: "Probe" }).count();
         await flow(
             "save a session",
             () => dialog.getByRole("button", { name: "Add session" }).click(),
-            // Polled every 50ms like screenUsable: locator.waitFor backs off to 500ms and saw the dialog close ~400ms late.
-            () => page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 30000, polling: 50 }),
+            // Usable once the dialog is gone and the new session's row is on Today. Polled every 50ms like screenUsable:
+            // locator.waitFor backs off to 500ms and saw the dialog close ~400ms late.
+            () =>
+                page.waitForFunction(
+                    (n) => !document.querySelector("dialog[open]") && [...document.querySelectorAll("tbody tr")].filter((r) => r.textContent?.includes("Probe")).length > n,
+                    probeRows,
+                    { timeout: 30000, polling: 50 },
+                ),
         );
         await flow("mark the session Done", async () => {
             const r = page.getByRole("row").filter({ hasText: "Probe" }).filter({ has: page.getByRole("button", { name: "Done" }) }).first();

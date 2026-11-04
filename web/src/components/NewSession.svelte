@@ -5,6 +5,8 @@
     import { app, can } from "../lib/app.svelte";
     import { today, takeLists } from "../lib/today.svelte";
     import { wrote, fetchCached } from "../lib/cache.svelte";
+    import { deferredSoFar, whenLanded } from "../lib/outbox.svelte";
+    import { onDestroy } from "svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { label, peso, operationalDate, shortDay } from "../lib/format";
@@ -34,6 +36,8 @@
     } = $props();
 
     const a = new Action();
+    const waits: (() => void)[] = [];
+    onDestroy(() => waits.forEach((stop) => stop()));
     let client = $state<S["ClientResponse"] | null>(null);
     let creating = $state(false);
     let draft = $state<ClientDraft>(emptyDraft());
@@ -161,11 +165,16 @@
                 // Today comes back with the save, so Today's lists redraw without a second request.
                 // Not when a booking also changes: Today would then miss it.
                 const withToday = !date && !booking && !nextDate;
+                const queued = deferredSoFar();
+                const id = uuid();
+                // Listening before the send: the queue may get the answer before the booking below is done.
+                const landed = whenLanded(id, onsaved);
+                waits.push(landed);
                 const s = await ok(
                     api.POST("/api/sessions", {
                         params: { query: { withToday } },
                         body: {
-                            id: uuid(),
+                            id,
                             clientId: c.id,
                             branchId: app.branchId,
                             isWalkIn: walkIn,
@@ -181,7 +190,6 @@
                         },
                     }),
                 );
-                if (fresh.length) wrote("concerns");
                 const chosen = c;
                 await Promise.all([
                     // A booked visit that turned into this session is marked as came.
@@ -197,6 +205,13 @@
                         : null,
                 ]);
                 wrote("bookings");
+                // The queue took it (the usual case): Today shows it now and takes the server's answer when it lands.
+                if (deferredSoFar() > queued) {
+                    open = false;
+                    return;
+                }
+                landed();
+                if (fresh.length) wrote("concerns");
                 if (withToday && s.todayScreen) takeLists(app.branchId, s.todayScreen);
                 wrote("sessionAdded", c.id, s.id);
                 open = false;
