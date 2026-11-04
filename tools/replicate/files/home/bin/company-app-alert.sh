@@ -3,6 +3,7 @@
 #  1. a Coolify deployment of the app finished 'failed' (one alert per deployment)
 #  2. /health failed twice in a row (one alert), then one recovery message
 #  3. a key route slow in two probe runs in a row (one alert), then one recovery message: check-latency.py
+#  4. the root disk at $DISK_ALERT_PCT% or more (one alert), then one recovery message
 # State lives in $STATE; overrides below exist for the proofs.
 set -uo pipefail
 . "$HOME/.config/company-app-deploy.env"   # COOLIFY_TOKEN, COOLIFY_URL, COOLIFY_APP_UUID
@@ -10,6 +11,7 @@ set -uo pipefail
 NTFY_TOPIC="${TEST_TOPIC:-$NTFY_TOPIC}"
 STATE="${ALERT_STATE:-$HOME/.local/state/company-app-alerts}"; mkdir -p "$STATE"
 MAX_AGE_H="${ALERT_MAX_AGE_H:-36}"
+DISK_ALERT_PCT="${DISK_ALERT_PCT:-85}"
 
 notify() { # title message priority tags
   curl -s -m15 -o /dev/null -H "Title: $1" -H "Priority: ${3:-default}" -H "Tags: ${4:-}" -d "$2" "$NTFY_URL/$NTFY_TOPIC" \
@@ -65,11 +67,27 @@ check_health() {
   fi
 }
 
+check_disk() {
+  local used free
+  used=$(df --output=pcent / | tail -1 | tr -dc 0-9)
+  free=$(df -h --output=avail / | tail -1 | tr -d ' ')
+  if (( used >= DISK_ALERT_PCT )); then
+    if [[ ! -e "$STATE/disk-high" ]]; then
+      notify "company_app disk ${used}% full" "Root disk at ${used}% (${free} free). Old images: ~/bin/company-app-prune-images.sh; docker system df shows the rest." high "warning"
+      touch "$STATE/disk-high"; echo "alerted disk ${used}%"
+    fi
+  elif [[ -e "$STATE/disk-high" ]]; then
+    notify "company_app disk OK" "Root disk back to ${used}% (${free} free)." default "white_check_mark"
+    rm -f "$STATE/disk-high"; echo "alerted disk recovery"
+  fi
+}
+
 check_latency() { python3 -I "$HOME/.local/share/company-app-perf/check-latency.py"; }
 
 case "${1:-all}" in
   deploys) check_deploys ;;
   health) check_health ;;
   latency) check_latency ;;
-  all) check_deploys; check_health; check_latency ;;
+  disk) check_disk ;;
+  all) check_deploys; check_health; check_disk; check_latency ;;
 esac

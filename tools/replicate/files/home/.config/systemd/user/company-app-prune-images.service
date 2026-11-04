@@ -1,0 +1,7 @@
+[Unit]
+Description=Remove old company_app images and build cache, keeping the newest 3 images and 2GB of cache
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/bin/company-app-prune-images.sh
