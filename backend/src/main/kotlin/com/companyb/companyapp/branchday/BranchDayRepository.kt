@@ -1,6 +1,7 @@
 package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.contracts.branchday.DayStatus
+import com.companyb.companyapp.logging.RequestQueryTally
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -15,11 +16,23 @@ import java.util.UUID
 internal object BranchDayRepository {
     private val logger = KotlinLogging.logger {}
 
+    private val dayReads = setOf("branch_day")
+
+    private data class ById(
+        val id: UUID,
+    ) : RequestQueryTally.ReadKey
+
+    private data class ByDate(
+        val branchId: UUID,
+        val date: LocalDate,
+    ) : RequestQueryTally.ReadKey
+
+    /** The day, made if missing. A day this request already read is not inserted and read again. */
     fun resolveOrCreate(
         branchId: UUID,
         date: LocalDate,
     ): BranchDay =
-        transaction {
+        findByBranchAndDate(branchId, date) ?: transaction {
             BranchDayTable.insertIgnore {
                 it[BranchDayTable.branchId] = branchId
                 it[BranchDayTable.date] = date
@@ -32,8 +45,8 @@ internal object BranchDayRepository {
         }.also { logger.info { "[RESOLVE-OR-CREATE] Resolved branch_day ${it.id} (status=${it.status})" } }
 
     fun findById(branchDayId: UUID): BranchDay? =
-        transaction {
-            findByIdInTransaction(branchDayId)
+        RequestQueryTally.untilWriteOrNull(ById(branchDayId), BranchDay::class, dayReads) {
+            transaction { findByIdInTransaction(branchDayId) }
         }
 
     /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
@@ -78,12 +91,14 @@ internal object BranchDayRepository {
         branchId: UUID,
         date: LocalDate,
     ): BranchDay? =
-        transaction {
-            BranchDayTable
-                .selectAll()
-                .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
-                .singleOrNull()
-                ?.toBranchDay()
+        RequestQueryTally.untilWriteOrNull(ByDate(branchId, date), BranchDay::class, dayReads) {
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
+                    .singleOrNull()
+                    ?.toBranchDay()
+            }
         }
 
     /**

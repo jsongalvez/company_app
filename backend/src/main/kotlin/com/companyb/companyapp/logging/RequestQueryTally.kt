@@ -15,6 +15,7 @@ data class SlowStatementEvent(
     val traceId: String,
     val ms: Long,
     val sql: String,
+    val at: String? = null,
 )
 
 /**
@@ -39,6 +40,12 @@ object RequestQueryTally {
      * a local way to see which queries a request repeats (`tools/perf/sql-trace.py`).
      */
     private val slowMs: Long = System.getenv("SLOW_STATEMENT_MS")?.toLongOrNull() ?: SLOW_STATEMENT_MS
+
+    /** `SLOW_STATEMENT_STACK=1` adds the app frames that ran each logged statement (`sql-trace.py --at`). */
+    private val withStack: Boolean = System.getenv("SLOW_STATEMENT_STACK") == "1"
+    private const val APP_PACKAGE = "com.companyb.companyapp."
+    private const val STACK_FRAMES = 4
+    private val plumbing = listOf("logging.", "database.")
 
     private const val EVENT_SLOW = "slow_statement"
     private const val TRACE_UNKNOWN = "unknown"
@@ -100,6 +107,22 @@ object RequestQueryTally {
         return type.safeCast(memo[key]?.value) ?: load().also { memo[key] = Held(reads, it) }
     }
 
+    private class Maybe(
+        val value: Any?,
+    )
+
+    /** [untilWrite] for a read that may find nothing: a missing row is kept as missing too. */
+    fun <T : Any> untilWriteOrNull(
+        key: ReadKey,
+        type: KClass<T>,
+        reads: Set<String>,
+        load: () -> T?,
+    ): T? {
+        val memo = current.get()?.untilWrite ?: return load()
+        val held = memo[key]?.value as? Maybe ?: return load().also { memo[key] = Held(reads, Maybe(it)) }
+        return held.value?.let { type.safeCast(it) }
+    }
+
     fun dropReads() {
         current.get()?.untilWrite?.clear()
     }
@@ -123,9 +146,20 @@ object RequestQueryTally {
         val ms = nanos / NANOS_PER_MILLI
         if (ms >= slowMs) {
             val traceId = MDC.get(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN
-            logger.warn { Json.encodeToString(SlowStatementEvent(EVENT_SLOW, traceId, ms, maskedSql(sql))) }
+            val at = if (withStack) callers() else null
+            logger.warn { Json.encodeToString(SlowStatementEvent(EVENT_SLOW, traceId, ms, maskedSql(sql), at)) }
         }
     }
+
+    private fun callers(): String =
+        Thread
+            .currentThread()
+            .stackTrace
+            .asSequence()
+            .filter { it.className.startsWith(APP_PACKAGE) }
+            .filter { f -> plumbing.none { f.className.removePrefix(APP_PACKAGE).startsWith(it) } }
+            .take(STACK_FRAMES)
+            .joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
 
     private fun maskedSql(sql: String): String = sql.replace(quotedLiteral, "?").take(MAX_SQL_CHARS)
 }

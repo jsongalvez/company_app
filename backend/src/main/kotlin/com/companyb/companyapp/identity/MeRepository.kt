@@ -6,6 +6,7 @@ import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.workforce.AttendanceTable
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -51,21 +52,28 @@ internal object MeRepository {
         val assignmentId: UUID?,
     )
 
+    private data class UserById(
+        val id: UUID,
+    ) : RequestQueryTally.ReadKey
+
+    /** Read once per request until a write to `app_user`: `/api/start` asked three times. */
     fun findUser(userId: UUID): MeUser? =
-        AppUserTable
-            .selectAll()
-            .where { AppUserTable.id eq userId }
-            .singleOrNull()
-            ?.let { row ->
-                MeUser(
-                    id = row[AppUserTable.id],
-                    username = row[AppUserTable.username],
-                    displayName = row[AppUserTable.displayName],
-                    email = row[AppUserTable.email],
-                    status = row[AppUserTable.status],
-                    createdAt = row[AppUserTable.createdAt],
-                )
-            }
+        RequestQueryTally.untilWriteOrNull(UserById(userId), MeUser::class, setOf("app_user")) {
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .singleOrNull()
+                ?.let { row ->
+                    MeUser(
+                        id = row[AppUserTable.id],
+                        username = row[AppUserTable.username],
+                        displayName = row[AppUserTable.displayName],
+                        email = row[AppUserTable.email],
+                        status = row[AppUserTable.status],
+                        createdAt = row[AppUserTable.createdAt],
+                    )
+                }
+        }
 
     /** True when another account already uses [email] (emails are unique). */
     fun emailTakenByOther(

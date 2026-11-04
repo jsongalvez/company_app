@@ -191,7 +191,7 @@ private fun configureEvents(config: io.javalin.config.JavalinConfig) {
     }
 }
 
-private fun configureAuth(config: io.javalin.config.JavalinConfig) {
+internal fun configureAuth(config: io.javalin.config.JavalinConfig) {
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
@@ -269,7 +269,7 @@ private fun registerAuthRoutes(config: io.javalin.config.JavalinConfig) {
     AuthRoutes.logout(config)
 }
 
-private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
+internal fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
     config.routes.exception(ValidationException::class.java) { e, ctx ->
         TraceIdFilter.echo(ctx)
         ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))

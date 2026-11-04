@@ -1,6 +1,7 @@
 package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -68,10 +69,16 @@ internal object BranchRepository {
         return old
     }
 
+    private data class ById(
+        val id: UUID,
+    ) : RequestQueryTally.ReadKey
+
+    /** Read once per request until a write to `branch`: a clock-in asked for the same branch four times. */
     fun findById(id: UUID): Branch? =
-        transaction {
-            findByIdInTransaction(id)
-        }.also { logger.debug { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
+        RequestQueryTally
+            .untilWriteOrNull(ById(id), Branch::class, setOf("branch")) {
+                transaction { findByIdInTransaction(id) }
+            }.also { logger.debug { "[FIND-BRANCH] Branch ${id.toString().maskUUID()} found=${it != null}" } }
 
     /** Every branch people see; a hidden branch (the latency probe's) is left out. */
     fun findAll(): List<Branch> =

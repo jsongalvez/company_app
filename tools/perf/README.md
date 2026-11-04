@@ -30,6 +30,10 @@ node tools/perf/calls.mjs --base http://127.0.0.1:18181 --user owner --pass owne
 
 `tools/verify/verify.sh up` gives the local app. The save flow writes one session for a client named "Probe" (made on first use) and marks it Done: point it at a test or probe account, or pass `--no-save`.
 
+# Statements per request
+
+`SLOW_STATEMENT_MS=0 tools/verify/verify.sh up` logs every statement with its trace id; add `SLOW_STATEMENT_STACK=1` to log the app frames behind each one. `python3 tools/perf/sql-trace.py <backend.log> --route clock-in --at` then lists, per route, each repeated statement and who ran it. `node tools/perf/clock-flow.mjs --runs 5` clocks out and in through the API (`--base`, `CALLS_USER`/`CALLS_PASS` as for `calls.mjs`; the probe user works on prod) and prints the server time per route. The ceilings per hot route live in `RouteQueryBudgetTest`; lower one when a change cuts statements.
+
 # Server time per route
 
 `route-bench.mjs` signs in once and sends `--n` requests to each main read route, reading the app's own `Server-Timing` (db and app ms), so the network and the browser are out of the number. For an A/B, start a copy of the old commit on 18282 (see `verify.sh at`) and alternate runs against both ports; single runs on the VPS move 2-3x with its other load.

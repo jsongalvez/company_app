@@ -7,7 +7,8 @@ app, then:
     python3 tools/perf/sql-trace.py /tmp/verify-run-18181/backend.log [--route clock-in] [--top 15]
 
 Per route (slowest request kept): the statement count, then each distinct SQL with
-how often it ran. A statement run once per row (N+1) shows as `12x`.
+how often it ran. A statement run once per row (N+1) shows as `12x`. With SLOW_STATEMENT_STACK=1 on the
+backend, `--at` names the app frames behind each repeated statement.
 """
 import argparse
 import collections
@@ -35,13 +36,18 @@ def main():
     ap.add_argument("log")
     ap.add_argument("--route", default="", help="substring of the route template")
     ap.add_argument("--top", type=int, default=12, help="routes to show, most queries first")
+    ap.add_argument("--at", action="store_true", help="under each repeated statement, the callers (needs SLOW_STATEMENT_STACK=1)")
     a = ap.parse_args()
 
     sql = collections.defaultdict(list)
+    at = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     done = {}
     for e in events(a.log):
         if e.get("event") == "slow_statement":
-            sql[e["traceId"]].append(re.sub(r"\s+", " ", e.get("sql", "")))
+            text = re.sub(r"\s+", " ", e.get("sql", ""))
+            sql[e["traceId"]].append(text)
+            if e.get("at"):
+                at[e["traceId"]][text][e["at"]] += 1
         elif e.get("event") == "request_completed":
             done[e["traceId"]] = e
     if not sql:
@@ -60,6 +66,9 @@ def main():
         print(f"\n{key}: {len(stmts)} statements, {repeats} repeats (trace {t})")
         for s, n in collections.Counter(stmts).most_common():
             print(f"  {n:3d}x {s[:220]}")
+            if a.at and n > 1:
+                for where, k in at[t][s].most_common():
+                    print(f"         {k}x {where}")
 
 
 if __name__ == "__main__":
