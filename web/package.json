@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
     "gen:api": "openapi-typescript ../backend/build/openapi/openapi-canonical.json -o src/api/schema.d.ts",
-    "format": "prettier --write src",
-    "lint": "prettier --check src",
+    "format": "prettier --write src tests scripts",
+    "lint": "prettier --check src tests scripts",
     "e2e": "node scripts/e2e.mjs"
   },
   "devDependencies": {
