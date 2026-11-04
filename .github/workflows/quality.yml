@@ -228,3 +228,4 @@ jobs:
           bash tools/perf/test/record.test.sh
           bash tools/perf/test/alert.test.sh
           bash tools/perf/test/decisions.test.sh
+          python3 -I tools/feedback/triage.py self-test

@@ -4,6 +4,8 @@
 #   app-feedback show ID          one report in full, plus the reporter's telemetry sessions around it
 #   app-feedback done ID...       mark these DONE (8-char id prefixes are fine)
 #   app-feedback since DAYS       every report from the last DAYS days (for the pattern log)
+#   app-feedback give AGENT TEXT  an agent files what tripped it up; triage picks it up within 10 min
+#   app-feedback triage           every verdict the triage timer wrote, newest first
 set -e
 C=$(docker ps --format '{{.Names}}' | grep '^@DB_PREFIX@' | head -1)
 [ -n "$C" ] || { echo "prod postgres container (@DB_PREFIX@*) not running" >&2; exit 2; }
@@ -27,5 +29,13 @@ case "$1" in
   since)
     d=${2:-7}; case "$d" in *[!0-9]*) echo "DAYS must be a number" >&2; exit 2;; esac
     q "select left(id::text,8), created_at::date, status, kind, coalesce(page,''), replace(message,E'\n',' '), left(replace(coalesce(details,''),E'\n',' '),200) from user_feedback where created_at > now() - interval '$d days' order by created_at" ;;
-  *) sed -n '2,6p' "$0"; exit 2 ;;
+  give)
+    a=${2:-}; shift 2 2>/dev/null || true; t="$*"
+    case "$a" in ''|*[!A-Za-z0-9_-]*) echo "usage: app-feedback give AGENT TEXT (AGENT: letters, digits, - or _)" >&2; exit 2;; esac
+    [ -n "$t" ] || { echo "usage: app-feedback give AGENT TEXT" >&2; exit 2; }
+    echo "insert into agent_feedback (agent, message) values (:'a', :'t') returning left(id::text,8);" \
+      | docker exec -i "$C" psql -U company_user -d company_app -At -v ON_ERROR_STOP=1 -v a="$a" -v t="$t" ;;
+  triage)
+    q "select left(coalesce(feedback_id, agent_feedback_id)::text,8), triaged_at::date, case when agent_feedback_id is null then 'user' else 'agent' end, verdict, classifier, reason from feedback_triage order by triaged_at desc" ;;
+  *) sed -n '2,8p' "$0"; exit 2 ;;
 esac

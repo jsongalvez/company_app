@@ -20,7 +20,7 @@ SWAP_MB=8192
 IDLE_TIMEOUT=${IDLE_TIMEOUT:-90s}
 COOLIFY_VERSION=4.5.3
 COOLIFY_PORTS="8000 8080 6001 6002"
-USER_TIMERS="company-app-alert company-app-deploy-gate company-app-db-backup company-app-perf company-app-probe company-app-prune-images"
+USER_TIMERS="company-app-alert company-app-deploy-gate company-app-db-backup company-app-feedback-triage company-app-perf company-app-probe company-app-prune-images"
 APP_ENV_NAMES="APP_HOST APP_PORT AUTH_DUMMY_PASSWORD DB_HOST DB_PORT JWT_AUDIENCE JWT_ISSUER JWT_SECRET NTFY_TOPIC NTFY_URL POSTGRES_DB POSTGRES_PASSWORD POSTGRES_USER SMTP_FROM SMTP_HOST SMTP_PASSWORD SMTP_PORT SMTP_USERNAME"
 ENV_FILES="alerts:NTFY_URL,NTFY_TOPIC backup:R2_ACCOUNT_ID,R2_BUCKET,R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,BACKUP_PASSPHRASE deploy:COOLIFY_TOKEN,COOLIFY_URL,COOLIFY_APP_UUID probe:PROBE_USER,PROBE_PASS,PROBE_DB_CONTAINER"
 
@@ -77,7 +77,8 @@ home_files() {
     "$u/company-app-perf.service" "$p/company-app-perf.service" "$u/company-app-perf.timer" "$p/company-app-perf.timer" \
     "$d/probe.sh" "$p/probe.sh" "$d/probe.mjs" "$p/probe.mjs" "$d/perf-slow" "$p/perf-slow" \
     "$d/check-latency.py" "$p/check-latency.py" "$d/limits.json" "$p/limits.json" \
-    "$u/company-app-probe.service" "$p/systemd/company-app-probe.service" "$u/company-app-probe.timer" "$p/systemd/company-app-probe.timer"
+    "$u/company-app-probe.service" "$p/systemd/company-app-probe.service" "$u/company-app-probe.timer" "$p/systemd/company-app-probe.timer" \
+    "$HOME/.local/share/company-app-triage/triage.py" "$REPO/tools/feedback/triage.py"
 }
 
 # Compares a live file with its source; a root-only file needs sudo to read.

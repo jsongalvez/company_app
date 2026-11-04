@@ -1,0 +1,10 @@
+[Unit]
+Description=Triage new company_app feedback (verdict and one ntfy each; never closes or ships)
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=DB_PREFIX=@DB_PREFIX@
+EnvironmentFile=%h/.config/company-app-alerts.env
+ExecStart=/usr/bin/python3 -I %h/.local/share/company-app-triage/triage.py run
+TimeoutStartSec=15min
