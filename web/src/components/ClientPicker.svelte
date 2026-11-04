@@ -51,7 +51,7 @@
 {#if value}
     <div class="picked row">
         <b class="grow ellipsis">{clientName(value)}</b>
-        <span class="muted">{value.gender === "UNKNOWN" ? "" : value.gender} {value.age}</span>
+        <span class="muted">{value.gender} {value.age}</span>
         <span class="muted">{value.phoneNumber ?? ""}</span>
         <button type="button" class="sm" onclick={() => (value = null)}>Change</button>
     </div>
@@ -68,7 +68,7 @@
                         {#each results as c (c.id)}
                             <tr class="click" onclick={() => (value = c)}>
                                 <td class="ellipsis">{clientName(c)}</td>
-                                <td>{c.gender === "UNKNOWN" ? "" : c.gender}</td>
+                                <td>{c.gender}</td>
                                 <td class="num">{c.age}</td>
                                 <td class="muted">{c.phoneNumber ?? ""}</td>
                                 <td class="num faint">{c.sessionCount} visits</td>

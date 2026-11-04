@@ -2,20 +2,15 @@ package com.companyb.companyapp.contracts.audit
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
- * the whole response. Never persisted, never sent.
- */
 @Serializable
-enum class AuditAction { INSERT, UPDATE, DELETE, UNKNOWN }
+enum class AuditAction { INSERT, UPDATE, DELETE }
 
 @Serializable
 data class AuditLogEntryResponse(
     val id: String,
     val tableName: String,
     val recordId: String,
-    val action: AuditAction = AuditAction.UNKNOWN,
+    val action: AuditAction,
     val changedBy: String,
     val changedByName: String? = null,
     val branchId: String? = null,

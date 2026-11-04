@@ -2,12 +2,8 @@ package com.companyb.companyapp.contracts.identity
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`). Never persisted, never sent.
- */
 @Serializable
-enum class UserStatus { ACTIVE, INACTIVE, UNKNOWN }
+enum class UserStatus { ACTIVE, INACTIVE }
 
 @Serializable
 data class MeResponse(
@@ -15,7 +11,7 @@ data class MeResponse(
     val username: String,
     val displayName: String,
     val email: String = "",
-    val status: UserStatus = UserStatus.UNKNOWN,
+    val status: UserStatus,
     val createdAt: String,
     /** True for a SUPERUSER (developer), who may "view as" other people. */
     val canViewAs: Boolean = false,
@@ -48,7 +44,7 @@ data class UserSummaryResponse(
     val id: String,
     val username: String,
     val displayName: String,
-    val status: UserStatus = UserStatus.UNKNOWN,
+    val status: UserStatus,
     val deactivatedAt: String? = null,
     val assignments: List<UserAssignmentResponse> = emptyList(),
     val roles: List<String> = emptyList(),

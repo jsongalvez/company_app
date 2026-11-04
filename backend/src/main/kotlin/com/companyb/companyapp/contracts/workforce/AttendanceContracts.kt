@@ -4,13 +4,8 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.identity.StartResponse
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
- * the whole response. Never persisted, never sent.
- */
 @Serializable
-enum class ReliefAccessStatus { PENDING, GRANTED, DENIED, CANCELLED, UNKNOWN }
+enum class ReliefAccessStatus { PENDING, GRANTED, DENIED, CANCELLED }
 
 @Serializable
 data class ClockInRequest(
@@ -125,7 +120,7 @@ data class ReliefAccessResponse(
     val id: String,
     val branchDayId: String,
     val requestedBy: String,
-    val requestStatus: ReliefAccessStatus = ReliefAccessStatus.UNKNOWN,
+    val requestStatus: ReliefAccessStatus,
     val grantedBy: String? = null,
     val grantedAt: String? = null,
     /** Branch context — populated on the mine list only (the per-day read implies it). */
@@ -143,5 +138,5 @@ data class ReliefAccessResponse(
 data class ReliefBranchOptionResponse(
     val branchId: String,
     val branchName: String,
-    val branchType: BranchType = BranchType.UNKNOWN,
+    val branchType: BranchType,
 )

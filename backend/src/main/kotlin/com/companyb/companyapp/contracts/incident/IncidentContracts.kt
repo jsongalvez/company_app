@@ -2,13 +2,9 @@ package com.companyb.companyapp.contracts.incident
 
 import kotlinx.serialization.Serializable
 
-/** origin of a triage-ready incident packet; the packet shape is identical either way.
- *
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`). Never persisted, never sent.
- */
+/** origin of a triage-ready incident packet; the packet shape is identical either way. */
 @Serializable
-enum class IncidentSource { USER_REPORT, AUTO_5XX, UNKNOWN }
+enum class IncidentSource { USER_REPORT, AUTO_5XX }
 
 /**
  * in-app incident report call. [traceId] is the echoed id of the slow
@@ -51,7 +47,7 @@ data class IncidentPacket(
     val timestamp: String,
     val pool: PoolSnapshot,
     val reporter: String,
-    val source: IncidentSource = IncidentSource.UNKNOWN,
+    val source: IncidentSource,
 )
 
 @Serializable

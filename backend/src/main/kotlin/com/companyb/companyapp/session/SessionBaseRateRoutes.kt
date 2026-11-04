@@ -83,9 +83,6 @@ object SessionBaseRateRoutes {
             val rateId = uuidOrThrow(request.id, "rate id")
             val rate = parseNonNegativeBigDecimal(request.rate, "rate")
             requireSessionMoney(rate, "rate")
-            // the forward-compat sentinel is never valid input (rates key real session
-            // types). Unknown strings still 400 at decode.
-            if (request.sessionType == SessionType.UNKNOWN) throw BadRequestResponse("Unknown session type")
 
             val result =
                 SessionBaseRateService.setRate(

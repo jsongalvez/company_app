@@ -334,9 +334,7 @@
                     <dl class="kv">
                         <dt>Client</dt>
                         <dd>
-                            {#if client.data}<a href="#/clients/{s.clientId}">{clientName(client.data)}</a> · {client.data.gender === "UNKNOWN"
-                                    ? ""
-                                    : client.data.gender}
+                            {#if client.data}<a href="#/clients/{s.clientId}">{clientName(client.data)}</a> · {client.data.gender}
                                 {client.data.age}{/if}
                         </dd>
                         <dt>Price</dt>

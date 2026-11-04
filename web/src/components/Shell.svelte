@@ -245,7 +245,7 @@
                         <li role="option" aria-selected="false">
                             <button type="button" onmousedown={(e) => e.preventDefault()} onclick={() => pick(c.id)}
                                 ><span class="ellipsis">{clientName(c)}</span><span class="faint"
-                                    >{c.gender === "UNKNOWN" ? "" : c.gender} {c.age ?? ""}{c.phoneNumber ? ` · ${c.phoneNumber}` : ""}</span
+                                    >{c.gender} {c.age ?? ""}{c.phoneNumber ? ` · ${c.phoneNumber}` : ""}</span
                                 ></button
                             >
                         </li>

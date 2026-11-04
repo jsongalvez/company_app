@@ -439,11 +439,11 @@ request, never by cron.
 
 ### Wire enum evolution policy
 
-Wire enums in `contracts/` carry an `UNKNOWN` forward-compat sentinel (#876): a
-client that predates a new server value decodes it as `UNKNOWN` instead of
-failing the whole response, and degrades that row (read-only, grants nothing).
-`UNKNOWN` is never persisted and never sent; the backend rejects it on input.
-Add new values at the end; never rename or remove one that may be stored.
+Wire enums in `contracts/` list only real values. The only client is the web, which
+types them from the generated `schema.d.ts` and never rejects a value it lacks:
+an old tab shows a newer value through `label()`. An absent value is a missing field (400 on input) or a
+nullable property, never an `UNKNOWN` constant (`NoUnknownEnumTest`,
+`web/tests/unit/no-unknown.test.ts`). Add new values at the end; never rename or remove one that may be stored.
 
 ---
 

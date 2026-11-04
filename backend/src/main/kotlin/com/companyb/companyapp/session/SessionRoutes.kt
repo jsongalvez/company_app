@@ -519,10 +519,6 @@ object SessionRoutes {
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
         val newStatus = request.status
-        // the forward-compat sentinel is never valid input; without this it would
-        // pass transition checks as a routine mark and persist (the Postgres enum column
-        // carries no such label). Unknown strings still 400 at decode.
-        if (newStatus == SessionStatus.UNKNOWN) throw BadRequestResponse("Unknown session status")
 
         val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
 

@@ -2145,7 +2145,7 @@ export interface components {
             tableName: string;
             recordId: string;
             /** @enum {string} */
-            action?: "INSERT" | "UPDATE" | "DELETE" | "UNKNOWN";
+            action: "INSERT" | "UPDATE" | "DELETE";
             changedBy: string;
             changedByName?: string | null;
             branchId?: string | null;
@@ -2170,30 +2170,30 @@ export interface components {
         UserCapabilityResponse: {
             capabilityCode: string;
             /** @enum {string} */
-            contextType?: "GLOBAL" | "BRANCH" | "BRANCH_DAY" | "MEDICAL_MISSION" | "PROVINCIAL_TOUR" | "UNKNOWN";
+            contextType: "GLOBAL" | "BRANCH" | "BRANCH_DAY" | "MEDICAL_MISSION" | "PROVINCIAL_TOUR";
             contextId: string;
             /** @enum {string} */
-            sourceType?: "RELIEF_ACCESS" | "MEDICAL_MISSION_DELEGATE" | "MANUAL_OVERRIDE" | "SYSTEM" | "ROLE" | "UNKNOWN";
+            sourceType: "RELIEF_ACCESS" | "MEDICAL_MISSION_DELEGATE" | "MANUAL_OVERRIDE" | "SYSTEM" | "ROLE";
         };
         BranchResponse: {
             id: string;
             name: string;
             /** @enum {string} */
-            branchType?: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION" | "UNKNOWN";
+            branchType: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION";
         };
         CreateBranchRequest: {
             id: string;
             name: string;
             /** @enum {string} */
-            branchType: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION" | "UNKNOWN";
+            branchType: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION";
         };
         MeBranchResponse: {
             branchId: string;
             branchName: string;
             /** @enum {string} */
-            branchType?: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION" | "UNKNOWN";
+            branchType: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION";
             /** @enum {string} */
-            clockInStatus?: "CLOCKED_IN_HERE" | "CLOCKED_IN_ELSEWHERE" | "NOT_CLOCKED_IN" | "UNKNOWN";
+            clockInStatus: "CLOCKED_IN_HERE" | "CLOCKED_IN_ELSEWHERE" | "NOT_CLOCKED_IN";
             isRelief: boolean;
             assignmentId?: string | null;
             slot?: number | null;
@@ -2204,7 +2204,7 @@ export interface components {
         BranchDayTodayResponse: {
             branchDayId: string;
             /** @enum {string} */
-            status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+            status: "OPEN" | "PAST" | "REMITTED";
         };
         BranchDayUserResponse: {
             userId: string;
@@ -2219,7 +2219,7 @@ export interface components {
             phoneNumber: string | null;
             address: string | null;
             /** @enum {string} */
-            gender?: "M" | "F" | "UNKNOWN";
+            gender: "M" | "F";
             age: number;
             earlierVisits?: number;
             systolicBp: number | null;
@@ -2236,7 +2236,7 @@ export interface components {
             phoneNumber?: string | null;
             address?: string | null;
             /** @enum {string} */
-            gender: "M" | "F" | "UNKNOWN";
+            gender: "M" | "F";
             age: number;
             earlierVisits?: number;
             systolicBp?: number | null;
@@ -2251,7 +2251,7 @@ export interface components {
             phoneNumber?: string | null;
             address?: string | null;
             /** @enum {string|null} */
-            gender?: "M" | "F" | "UNKNOWN" | null;
+            gender?: "M" | "F" | null;
             age?: number | null;
             earlierVisits?: number | null;
             systolicBp?: number | null;
@@ -2307,7 +2307,7 @@ export interface components {
         InventoryMovementRequest: {
             movementId: string;
             /** @enum {string} */
-            reason: "RESTOCK" | "SALE" | "TESTER" | "SAMPLE" | "MISSING" | "ADJUSTMENT" | "UNKNOWN";
+            reason: "RESTOCK" | "SALE" | "TESTER" | "SAMPLE" | "MISSING" | "ADJUSTMENT";
             quantityChange: number;
             notes?: string | null;
             branchDayId: string;
@@ -2320,7 +2320,7 @@ export interface components {
             branchId: string;
             branchDayId: string;
             /** @enum {string} */
-            reason?: "RESTOCK" | "SALE" | "TESTER" | "SAMPLE" | "MISSING" | "ADJUSTMENT" | "UNKNOWN";
+            reason: "RESTOCK" | "SALE" | "TESTER" | "SAMPLE" | "MISSING" | "ADJUSTMENT";
             quantityChange: number;
             movedBy: string;
             movedAt: string;
@@ -2448,7 +2448,7 @@ export interface components {
             date?: string | null;
             amount: string;
             /** @enum {string} */
-            category: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS" | "UNKNOWN";
+            category: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS";
             notes?: string | null;
             reason?: string | null;
         };
@@ -2461,7 +2461,7 @@ export interface components {
             branchDayId: string;
             amount: string;
             /** @enum {string} */
-            category?: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS" | "UNKNOWN";
+            category: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS";
             notes: string | null;
             createdBy: string;
             createdAt: string;
@@ -2482,7 +2482,7 @@ export interface components {
         UpdateExpenseRequest: {
             amount: string;
             /** @enum {string} */
-            category: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS" | "UNKNOWN";
+            category: "PANTRY" | "COMMUNICATION" | "WATER" | "TRANSPORTATION" | "ELECTRICITY" | "RENTAL" | "OFFICE_SUPPLIES" | "FURNITURE_FIXTURES" | "MISCELLANEOUS";
             notes?: string | null;
             expectedVersion: number;
             reason?: string | null;
@@ -2529,7 +2529,7 @@ export interface components {
                 today: {
                     branchDayId: string;
                     /** @enum {string} */
-                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                    status: "OPEN" | "PAST" | "REMITTED";
                 } | null;
                 shift: {
                     attendanceId: string;
@@ -2558,7 +2558,7 @@ export interface components {
             displayName: string;
             email?: string;
             /** @enum {string} */
-            status?: "ACTIVE" | "INACTIVE" | "UNKNOWN";
+            status: "ACTIVE" | "INACTIVE";
             createdAt: string;
             canViewAs?: boolean;
         };
@@ -2579,7 +2579,7 @@ export interface components {
             today: {
                 branchDayId: string;
                 /** @enum {string} */
-                status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                status: "OPEN" | "PAST" | "REMITTED";
             } | null;
             shift: {
                 attendanceId: string;
@@ -2623,7 +2623,7 @@ export interface components {
             username: string;
             displayName: string;
             /** @enum {string} */
-            status?: "ACTIVE" | "INACTIVE" | "UNKNOWN";
+            status: "ACTIVE" | "INACTIVE";
             deactivatedAt?: string | null;
             assignments?: components["schemas"]["UserAssignmentResponse"][];
             roles?: string[];
@@ -2674,7 +2674,7 @@ export interface components {
             pool: components["schemas"]["PoolSnapshot"];
             reporter: string;
             /** @enum {string} */
-            source?: "USER_REPORT" | "AUTO_5XX" | "UNKNOWN";
+            source: "USER_REPORT" | "AUTO_5XX";
         };
         PoolSnapshot: {
             active: number;
@@ -2722,17 +2722,17 @@ export interface components {
         CreateRemittanceDraftRequest: {
             id: string;
             /** @enum {string} */
-            type: "SESSION" | "PRODUCT" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT";
             branchId: string;
             /** @enum {string} */
-            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT" | "UNKNOWN";
+            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT";
             dateRangeStart: string;
             dateRangeEnd: string;
         };
         CreateRemittanceLineRequest: {
             id: string;
             /** @enum {string} */
-            type: "SESSION" | "PRODUCT_SALE" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT_SALE";
             sessionId?: string | null;
             productSaleId?: string | null;
             amount: string;
@@ -2746,17 +2746,17 @@ export interface components {
             id: string;
             date: string;
             /** @enum {string} */
-            status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+            status: "OPEN" | "PAST" | "REMITTED";
         };
         RemittanceDetailResponse: {
             id: string;
             /** @enum {string} */
-            type?: "SESSION" | "PRODUCT" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT";
             /** @enum {string} */
-            status?: "DRAFT" | "SUBMITTED" | "UNKNOWN";
+            status: "DRAFT" | "SUBMITTED";
             branchId: string;
             /** @enum {string} */
-            method?: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT" | "UNKNOWN";
+            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT";
             submittedDate: string;
             submittedAt?: string | null;
             submittedBy: string;
@@ -2794,7 +2794,7 @@ export interface components {
             id: string;
             remittanceId: string;
             /** @enum {string} */
-            type?: "SESSION" | "PRODUCT_SALE" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT_SALE";
             sessionId: string | null;
             productSaleId: string | null;
             createdBy: string;
@@ -2813,12 +2813,12 @@ export interface components {
         RemittanceResponse: {
             id: string;
             /** @enum {string} */
-            type?: "SESSION" | "PRODUCT" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT";
             /** @enum {string} */
-            status?: "DRAFT" | "SUBMITTED" | "UNKNOWN";
+            status: "DRAFT" | "SUBMITTED";
             branchId: string;
             /** @enum {string} */
-            method?: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT" | "UNKNOWN";
+            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT";
             submittedDate: string;
             submittedAt?: string | null;
             submittedBy: string;
@@ -2833,18 +2833,18 @@ export interface components {
             clientName: string | null;
             bookedAt: string | null;
             /** @enum {string} */
-            sessionStatus?: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "UNKNOWN";
+            sessionStatus: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
             finalPrice: string;
         };
         RemittanceSubmitResponse: {
             id: string;
             /** @enum {string} */
-            type?: "SESSION" | "PRODUCT" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT";
             /** @enum {string} */
-            status?: "DRAFT" | "SUBMITTED" | "UNKNOWN";
+            status: "DRAFT" | "SUBMITTED";
             branchId: string;
             /** @enum {string} */
-            method?: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT" | "UNKNOWN";
+            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT";
             submittedDate: string;
             submittedAt?: string | null;
             submittedBy: string;
@@ -2866,9 +2866,9 @@ export interface components {
         };
         UpdateRemittanceHeaderRequest: {
             /** @enum {string} */
-            type: "SESSION" | "PRODUCT" | "UNKNOWN";
+            type: "SESSION" | "PRODUCT";
             /** @enum {string} */
-            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT" | "UNKNOWN";
+            method: "BANK_TRANSFER" | "HANDED_TO_ACCOUNTANT";
             dateRangeStart: string;
             dateRangeEnd: string;
             expectedVersion: number;
@@ -2891,9 +2891,9 @@ export interface components {
             date: string;
             branchName: string;
             /** @enum {string} */
-            status: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "UNKNOWN";
+            status: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
             /** @enum {string} */
-            type: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            type: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION";
             voided: boolean;
             price: string;
             practitioners: string[];
@@ -2930,7 +2930,7 @@ export interface components {
             date: string;
             branchName: string;
             /** @enum {string} */
-            kind?: "PAY" | "ALLOWANCE" | "COMMISSION" | "UNKNOWN";
+            kind: "PAY" | "ALLOWANCE" | "COMMISSION";
             amount: string;
             note?: string | null;
         };
@@ -3025,10 +3025,10 @@ export interface components {
             clientId: string;
             clientName: string | null;
             /** @enum {string} */
-            sessionType?: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION";
             isWalkIn: boolean;
             /** @enum {string} */
-            sessionStatus?: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "UNKNOWN";
+            sessionStatus: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
             basePrice: string;
             finalPrice: string;
             remarks: string | null;
@@ -3042,7 +3042,7 @@ export interface components {
             requestedPractitionerName?: string | null;
             branchId?: string;
             /** @enum {string|null} */
-            dayStatus?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN" | null;
+            dayStatus?: "OPEN" | "PAST" | "REMITTED" | null;
             branchDayId?: string | null;
         };
         PromoteConcernRequest: {
@@ -3055,7 +3055,7 @@ export interface components {
             id: string;
             branchId: string;
             /** @enum {string} */
-            sessionType?: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION";
             rate: string;
             effectiveFrom: string;
             effectiveUntil: string;
@@ -3075,7 +3075,7 @@ export interface components {
         };
         SessionPreviewResponse: {
             /** @enum {string} */
-            sessionType?: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION";
             basePrice: string;
         };
         SessionResponse: {
@@ -3084,10 +3084,10 @@ export interface components {
             branchDayId: string;
             requestedPractitionerId: string | null;
             /** @enum {string} */
-            sessionType?: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION";
             isWalkIn: boolean;
             /** @enum {string} */
-            sessionStatus?: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "UNKNOWN";
+            sessionStatus: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
             basePrice: string;
             finalPrice: string;
             remarks: string | null;
@@ -3120,7 +3120,7 @@ export interface components {
         SetRateRequest: {
             id: string;
             /** @enum {string} */
-            sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION" | "UNKNOWN";
+            sessionType: "REGULAR" | "SECOND_SESSION" | "SUBSEQUENT" | "PROVINCIAL_FIRST" | "MEDICAL_MISSION";
             rate: string;
         };
         TodayScreenResponse: {
@@ -3154,7 +3154,7 @@ export interface components {
         };
         UpdateSessionStatusRequest: {
             /** @enum {string} */
-            status: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "UNKNOWN";
+            status: "PENDING" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
             version: number;
             reason?: string | null;
         };
@@ -3224,7 +3224,7 @@ export interface components {
                     today: {
                         branchDayId: string;
                         /** @enum {string} */
-                        status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                        status: "OPEN" | "PAST" | "REMITTED";
                     } | null;
                     shift: {
                         attendanceId: string;
@@ -3256,7 +3256,7 @@ export interface components {
                 today: {
                     branchDayId: string;
                     /** @enum {string} */
-                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                    status: "OPEN" | "PAST" | "REMITTED";
                 } | null;
                 shift: {
                     attendanceId: string;
@@ -3304,7 +3304,7 @@ export interface components {
                 today: {
                     branchDayId: string;
                     /** @enum {string} */
-                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                    status: "OPEN" | "PAST" | "REMITTED";
                 } | null;
                 shift: {
                     attendanceId: string;
@@ -3347,7 +3347,7 @@ export interface components {
                 today: {
                     branchDayId: string;
                     /** @enum {string} */
-                    status?: "OPEN" | "PAST" | "REMITTED" | "UNKNOWN";
+                    status: "OPEN" | "PAST" | "REMITTED";
                 } | null;
                 shift: {
                     attendanceId: string;
@@ -3418,7 +3418,7 @@ export interface components {
             branchDayId: string;
             requestedBy: string;
             /** @enum {string} */
-            requestStatus?: "PENDING" | "GRANTED" | "DENIED" | "CANCELLED" | "UNKNOWN";
+            requestStatus: "PENDING" | "GRANTED" | "DENIED" | "CANCELLED";
             grantedBy?: string | null;
             grantedAt?: string | null;
             branchId?: string | null;
@@ -3430,7 +3430,7 @@ export interface components {
             branchId: string;
             branchName: string;
             /** @enum {string} */
-            branchType?: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION" | "UNKNOWN";
+            branchType: "CLINIC" | "PROVINCIAL_TOUR" | "MEDICAL_MISSION";
         };
         ReliefCandidateResponse: {
             id: string;
@@ -3448,7 +3448,7 @@ export interface components {
             invitee: string;
             inviteeName: string;
             /** @enum {string} */
-            status?: "PENDING" | "ACCEPTED" | "DECLINED" | "RETRACTED" | "REVOKED" | "UNKNOWN";
+            status: "PENDING" | "ACCEPTED" | "DECLINED" | "RETRACTED" | "REVOKED";
             createdAt: string;
             respondedAt?: string | null;
         };

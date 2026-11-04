@@ -85,7 +85,6 @@ object RemittancePolicy {
             when (kind) {
                 RemittanceType.SESSION -> line == RemittanceLineType.SESSION
                 RemittanceType.PRODUCT -> line == RemittanceLineType.PRODUCT_SALE
-                RemittanceType.UNKNOWN -> false
             }
         if (!fits) {
             throw ValidationException(

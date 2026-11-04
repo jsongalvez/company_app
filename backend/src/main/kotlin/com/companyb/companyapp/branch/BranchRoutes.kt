@@ -130,9 +130,6 @@ object BranchRoutes {
             val branchId = uuidOrThrow(request.id, "branch id")
             val name = request.name.trim()
             if (name.isBlank()) throw BadRequestResponse("Branch name is required")
-            // the forward-compat sentinel is never valid input (the Postgres enum
-            // column carries no such label). Unknown strings still 400 at decode.
-            if (request.branchType == BranchType.UNKNOWN) throw BadRequestResponse("Unknown branch type")
             val result =
                 BranchService.create(
                     callerId = callerId,

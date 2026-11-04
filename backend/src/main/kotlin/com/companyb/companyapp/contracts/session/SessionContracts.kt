@@ -2,22 +2,11 @@ package com.companyb.companyapp.contracts.session
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
- * the whole response. Never persisted, never sent.
- */
 @Serializable
-enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, MEDICAL_MISSION, UNKNOWN }
+enum class SessionType { REGULAR, SECOND_SESSION, SUBSEQUENT, PROVINCIAL_FIRST, MEDICAL_MISSION }
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): old clients decode newer server values as UNKNOWN and degrade the row
- * instead of failing the whole response. Never persisted, never sent: the lifecycle helpers
- * below never observe it from backend data, and the backend rejects it on input.
- */
 @Serializable
-enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED, UNKNOWN }
+enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED }
 
 /**
  * the session status correction vocabulary (owner ruling 2026-08-26), shared so the
@@ -40,23 +29,18 @@ enum class SessionStatus { PENDING, COMPLETED, NO_SHOW, CANCELLED, UNKNOWN }
 fun isRoutineStatusMark(
     from: SessionStatus,
     to: SessionStatus,
-): Boolean =
-    from == SessionStatus.PENDING && to != SessionStatus.PENDING &&
-        // the forward-compat sentinel is never a legal transition endpoint: it is
-        // rejected on input, so no stored status is ever UNKNOWN and no mark may target it.
-        to != SessionStatus.UNKNOWN
+): Boolean = from == SessionStatus.PENDING && to != SessionStatus.PENDING
 
 fun isStatusUndo(
     from: SessionStatus,
     to: SessionStatus,
-): Boolean = to == SessionStatus.PENDING && from != SessionStatus.PENDING && from != SessionStatus.UNKNOWN
+): Boolean = to == SessionStatus.PENDING && from != SessionStatus.PENDING
 
 fun isStatusCorrection(
     from: SessionStatus,
     to: SessionStatus,
 ): Boolean =
-    from != SessionStatus.UNKNOWN && to != SessionStatus.UNKNOWN &&
-        from != to && from != SessionStatus.COMPLETED && to != SessionStatus.COMPLETED &&
+    from != to && from != SessionStatus.COMPLETED && to != SessionStatus.COMPLETED &&
         !isRoutineStatusMark(from, to) && !isStatusUndo(from, to)
 
 private val WALK_IN_FORBIDDEN_STATUS_VALUES = setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)
@@ -140,9 +124,9 @@ data class SessionResponse(
     val clientId: String,
     val branchDayId: String,
     val requestedPractitionerId: String?,
-    val sessionType: SessionType = SessionType.UNKNOWN,
+    val sessionType: SessionType,
     val isWalkIn: Boolean,
-    val sessionStatus: SessionStatus = SessionStatus.UNKNOWN,
+    val sessionStatus: SessionStatus,
     val basePrice: String,
     val finalPrice: String,
     val remarks: String?,
@@ -191,6 +175,6 @@ data class SessionPractitionerResponse(
  */
 @Serializable
 data class SessionPreviewResponse(
-    val sessionType: SessionType = SessionType.UNKNOWN,
+    val sessionType: SessionType,
     val basePrice: String,
 )

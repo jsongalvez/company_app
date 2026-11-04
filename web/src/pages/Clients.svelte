@@ -69,7 +69,7 @@
                 {#each res.data as c (c.id)}
                     <tr class="click" onclick={() => go(`/clients/${c.id}`)} onmouseenter={() => warm(load.client(c.id))}>
                         <td><a href="#/clients/{c.id}">{clientName(c)}</a></td>
-                        <td>{c.gender === "UNKNOWN" ? "" : c.gender}</td>
+                        <td>{c.gender}</td>
                         <td class="num">{c.age}</td>
                         <td>{c.phoneNumber ?? ""}</td>
                         <td class="ellipsis addr muted">{c.address ?? ""}</td>

@@ -18,24 +18,16 @@ object CapabilityCodes {
     const val RECEIVE_NEXT_APPOINTMENT_ALERTS = "RECEIVE_NEXT_APPOINTMENT_ALERTS"
 }
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`). Unknown contexts grant nothing client-side; never persisted, never sent.
- */
 @Serializable
-enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR, UNKNOWN }
+enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`). Unknown sources grant nothing client-side; never persisted, never sent.
- */
 @Serializable
-enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE, UNKNOWN }
+enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
 
 @Serializable
 data class UserCapabilityResponse(
     val capabilityCode: String,
-    val contextType: CapabilityContextType = CapabilityContextType.UNKNOWN,
+    val contextType: CapabilityContextType,
     val contextId: String,
-    val sourceType: CapabilitySourceType = CapabilitySourceType.UNKNOWN,
+    val sourceType: CapabilitySourceType,
 )

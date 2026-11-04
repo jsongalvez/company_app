@@ -2,13 +2,8 @@ package com.companyb.companyapp.contracts.client
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`), not a third gender: it marks a server value this client predates.
- * Never persisted, never sent.
- */
 @Serializable
-enum class Gender { M, F, UNKNOWN }
+enum class Gender { M, F }
 
 @Serializable
 data class CreateClientRequest(
@@ -87,7 +82,7 @@ data class ClientResponse(
     val suffix: String?,
     val phoneNumber: String?,
     val address: String?,
-    val gender: Gender = Gender.UNKNOWN,
+    val gender: Gender,
     val age: Int,
     val earlierVisits: Int = 0,
     val systolicBp: Short?,

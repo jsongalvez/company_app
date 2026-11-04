@@ -128,7 +128,6 @@ const WORDS: Record<string, string> = {
     INSERT: "Added",
     UPDATE: "Changed",
     DELETE: "Removed",
-    UNKNOWN: "Unknown",
 };
 
 /** Plain word for a backend code; unknown codes become "Sentence case". */

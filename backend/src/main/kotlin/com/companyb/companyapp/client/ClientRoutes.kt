@@ -13,7 +13,6 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.client.CreateClientRequest
-import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.client.UpdateClientRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.exception.ValidationException
@@ -184,7 +183,6 @@ object ClientRoutes {
         // create guards split into named checks (ThrowsCount budget is 2 per function).
         requireCreateNames(firstName, lastName)
         requireCreateBpPair(request.systolicBp, request.diastolicBp)
-        requireKnownGender(request.gender)
         requireClientRanges(request.age, request.systolicBp, request.diastolicBp, request.phoneNumber)
 
         val result =
@@ -283,9 +281,6 @@ object ClientRoutes {
      */
     private fun validateClientPatch(request: UpdateClientRequest) {
         val clears = request.clearFields
-        // the forward-compat sentinel is never valid input (the column carries no
-        // such label). Unknown strings still 400 at decode.
-        if (request.gender == Gender.UNKNOWN) throw BadRequestResponse("Unknown gender")
         // Colocated clear-set policy: the command owns the shape, the route only
         // maps its error to the route's existing BadRequestResponse shape.
         try {
@@ -359,14 +354,6 @@ object ClientRoutes {
                 "Both systolic and diastolic blood pressure must be provided together or not at all",
             )
         }
-    }
-
-    /**
-     * sentinel guard split into a named check (ThrowsCount budget is 2 per function).
-     * The forward-compat sentinel is never valid input — the column carries no such label.
-     */
-    private fun requireKnownGender(gender: Gender) {
-        if (gender == Gender.UNKNOWN) throw BadRequestResponse("Unknown gender")
     }
 
     /**

@@ -143,7 +143,11 @@
     });
 
     type Local = { state: Exclude<Standing, "sent">; item: string; failed?: string } | null;
-    function heldRow(at: string, b: Record<string, unknown>): S["DashboardSessionResponse"] & { held: boolean; local: Local } {
+    /** The server picks a held session's type when it lands, so the row has none yet. */
+    function heldRow(
+        at: string,
+        b: Record<string, unknown>,
+    ): Omit<S["DashboardSessionResponse"], "sessionType"> & { sessionType?: S["DashboardSessionResponse"]["sessionType"]; held: boolean; local: Local } {
         const cid = String(b.clientId);
         const c = findLocal(cid);
         const price = String(b.finalPrice ?? "0");
@@ -210,7 +214,7 @@
         void refreshDay();
     }
 
-    async function mark(s: S["DashboardSessionResponse"], to: Status) {
+    async function mark(s: Pick<S["DashboardSessionResponse"], "id" | "version" | "clientName" | "sessionStatus">, to: Status) {
         const undo = to === "PENDING";
         // An earlier or closed day asks for the reason, which is also the confirmation.
         const closed = !isToday || (!!today.day && today.day.status !== "OPEN");

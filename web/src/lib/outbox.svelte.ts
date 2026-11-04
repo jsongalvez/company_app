@@ -147,7 +147,7 @@ function heldClient(b: Record<string, unknown>): S["ClientResponse"] {
         suffix: (b.suffix as string) ?? null,
         phoneNumber: (b.phoneNumber as string) ?? null,
         address: null,
-        gender: (b.gender as S["ClientResponse"]["gender"]) ?? "UNKNOWN",
+        gender: b.gender as S["ClientResponse"]["gender"],
         age: Number(b.age ?? 0),
         systolicBp: null,
         diastolicBp: null,

@@ -17,7 +17,7 @@ function read(branchId: string): Partial<Record<T, string>> {
 }
 
 export function rememberPrice(branchId: string, p: P) {
-    if (!p.sessionType || p.sessionType === "UNKNOWN") return;
+    if (!p.sessionType) return;
     localStorage.setItem(key(branchId), JSON.stringify({ ...read(branchId), [p.sessionType]: p.basePrice }));
 }
 

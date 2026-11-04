@@ -2,12 +2,6 @@ package com.companyb.companyapp.contracts.finance
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): old clients decode newer server values (e.g. a future FUEL category)
- * as UNKNOWN and degrade the row instead of failing the whole response.
- * Never persisted, never sent.
- */
 @Serializable
 enum class ExpenseCategory {
     PANTRY,
@@ -19,7 +13,6 @@ enum class ExpenseCategory {
     OFFICE_SUPPLIES,
     FURNITURE_FIXTURES,
     MISCELLANEOUS,
-    UNKNOWN,
 }
 
 @Serializable
@@ -62,7 +55,7 @@ data class ExpenseResponse(
     val id: String,
     val branchDayId: String,
     val amount: String,
-    val category: ExpenseCategory = ExpenseCategory.UNKNOWN,
+    val category: ExpenseCategory,
     val notes: String?,
     val createdBy: String,
     val createdAt: String,

@@ -363,11 +363,7 @@ object RemittanceRoutes {
 
     private fun parseRemittanceType(raw: String): RemittanceType =
         runCatching {
-            RemittanceType.valueOf(raw.uppercase()).also {
-                // the forward-compat sentinel is never valid input; folding the
-                // rejection into the runCatching keeps the exact existing 400 shape.
-                require(it != RemittanceType.UNKNOWN) { "sentinel" }
-            }
+            RemittanceType.valueOf(raw.uppercase())
         }.getOrElse {
             throw BadRequestResponse(
                 "Invalid remittance type: must be SESSION or PRODUCT",
@@ -376,10 +372,7 @@ object RemittanceRoutes {
 
     private fun parseRemittanceMethod(raw: String): RemittanceMethod =
         runCatching {
-            RemittanceMethod.valueOf(raw.uppercase()).also {
-                // the forward-compat sentinel is never valid input (same shape).
-                require(it != RemittanceMethod.UNKNOWN) { "sentinel" }
-            }
+            RemittanceMethod.valueOf(raw.uppercase())
         }.getOrElse {
             throw BadRequestResponse(
                 "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
@@ -412,11 +405,7 @@ object RemittanceRoutes {
 
                 else -> {
                     runCatching {
-                        RemittanceStatus.valueOf(rawStatus.uppercase()).also {
-                            // the forward-compat sentinel is never a valid filter;
-                            // folding into the runCatching keeps the exact existing 400 shape.
-                            require(it != RemittanceStatus.UNKNOWN) { "sentinel" }
-                        }
+                        RemittanceStatus.valueOf(rawStatus.uppercase())
                     }.getOrElse {
                         throw BadRequestResponse("Invalid status: must be DRAFT, SUBMITTED or ALL")
                     }
@@ -463,11 +452,6 @@ object RemittanceRoutes {
 
             RemittanceLineType.PRODUCT_SALE -> {
                 requireProductSaleLinePayload(sessionId, productSaleId)
-            }
-
-            // the forward-compat sentinel is never valid input.
-            RemittanceLineType.UNKNOWN -> {
-                throw BadRequestResponse("Unknown remittance line type")
             }
         }
 

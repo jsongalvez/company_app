@@ -322,7 +322,7 @@
 
         {#if dayId}<SaleList {dayId} {edit} needReason={closed} {showDeleted} onchanged={() => refresh("summary", "split")} />{/if}
 
-        {#if pay && dayId}<DayPay branchId={bid} {dayId} {status} onpay={() => refresh("summary")} />{/if}
+        {#if pay && dayId && status}<DayPay branchId={bid} {dayId} {status} onpay={() => refresh("summary")} />{/if}
 
         {#if seeCommission}<section class="panel">
                 <header>

@@ -2,18 +2,13 @@ package com.companyb.companyapp.contracts.branchday
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): an unknown day state degrades the row read-only client-side.
- * Never persisted, never sent.
- */
 @Serializable
-enum class DayStatus { OPEN, PAST, REMITTED, UNKNOWN }
+enum class DayStatus { OPEN, PAST, REMITTED }
 
 @Serializable
 data class BranchDayTodayResponse(
     val branchDayId: String,
-    val status: DayStatus = DayStatus.UNKNOWN,
+    val status: DayStatus,
 )
 
 @Serializable

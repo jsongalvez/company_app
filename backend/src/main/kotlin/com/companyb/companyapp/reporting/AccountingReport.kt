@@ -206,7 +206,7 @@ object AccountingReportBuilder {
         fun sessionCounts() {
             heading("Sessions by result")
             val live = ledger.sessions.filter { !it.isVoided }
-            SessionStatus.entries.filter { it != SessionStatus.UNKNOWN }.forEach { st ->
+            SessionStatus.entries.forEach { st ->
                 val xs = live.filter { it.status == st }
                 line(ReportWords.status(st), xs.size, sum(xs.map { it.charged }))
             }
@@ -481,7 +481,6 @@ internal object ReportWords {
             SessionStatus.COMPLETED -> "Done"
             SessionStatus.NO_SHOW -> "No-show"
             SessionStatus.CANCELLED -> "Cancelled"
-            SessionStatus.UNKNOWN -> "Unknown"
         }
 
     fun type(t: SessionType) =
@@ -491,7 +490,6 @@ internal object ReportWords {
             SessionType.SECOND_SESSION -> "Second visit"
             SessionType.SUBSEQUENT -> "Return visit"
             SessionType.MEDICAL_MISSION -> "Medical mission"
-            SessionType.UNKNOWN -> "Unknown"
         }
 
     fun dayStatus(s: DayStatus) =
@@ -499,21 +497,18 @@ internal object ReportWords {
             DayStatus.OPEN -> "Open"
             DayStatus.PAST -> "Closed"
             DayStatus.REMITTED -> "Remitted"
-            DayStatus.UNKNOWN -> "Unknown"
         }
 
     fun remittanceType(t: RemittanceType) =
         when (t) {
             RemittanceType.SESSION -> "Sessions"
             RemittanceType.PRODUCT -> "Product sales"
-            RemittanceType.UNKNOWN -> "Unknown"
         }
 
     fun method(m: RemittanceMethod) =
         when (m) {
             RemittanceMethod.BANK_TRANSFER -> "Bank transfer"
             RemittanceMethod.HANDED_TO_ACCOUNTANT -> "Handed to accountant"
-            RemittanceMethod.UNKNOWN -> "Unknown"
         }
 
     fun payout(k: PayoutKind) =

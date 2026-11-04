@@ -412,11 +412,6 @@ object RemittanceService {
                     }
                     sale.branchDayId
                 }
-
-                // the forward-compat sentinel is never valid input.
-                RemittanceLineType.UNKNOWN -> {
-                    throw ValidationException("Unknown remittance line type")
-                }
             }
         // the pickers only offer the loaded range, so an out-of-range source is a
         // stale-client or forged write; the branch check stays 404 (indistinguishable),
@@ -568,12 +563,7 @@ object RemittanceService {
     private fun lineSourceBranchDayIdInTransaction(line: RemittanceLine): UUID =
         when (line.type) {
             RemittanceLineType.SESSION -> sessionLineBranchDayIdInTransaction(line.sessionId)
-
             RemittanceLineType.PRODUCT_SALE -> productSaleLineBranchDayIdInTransaction(line.productSaleId)
-
-            // unreachable: the Postgres enum column carries no UNKNOWN label,
-            // so row mapping fails before this runs. Fail closed, never silently skip.
-            RemittanceLineType.UNKNOWN -> throw ValidationException("Unknown remittance line type")
         }
 
     private fun sessionLineBranchDayIdInTransaction(sessionId: UUID?): UUID {

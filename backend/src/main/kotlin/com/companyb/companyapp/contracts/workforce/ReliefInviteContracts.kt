@@ -9,12 +9,9 @@ import kotlinx.serialization.Serializable
  * removes the day grant atomically and stops before the invitee clocks in). The
  * accepted grant is written at ACCEPT time; day-state is the expiry (a PENDING invite
  * whose day is past renders "expired" — no cron).
- *
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`). Never persisted, never sent.
  */
 @Serializable
-enum class ReliefInviteStatus { PENDING, ACCEPTED, DECLINED, RETRACTED, REVOKED, UNKNOWN }
+enum class ReliefInviteStatus { PENDING, ACCEPTED, DECLINED, RETRACTED, REVOKED }
 
 /**
  * One relief invite as rendered by both lists (received + sent) and returned by every
@@ -33,7 +30,7 @@ data class ReliefInviteResponse(
     val inviterName: String,
     val invitee: String,
     val inviteeName: String,
-    val status: ReliefInviteStatus = ReliefInviteStatus.UNKNOWN,
+    val status: ReliefInviteStatus,
     val createdAt: String,
     val respondedAt: String? = null,
 )

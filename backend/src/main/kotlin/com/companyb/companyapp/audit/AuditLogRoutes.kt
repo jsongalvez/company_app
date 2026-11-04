@@ -214,11 +214,7 @@ object AuditLogRoutes {
     private fun parseAction(raw: String?): AuditAction? {
         if (raw == null) return null
         return runCatching {
-            AuditAction.valueOf(raw).also {
-                // the forward-compat sentinel is never a valid filter; folding into
-                // the runCatching keeps the exact existing 400 shape.
-                require(it != AuditAction.UNKNOWN) { "sentinel" }
-            }
+            AuditAction.valueOf(raw)
         }.getOrElse { throw BadRequestResponse("Invalid action: $raw") }
     }
 

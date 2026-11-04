@@ -2,20 +2,11 @@ package com.companyb.companyapp.contracts.branch
 
 import kotlinx.serialization.Serializable
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`): old clients decode newer server values as UNKNOWN instead of failing
- * the whole response. Never persisted, never sent.
- */
 @Serializable
-enum class BranchType { CLINIC, PROVINCIAL_TOUR, MEDICAL_MISSION, UNKNOWN }
+enum class BranchType { CLINIC, PROVINCIAL_TOUR, MEDICAL_MISSION }
 
-/**
- * [UNKNOWN] is the forward-compat sentinel (see "Wire enum evolution policy" in
- * `docs/architecture.md`). Never persisted, never sent.
- */
 @Serializable
-enum class BranchClockInStatus { CLOCKED_IN_HERE, CLOCKED_IN_ELSEWHERE, NOT_CLOCKED_IN, UNKNOWN }
+enum class BranchClockInStatus { CLOCKED_IN_HERE, CLOCKED_IN_ELSEWHERE, NOT_CLOCKED_IN }
 
 @Serializable
 data class CreateBranchRequest(
@@ -33,15 +24,15 @@ data class RenameBranchRequest(
 data class BranchResponse(
     val id: String,
     val name: String,
-    val branchType: BranchType = BranchType.UNKNOWN,
+    val branchType: BranchType,
 )
 
 @Serializable
 data class MeBranchResponse(
     val branchId: String,
     val branchName: String,
-    val branchType: BranchType = BranchType.UNKNOWN,
-    val clockInStatus: BranchClockInStatus = BranchClockInStatus.UNKNOWN,
+    val branchType: BranchType,
+    val clockInStatus: BranchClockInStatus,
     val isRelief: Boolean,
     val assignmentId: String? = null,
     // own-assignment slot (Branch Slot, 1 = senior); null for relief rows, which
