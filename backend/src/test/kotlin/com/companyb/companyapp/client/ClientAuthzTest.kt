@@ -36,8 +36,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * #896: client routes gate EDIT_BRANCH_DATA in any context (the #660 concern-catalog
- * precedent) — clients are global records with no branch context, and EDIT_BRANCH_DATA
+ * #896: client routes gate EDIT_BRANCH_DATA in any context — clients are global records with no branch
+ * context, and EDIT_BRANCH_DATA
  * never derives GLOBAL, so a GLOBAL-only gate 403'd every production holder.
  * Role-derived BRANCH holders (OWNER/MANAGER/COORDINATOR/PRACTITIONER via ACTIVE
  * assignments) and windowed BRANCH_DAY relief holders pass; grantless callers 403.

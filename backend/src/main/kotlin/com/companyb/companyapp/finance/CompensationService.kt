@@ -48,7 +48,6 @@ object CompensationService {
         }
     }
 
-    // #596: 8-param creation command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,
@@ -162,7 +161,6 @@ object CompensationService {
         note: String?,
     ): Boolean = existing.amount.compareTo(amount) == 0 && existing.note == note
 
-    // #596: 6-param update command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596
     fun update(
         callerId: UUID,

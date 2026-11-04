@@ -48,7 +48,6 @@ object BranchPriceRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
 
     fun register(config: JavalinConfig) {
-        // 503bf228 — any branch member who can edit the branch sets its prices (unknown branch 404s first).
         val branchInventoryPriceGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)

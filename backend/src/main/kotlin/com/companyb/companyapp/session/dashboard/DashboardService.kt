@@ -95,7 +95,7 @@ object DashboardService {
     }
 
     /**
-     * Any day's sessions at [branchId] (feedback 3578107f: coordinators correct past sessions
+     * Any day's sessions at [branchId] (: coordinators correct past sessions
      * from Expenses & pay). The route gates on VIEW_BRANCH_DATA (branch or GLOBAL); edits stay
      * behind the usual day gates. Find-only: a date with no day row returns no sessions.
      */

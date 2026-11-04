@@ -46,7 +46,7 @@ import kotlin.test.assertTrue
  * the #908 session columns. Unique markers placed in `voidReason` /
  * `unvoidedReason` must vanish from live `session_void` rows, void audit
  * payloads, and the duplicated `audit_log.reason` column, while event counts
- * are retained (the #524 no-new-events precedent).
+ * are retained.
  */
 class ClientAnonymizeVoidReasonPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()

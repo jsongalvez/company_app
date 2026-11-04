@@ -55,9 +55,6 @@ object BranchDayRoutes {
         val branchTodayGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-                // 404 precedence for an unknown branch before the today gate
-                //  (precedent): the access check alone conflates
-                // "unknown branch" with "known but non-member".
                 BranchService.findById(branchId)
                 // via the shared today gate: a BRANCH_DAY relief grant for today
                 // reads today's status for its granted day.

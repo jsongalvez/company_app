@@ -596,7 +596,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
         assertNotNull(persisted.deletedAt)
     }
 
-    // #599 helper mirrors ClientService.create signature (fixture parity, #593 precedent).
     @Suppress("LongParameterList") // #599
     private fun createClient(
         callerId: UUID,

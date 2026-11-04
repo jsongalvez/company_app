@@ -152,8 +152,6 @@ internal object RemittanceRepository {
     fun createDraftInTransaction(params: CreateDraftParams): RemittanceCreateResult {
         val existing = findByIdInTransaction(params.id)
         if (existing != null) {
-            // same-UUID replay must match the full header (finance precedent);
-            // branch-only ack let divergent type/method/range silently return the old row.
             assertCreateReplayMatches(existing, params)
             return RemittanceCreateResult(existing, created = false)
         }

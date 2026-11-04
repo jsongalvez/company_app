@@ -53,7 +53,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-// #595 1291-line scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
 @Suppress("LargeClass") // #595
 class RemittanceLineServicePostgresTest : BasePostgresTest() {
     private companion object {
@@ -128,7 +127,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertEquals(remittance.version + 1, updatedRemittance.version)
     }
 
-    // Feedback 364b18b3: "Weird i was able to add both sessions and products in remittance."
     @Test
     fun `a Sessions remittance refuses a product sale`() {
         val remittance = createDraftRemittance(RemittanceType.SESSION)

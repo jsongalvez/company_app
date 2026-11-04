@@ -419,7 +419,6 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         assertEquals(404, getStatus(noneUser, "/api/branches/$unknown/daily-summary?date=2026-08-10"))
     }
 
-    // Feedback ef1cfb99 and four more: "daily-summary → 404" before anyone clocked in that day.
     @Test
     fun `a day nobody has started reads as zeros`() {
         testServer.client.let { client ->

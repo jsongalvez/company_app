@@ -58,7 +58,6 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-// #595 836-line scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
 @Suppress("LargeClass") // #595
 class RemittanceServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
@@ -244,7 +243,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             dateRangeEnd = LocalDate.of(2026, 7, 15),
         )
 
-        // #927 — UUID ownership includes the submitting caller (#922 precedent).
         assertFailsWith<ConflictException> {
             RemittanceService.createDraft(
                 callerId = otherCallerId,

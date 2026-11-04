@@ -60,7 +60,6 @@ object SessionService {
         }
     }
 
-    // #593 twelve-param creation command stays whole (coherent session inputs; #535 no arbitrary DTO).
     @Suppress("LongParameterList") // #593
     fun create(
         callerId: UUID,
@@ -92,10 +91,6 @@ object SessionService {
     ): SessionCreateResult {
         val branchType = knownBranchType ?: requireBranchType(branchId)
 
-        // the requested practitioner must be an ACTIVE member of the session's branch
-        // (today any existing UUID is accepted). Optional field: null passes untouched.
-        // unknown users 404 before the membership 400 (addPractitioner precedent):
-        // hasActiveMember alone conflates "unknown user" with "known but ineligible".
         requestedPractitionerId?.let { requireRequestedPractitioner(branchId, it) }
 
         val existing = SessionRepository.findById(id)
@@ -363,11 +358,6 @@ object SessionService {
                 )
             }
 
-            // sticky anonymization (the practitioner/concern and
-            // void/unvoid precedent): status writes audit reason free text (#909 scrub
-            // class), so every status write on an anonymized client's sessions 409
-            // instead of reintroducing it. Placed before the day gate like void: the
-            // anonymize verdict never depends on the caller's day grants.
             if (client.deletedAt != null) {
                 throw ConflictException("Cannot update the status of a session for an anonymized client")
             }
@@ -424,10 +414,6 @@ object SessionService {
             val initial =
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
-            // Keep every session mutation's lock order client -> session -> branch day.
-            // sticky anonymization (the practitioner/concern and
-            // void/unvoid precedent): price writes audit reason free text (#909 scrub
-            // class), so an anonymized client's sessions 409 instead of reintroducing it.
             val client =
                 ClientReads.acquireLockInTransaction(initial.clientId)
                     ?: throw NotFoundException("Client not found")
@@ -496,10 +482,6 @@ object SessionService {
             val initial =
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
-            // Client-first lock order serializes a PENDING void with create and anonymize guards.
-            // sticky anonymization (the practitioner/concern precedent): void writes
-            // operator free text (scrub class), so an anonymized client's sessions 409
-            // instead of reintroducing it.
             val client =
                 ClientReads.acquireLockInTransaction(initial.clientId)
                     ?: throw NotFoundException("Client not found")
@@ -541,12 +523,6 @@ object SessionService {
                 )
             }
 
-            // a voided session drops out of the commission aggregation input
-            // (findNonVoidedSalesByBranchDayInTransaction), so the persisted splits
-            // join this command transaction. Default force=false keeps the
-            // PAST/REMITTED auto-skip. Lock order stays client -> session -> day:
-            // the day row is already held by the gate above, recalc re-locks it
-            // harmlessly in the same transaction (sale/attendance precedent).
             CommissionService.recalculateInTransaction(session.branchDayId)
 
             logger.info { "[VOID-SESSION] Session $sessionId voided" }
@@ -564,9 +540,6 @@ object SessionService {
             val initial =
                 SessionRepository.findByIdInTransaction(sessionId)
                     ?: throw NotFoundException("Session not found")
-            // Client-first lock order matches create, anonymize, status, and void commands.
-            // sticky anonymization (the precedent): unvoid writes operator free
-            // text (scrub class), so an anonymized client's sessions 409.
             val client =
                 ClientReads.acquireLockInTransaction(initial.clientId)
                     ?: throw NotFoundException("Client not found")

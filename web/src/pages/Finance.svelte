@@ -37,7 +37,6 @@
     const exp = new Query<S["ExpenseResponse"][]>();
     const split = new Query<S["CommissionSplitResponse"][]>();
     const summary = new Query<S["DailySalesSummaryResponse"]>();
-    // The day's sessions, so past ones can be opened and corrected (feedback 3578107f).
     const sessQ = new Query<S["DashboardSessionResponse"][]>();
     const seeSessions = $derived(canRead("SEE_DAY", { branch: bid, day: dayId || undefined }));
     // Members' commission is private to the branch: its members, and relief on its day (owed #26).

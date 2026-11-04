@@ -29,7 +29,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** 503bf228, a6946922 — any member who can edit a branch sets each product's own price and commission there. */
 class BranchPriceAuthzTest : BasePostgresTest() {
     private val member = TestFixtures.uuid()
     private val outsider = TestFixtures.uuid()

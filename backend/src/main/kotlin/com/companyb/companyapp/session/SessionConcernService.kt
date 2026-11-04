@@ -179,12 +179,6 @@ internal object SessionConcernService {
         write: DayWrite = DayWrite.FIX,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
-        // client-first lock order (the precedent): serialize with
-        // ClientService.anonymize on the client row so a concern write can
-        // never commit inside the anonymize census-to-redaction window. Writes
-        // for anonymized clients 409 (sticky anonymization, the session-create
-        // and PENDING-reopen 409 precedent) instead of reintroducing the
-        // free text #908 scrubs; reads stay open via getForSession.
         val client =
             ClientReads.acquireLockInTransaction(session.clientId) ?: throw NotFoundException("Client not found")
         if (client.deletedAt != null) {

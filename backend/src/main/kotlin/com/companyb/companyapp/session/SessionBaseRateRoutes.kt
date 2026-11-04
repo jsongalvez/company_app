@@ -73,8 +73,6 @@ object SessionBaseRateRoutes {
                 // "known but non-member" (the createInvite / #715 listSent order, resolving
                 // the #724-deferred session-rate filter policy with the same precedence).
                 BranchService.findById(branchId)
-                // 503bf228 — any branch member sees its prices and anyone who can edit the branch
-                // changes them; every change is audited (Base Rate in Change history).
                 Access.require(context, act, Place.Branch(branchId))
             }
 

@@ -1,4 +1,3 @@
-// #597 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
 @file:Suppress("LargeClass") // #597
 
 package com.companyb.companyapp.commerce
@@ -513,11 +512,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
             )
         }
     }
-
-    // ──────────────────────────────────────────────
-    // #732 — unknown branchId returns 404 before the capability gate
-    // (#730 SessionBaseRateRoutes precedent; #711/#715/#724 class)
-    // ──────────────────────────────────────────────
 
     @Test
     fun `GET inventory with unknown branch returns 404`() {

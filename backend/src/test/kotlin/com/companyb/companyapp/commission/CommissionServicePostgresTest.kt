@@ -171,8 +171,6 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val otherUserId = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(otherUserId, "commission-other")
 
-        // #894 (#865 precedent) — an id owned by another (sale, user) pair is a
-        // client conflict (409), never a 500.
         assertFailsWith<ConflictException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,

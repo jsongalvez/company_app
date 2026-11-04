@@ -154,7 +154,7 @@ internal object SessionPractitionerRepository {
 
     /**
      * In-transaction store operation — nulls practitioner remarks on
-     * the given sessions. Same no-new-events precedent as the session scrub:
+     * the given sessions. No new events:
      * the client's anonymization event is the command's audit.
      */
     fun scrubRemarksForSessionsInTransaction(sessionIds: Collection<UUID>): Int =

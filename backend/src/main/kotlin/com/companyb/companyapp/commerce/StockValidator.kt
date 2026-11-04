@@ -10,8 +10,6 @@ internal object StockValidator {
      * inside the caller's command transaction: the day row is locked
      * ([checkBranchDayEditableInTransaction]) so the gate serializes with
      * remittance's REMITTED transition instead of racing it.
-     *
-     * 6-param movement gate stays whole; caller passes the command's day + delta through.
      */
     @Suppress("LongParameterList") // #597
     fun validateMovement(

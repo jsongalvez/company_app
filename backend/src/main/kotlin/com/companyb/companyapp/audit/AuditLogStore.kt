@@ -211,8 +211,8 @@ internal object AuditLogStore {
      * [redactClientNamesInTransaction]. Rewrites operator-entered free text
      * (`remarks`/`otherConcerns`) in retained session + session-practitioner
      * audit rows for one anonymized client's sessions, in place, on the
-     * caller's command transaction (no new events; event identity preserved,
-     * the precedent). Scopes by record id, so same-record rows of other
+     * caller's command transaction (no new events; event identity preserved). Scopes by record id, so
+     * same-record rows of other
      * tables survive untouched (the pin).
      */
     fun redactSessionTextInTransaction(
@@ -229,8 +229,8 @@ internal object AuditLogStore {
      * [redactSessionTextInTransaction]. Rewrites operator-entered void/unvoid
      * free text (`voidReason`/`unvoidedReason`) in retained `session_void`
      * audit rows for one anonymized client's sessions, in place, on the
-     * caller's command transaction (no new events; event identity preserved,
-     * the precedent). Scopes by void record id — one stable row per
+     * caller's command transaction (no new events; event identity preserved). Scopes by void record id
+     * — one stable row per
      * session (the invariant), so same-record rows of other tables
      * survive untouched (the pin). Also scrubs the duplicated
      * `audit_log.reason` column on those rows: the void/unvoid commands stamp

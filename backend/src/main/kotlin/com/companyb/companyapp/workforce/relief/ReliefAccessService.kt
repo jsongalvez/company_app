@@ -39,7 +39,7 @@ object ReliefAccessService {
     /**
      * Per-day request surface: branch members see every request on the day (the
      * broadcast audience); non-members see only their own rows. Authorization is bearer +
-     * row scoping (the notification-as-authorization precedent); no capability gate.
+     * row scoping; no capability gate.
      */
     fun listForCaller(
         callerId: UUID,
@@ -80,9 +80,6 @@ object ReliefAccessService {
         branchId: UUID,
         date: LocalDate,
     ): List<ReliefAccess> {
-        // 404 precedence for an unknown branch before the day read (#721
-        // precedent): findByBranchAndDate alone conflates "unknown branch" with
-        // "known branch with no day yet".
         BranchService.findById(branchId)
         val branchDay = BranchDayService.findByBranchAndDate(branchId, date) ?: return emptyList()
         return listForCaller(callerId, branchDay.id)
@@ -90,8 +87,7 @@ object ReliefAccessService {
 
     /**
      * Active branches for the pre-clock-in request picker. Bearer-only: the
-     * requester holds no capabilities by definition (the dashboard universal-read
-     * precedent — a capability gate would 403 the primary flow).
+     * requester holds no capabilities by definition: a capability gate would 403 the primary flow.
      */
     fun listBranchOptions(): List<Branch> = BranchService.findAll()
 
@@ -310,8 +306,6 @@ object ReliefAccessService {
 
         val (reliefAccess, wasCreated) =
             transaction {
-                // Resolve-or-create stays nested (existing precedent); the locked gate
-                // below serializes against the remittance transition.
                 val branchDay = BranchDayService.resolveOrCreate(branchId, operationalDate)
 
                 // in-tx replay classification before the day gate (the

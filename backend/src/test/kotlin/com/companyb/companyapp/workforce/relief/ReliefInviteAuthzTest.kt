@@ -1,4 +1,3 @@
-// #598 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
 @file:Suppress("LargeClass") // #598
 
 package com.companyb.companyapp.workforce.relief

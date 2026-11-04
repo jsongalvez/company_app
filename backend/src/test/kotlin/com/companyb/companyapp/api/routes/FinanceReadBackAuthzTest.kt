@@ -1,4 +1,3 @@
-// #596 600+-line finance read-back matrix stays whole (same precedent as SessionServicePostgresTest #593).
 @file:Suppress("LargeClass") // #596
 
 package com.companyb.companyapp.api.routes

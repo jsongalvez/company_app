@@ -47,7 +47,6 @@ object MonthlyRemittanceSummaryRoutes {
     private const val MIN_MONTH = 1
 
     fun register(config: JavalinConfig) {
-        // 404 precedence for an unknown branch before the capability gate (precedent).
         val branchMonthlySummaryGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid("branchId")

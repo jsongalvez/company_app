@@ -138,7 +138,6 @@ object RemittanceService {
         return result
     }
 
-    // #595: 7-param creation command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #595
     fun createDraft(
         callerId: UUID,
@@ -266,7 +265,6 @@ object RemittanceService {
         return remittance
     }
 
-    // #595: 7-param header-update command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #595
     fun updateHeader(
         callerId: UUID,
@@ -320,7 +318,6 @@ object RemittanceService {
         return remittance
     }
 
-    // #595: 7-param line-add command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #595
     fun addLine(
         callerId: UUID,

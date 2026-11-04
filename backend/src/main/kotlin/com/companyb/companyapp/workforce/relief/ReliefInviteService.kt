@@ -43,8 +43,7 @@ object ReliefInviteService {
      * Day resolution is a resolve-or-create (NOT find-only): the invite is a real write
      * referencing the day row, and the invite use case is FUTURE-day planning — a lazy
      * day row for tomorrow usually does not exist yet, so find-only would 404 the
-     * primary flow (the find-only discipline governs gates, never writes; the
-     * request flow's own grant path is the resolve-or-create precedent).
+     * primary flow (the find-only discipline governs gates, never writes).
      *
      * @throws ForbiddenException when the caller lacks an active assignment at the branch,
      *   or the day is not OPEN and the caller lacks EDIT_PAST_DAY.
@@ -139,7 +138,6 @@ object ReliefInviteService {
         callerId: UUID,
         branchId: UUID,
     ): List<ReliefInviteView> {
-        // same 404 precedence as listSent (precedent).
         BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
         return ReliefInviteRepository.findAcceptedByBranch(branchId, BranchDayService.currentOperationalDate())
@@ -148,7 +146,7 @@ object ReliefInviteService {
     /**
      * deep-link day read — the notification tap's truth surface: every invite at
      * [branchId] on [date] with its current status. Bearer-only, no capability gate (the
-     * deep-link precedent — the audiences a relief notification reaches are members,
+     * audiences a relief notification reaches are members,
      * the requester, and the invitee; none hold capabilities by definition). Audience
      * scoping mirrors ReliefAccessService.listForCaller: an active branch member sees all
      * rows (the broadcast told them); anyone else sees only the rows where they are the
@@ -159,9 +157,6 @@ object ReliefInviteService {
         branchId: UUID,
         date: LocalDate,
     ): List<ReliefInviteView> {
-        // 404 precedence for an unknown branch before the day read (#715
-        // precedent): findByBranchAndDate alone conflates "unknown branch" with
-        // "known branch with no invites on the date".
         BranchService.findById(branchId)
         val rows = ReliefInviteRepository.findByBranchAndDate(branchId, date)
         if (rows.isEmpty()) return rows
@@ -361,7 +356,6 @@ object ReliefInviteService {
         query: String,
         date: LocalDate,
     ): List<ReliefCandidate> {
-        // same 404 precedence as listSent (precedent).
         BranchService.findById(branchId)
         requireActiveAssignment(callerId, branchId)
 
@@ -423,8 +417,6 @@ object ReliefInviteService {
         if (inviteeUserId == callerId) {
             throw ValidationException("You cannot invite yourself")
         }
-        // unknown users 404 before the eligibility 400 (precedent):
-        // isActiveUser alone conflates "unknown user" with "known but inactive".
         if (!AccountReads.userExists(inviteeUserId)) {
             throw NotFoundException("User not found")
         }

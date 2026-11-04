@@ -221,11 +221,6 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
             if (nextAppointmentDate != null) put("nextAppointmentDate", nextAppointmentDate)
         }
 
-    // ──────────────────────────────────────────────
-    // #733 — unknown branchId returns 404 before the today gate
-    // (#730/#732 precedent; #711 non-member leg)
-    // ──────────────────────────────────────────────
-
     @Test
     fun `create with unknown branch returns 404 for EDIT holder elsewhere`() {
         val unknownBranch = TestFixtures.uuid()

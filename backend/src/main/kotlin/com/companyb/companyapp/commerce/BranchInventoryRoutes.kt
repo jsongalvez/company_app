@@ -147,7 +147,6 @@ object BranchInventoryRoutes {
 
     fun register(config: JavalinConfig) {
         registerHandlers(config)
-        // 503bf228 — the per-branch product price lives under the inventory card.
         BranchPriceRoutes.register(config)
     }
 
@@ -157,10 +156,6 @@ object BranchInventoryRoutes {
         return branchId
     }
 
-    // 404 precedence for an unknown branch before the capability gate
-    //  (SessionBaseRateRoutes precedent/ class):
-    // the access check alone conflates "unknown branch" with
-    // "known but non-member". BranchService.findById throws NotFoundException.
     private val branchInventoryCreateGate =
         Gate.Before { Access.require(it, Act.MANAGE_STOCK, Place.Branch(requireKnownBranchId(it))) }
 

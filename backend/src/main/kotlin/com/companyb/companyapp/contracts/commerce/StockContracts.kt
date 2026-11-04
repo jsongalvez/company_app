@@ -71,7 +71,6 @@ data class AddInventoryCardRequest(
     val productId: String,
 )
 
-/** 503bf228, a6946922 — a branch's own list price and commission for a product; a missing value stays as it is. */
 @Serializable
 data class SetBranchPriceRequest(
     val unitPrice: String? = null,

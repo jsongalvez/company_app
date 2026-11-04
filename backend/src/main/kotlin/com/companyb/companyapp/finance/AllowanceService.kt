@@ -23,7 +23,6 @@ import java.util.UUID
 object AllowanceService {
     private val logger = KotlinLogging.logger {}
 
-    // #596: 6-param creation command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,

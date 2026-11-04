@@ -35,8 +35,6 @@ data class InventoryWithBreakdowns(
 object InventoryService {
     private val logger = KotlinLogging.logger {}
 
-    // 9-param movement command stays whole; the single command-owned transaction
-    // (ADR-0024) keeps day gate + card lock + audit atomic — splitting would break atomicity.
     @Suppress("LongParameterList", "LongMethod") // #597
     fun recordMovement(
         callerId: UUID,

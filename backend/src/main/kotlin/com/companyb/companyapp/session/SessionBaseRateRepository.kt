@@ -73,7 +73,7 @@ internal object SessionBaseRateRepository {
      * In-transaction store operation (ADR-0024) — seeds the BR-documented default base
      * rates for a freshly created branch. Runs on the caller's command transaction
      * (branch creation); no per-rate audit rows — mechanism write riding the audited
-     * branch-create domain event (deflation precedent).
+     * branch-create domain event.
      */
     fun insertDefaultsInTransaction(
         branchId: UUID,

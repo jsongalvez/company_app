@@ -39,7 +39,7 @@ internal object SessionVoidRepository {
      *
      * Ownership-validated replay with re-arm: the insert spans two unique keys (PK
      * `id`, UNIQUE `session_id`), so a swallowed insert is disambiguated — a row owned by
-     * another session fails closed (the / `validateReplayOwnership` precedent), a
+     * another session fails closed, a
      * historical unvoided row for this session is re-armed in place (the single
      * per-session row invariant), and an active row for this session is an idempotent ack.
      */
@@ -135,7 +135,7 @@ internal object SessionVoidRepository {
      * sessions with the audit redaction marker. `void_reason` is NOT NULL and
      * the unvoid triple is CHECK-bound, so the marker (not null) is the scrub
      * value; never-unvoided rows keep their null `unvoided_reason` shape.
-     * Same no-new-events precedent as the session scrub: the client's
+     * No new events: the client's
      * anonymization event is the command's audit.
      */
     fun scrubReasonsForSessionsInTransaction(sessionIds: Collection<UUID>): Int {

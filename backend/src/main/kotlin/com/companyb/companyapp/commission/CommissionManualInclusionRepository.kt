@@ -71,8 +71,6 @@ internal object CommissionManualInclusionRepository {
         if (inserted.insertedCount == 0) {
             val existing =
                 findByProductSaleAndUserInTransaction(params.productSaleId, params.userId)
-                    // (precedent) — the id is owned by another (sale, user)
-                    // pair, so this is a client conflict (409), never a 500.
                     ?: throw ConflictException(
                         "Commission inclusion ${params.id} is already used by another sale",
                     )

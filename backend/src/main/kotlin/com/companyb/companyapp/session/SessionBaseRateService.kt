@@ -21,7 +21,7 @@ internal object SessionBaseRateService {
     /**
      * Branch-creation hook: provisions the five BR-documented default rates
      * on the branch-create command transaction. Mechanism write riding the audited
-     * branch-create event (deflation precedent): no per-rate audit rows.
+     * branch-create event: no per-rate audit rows.
      */
     internal fun provisionDefaultsInTransaction(
         branchId: UUID,
@@ -76,9 +76,6 @@ internal object SessionBaseRateService {
         }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
-        // 404 precedence for an unknown branch before the repository read
-        // (#715 listSent / #724 listActiveMembers precedent; the route gate
-        // carries the same check for HTTP, this covers direct service callers).
         BranchService.findById(branchId)
         return SessionBaseRateRepository.findActiveByBranch(branchId)
     }

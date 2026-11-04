@@ -146,7 +146,6 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertEquals(0L, delegateCount(branchId))
     }
 
-    // #708 — unknown target 404s before the eligibility 400 (#705/#707 precedent).
     @Test
     fun `assign with unknown target throws 404 with no row or audit`() {
         val delegateId = TestFixtures.uuid()

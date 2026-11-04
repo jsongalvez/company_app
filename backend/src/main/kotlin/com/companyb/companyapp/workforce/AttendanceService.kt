@@ -247,9 +247,6 @@ object AttendanceService {
         branchId: UUID,
         callerId: UUID,
     ): AttendanceServiceResult {
-        // 404 precedence for an unknown branch before the command transaction:
-        // resolveOrCreate would otherwise hit the branch_day.branch_id FK and surface
-        // 500 (same class as; getToday precedent).
         BranchService.findById(branchId)
         return transaction {
             retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }

@@ -56,7 +56,6 @@ object DashboardRoutes {
         config.get(ApiRoutes.BRANCH_SESSIONS_PATH, branchSessionsGate, ::handleGetSessionsForDay)
     }
 
-    /** Any day's sessions at a branch, for the Expenses & pay page (feedback 3578107f). */
     private fun handleGetSessionsForDay(context: Context) {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val raw = context.queryParam("date") ?: throw BadRequestResponse("date is required")

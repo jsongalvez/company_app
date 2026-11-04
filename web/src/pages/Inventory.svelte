@@ -141,7 +141,6 @@
         );
     }
 
-    // List price and commission of one product at this branch (503bf228, a6946922).
     const xa = new Action();
     let xOpen = $state(false);
     let xItem = $state<S["BranchInventoryResponse"] | null>(null);

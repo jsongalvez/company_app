@@ -23,10 +23,6 @@ data class BookingInput(
     val note: String?,
 )
 
-/**
- * Booked future visits (feedback e4ec363c): any branch member books a client for a day
- * without making a session for today. Each change is audited so the history shows who.
- */
 object VisitBookingService {
     fun upcoming(branchId: UUID): List<BookingResponse> =
         VisitBookingRepository.findUpcomingForBranch(branchId, BranchDayService.currentOperationalDate())

@@ -13,8 +13,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Change-history entries say what they were about (user feedback bbeff139: "Can't really tell
- * what was changed... it only shows the value that was changed"). An UPDATE only stores the
+ * Change-history entries say what they were about . An UPDATE only stores the
  * changed field, so its subject comes from the record's own INSERT row plus live names.
  */
 class AuditSubjectPostgresTest : BasePostgresTest() {

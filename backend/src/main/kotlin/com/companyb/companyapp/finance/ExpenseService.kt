@@ -24,7 +24,6 @@ import java.util.UUID
 object ExpenseService {
     private val logger = KotlinLogging.logger {}
 
-    // #596: 7-param creation command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,
@@ -86,7 +85,6 @@ object ExpenseService {
             existing.category == category &&
             existing.notes == notes
 
-    // #596: 7-param update command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596
     fun update(
         callerId: UUID,

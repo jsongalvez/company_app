@@ -218,8 +218,6 @@ object UserBranchAssignmentService {
         callerId: UUID,
         branchId: UUID,
     ): List<UserBranchAssignment> {
-        // Whoever manages users sees every branch's staff; anyone else only a branch they can see,
-        // as its price list (feedback a11802ff). Unknown branches 404 only past that gate, so no existence leak.
         if (!canManageUsers(callerId)) {
             Access.require(
                 callerId,
@@ -234,8 +232,7 @@ object UserBranchAssignmentService {
 
     /**
      * the requested-practitioner picker's directory: ACTIVE members (id + display
-     * name) of [branchId]. Gated at the service layer (the ADR-0007 #134 deviation
-     * precedent for this surface): a caller passes with either an ACTIVE assignment row
+     * name) of [branchId]. Gated at the service layer: a caller passes with either an ACTIVE assignment row
      * at the branch — no capability code involved, so a practitioner without
      * MANAGE_USERS can still read their own branch's names (rule) — or, since
      * #402, the shared today gate: a BRANCH or BRANCH_DAY-for-today

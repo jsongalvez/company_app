@@ -10,7 +10,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Each product's own list price and commission at a branch (503bf228, a6946922). Any member who
+ * Each product's own list price and commission at a branch. Any member who
  * can edit the branch sets them; a value left out stays as it is. Each change is an audited
  * UPDATE of the branch's inventory card, so Change history shows who set what and when.
  */

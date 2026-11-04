@@ -221,9 +221,6 @@ object RemittanceRoutes {
     private fun remittancesGate(branchIdOf: (Context) -> UUID) =
         Gate.Before { context ->
             val branchId = branchIdOf(context)
-            // 404 precedence for an unknown branch before the capability gate
-            //  (precedent): the access check alone conflates
-            // "unknown branch" with "known but non-member".
             BranchService.findById(branchId)
             Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
         }

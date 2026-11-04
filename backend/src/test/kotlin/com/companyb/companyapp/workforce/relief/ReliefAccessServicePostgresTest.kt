@@ -42,11 +42,8 @@ import kotlin.test.assertTrue
  * a future date); any ACTIVE outsider may raise it, any active branch member grants,
  * denies, or cancels it; all retraction locks once the requester clocks in. The #354
  * supersede machinery is retired — multiple relief workers per branch-day are allowed.
- *
- * Over the 600-line LargeClass threshold since #409's audience test; test-class precedent
- * (RemittanceServicePostgresTest, BranchInventoryServicePostgresTest).
  */
-@Suppress("LargeClass") // #598 scenario coverage stays whole.
+@Suppress("LargeClass") // #598
 class ReliefAccessServicePostgresTest : BasePostgresTest() {
     private val reliefUserId = TestFixtures.uuid()
     private val memberId = TestFixtures.uuid()

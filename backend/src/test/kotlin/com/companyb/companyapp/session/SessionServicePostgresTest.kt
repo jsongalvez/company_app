@@ -57,7 +57,6 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-// #593 1335-line scenario coverage stays whole (test-class precedent: RemittanceServicePostgresTest).
 @Suppress("LargeClass") // #593
 class SessionServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
@@ -247,7 +246,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
             assertFailsWith<ConflictException> {
                 createSession(callerId, secondSessionId)
             }
-        // Feedback e8aefedf: "Why can't i add juan dela ceiz?" The answer has to say where he is waiting.
         assertEquals(
             "This client is already waiting at Test Branch ${branchId.toString().take(
                 8,
@@ -256,8 +254,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
         )
     }
 
-    // Feedback d6cc83cf: a session left Waiting on an earlier day (entered late, or never marked)
-    // is a stale record. It must not keep the client out of today's queue at any branch.
     @Test
     fun `a session left waiting on an earlier day does not block adding the client today`() {
         val yesterday = BranchDayService.resolveOrCreate(branchId, TestFixtures.today.minusDays(1))
@@ -1557,7 +1553,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertTrue(create(TestFixtures.uuid()).created)
     }
 
-    // #593 helper mirrors SessionService.create signature (fixture parity, #552 precedent).
     @Suppress("LongParameterList") // #593
     private fun createSession(
         callerId: UUID,

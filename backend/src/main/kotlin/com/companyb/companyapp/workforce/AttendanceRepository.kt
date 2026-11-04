@@ -74,7 +74,7 @@ data class ActiveShift(
  *
  * 13 functions — #404 added the member-marking store reads (active-window lookup, roster
  * presence set, member rows) beside the self clock-in/out family; splitting the object
- * would scatter one aggregate's persistence (the ReliefInviteRepository pin precedent).
+ * would scatter one aggregate's persistence.
  */
 internal object AttendanceRepository {
     fun hasActiveClockIn(

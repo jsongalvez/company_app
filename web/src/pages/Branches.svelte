@@ -14,7 +14,6 @@
     import PeopleChecklist from "../components/PeopleChecklist.svelte";
 
     const manageUsers = $derived(canRead("MANAGE_USERS"));
-    // a11802ff: whoever manages users sees every branch; anyone else sees the branches they belong to (the server's read window).
     const list = new Query<S["BranchResponse"][]>();
     $effect(() => {
         if (manageUsers) list.load(load.branches().key, load.branches().fn);
@@ -31,7 +30,6 @@
     });
 
     const manageHelpers = $derived(can("ASSIGN_DELEGATE"));
-    // 503bf228: any branch member sees its session prices; anyone who can edit the branch changes them. Product prices and commission live on Stock.
     const seeRates = $derived(!!sel && canRead("SEE_BRANCH", { branch: sel }));
     const manageRates = $derived(!!sel && can("WORK_HOME_BRANCH", { branch: sel }));
 

@@ -1,4 +1,3 @@
-// #595 950-line authz matrix stays whole (same precedent as SessionServicePostgresTest #593).
 @file:Suppress("LargeClass") // #595
 
 package com.companyb.companyapp.remittance
@@ -995,11 +994,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
             )
         }
     }
-
-    // ──────────────────────────────────────────────
-    // #734 — unknown branchId returns 404 before the capability gate
-    // (#730 SessionBaseRateRoutes / #732 BranchInventoryRoutes precedent)
-    // ──────────────────────────────────────────────
 
     @Test
     fun `GET list with unknown branch returns 404`() {

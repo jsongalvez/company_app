@@ -294,7 +294,7 @@ internal object SessionRepository {
      * on every session of one anonymized client. Runs on the caller's command
      * transaction with no audit row of its own: the client's anonymization
      * event is the command's audit, and a scrub event would re-persist the
-     * removed text (the no-new-events precedent).
+     * removed text.
      */
     fun scrubFreeTextForClientInTransaction(clientId: UUID): Int =
         SessionTable.update({ SessionTable.clientId eq clientId }) {
@@ -302,10 +302,6 @@ internal object SessionRepository {
             it[SessionTable.otherConcerns] = null
         }
 
-    /**
-     * Earlier unremitted days at [branchId] that still hold a Waiting session (feedback d6cc83cf):
-     * one entered late or never marked. Today lists them so the branch marks them.
-     */
     fun findEarlierWaitingDays(
         branchId: UUID,
         before: LocalDate,
@@ -334,8 +330,8 @@ internal object SessionRepository {
     /**
      * A client waits in one queue per day (ADR-0026). A session left Waiting on an earlier day was
      * entered late or never marked; it stays on that day for its branch to mark and never blocks
-     * another day (feedback d6cc83cf). When the same day already has one, say where, so the person
-     * adding knows which session to mark (feedback e8aefedf).
+     * another day. When the same day already has one, say where, so the person
+     * adding knows which session to mark.
      */
     fun assertNotWaitingElsewhereInTransaction(
         clientId: UUID,

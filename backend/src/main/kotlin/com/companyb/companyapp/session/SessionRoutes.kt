@@ -361,10 +361,6 @@ object SessionRoutes {
         val branchSessionPreviewGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid("branchId")
-                // 404 precedence for an unknown branch before the today gate
-                //  (SessionBaseRateRoutes / BranchInventoryRoutes precedent):
-                // the access check alone conflates "unknown branch" with
-                // "known but non-member" (findToday is null for both).
                 BranchService.findById(branchId)
                 // Same gate as the create it previews: the preview passes exactly
                 // when the create would.

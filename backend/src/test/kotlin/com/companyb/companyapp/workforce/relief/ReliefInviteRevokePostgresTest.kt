@@ -122,7 +122,6 @@ class ReliefInviteRevokePostgresTest : BasePostgresTest() {
 
     @Test
     fun `the invitee gets an alert when invited`() {
-        // Feedback dc75f521: "The user didn't receive an alert from my invite".
         val duty = TestFixtures.today.plusDays(2)
         val invite = ReliefInviteService.createInvite(inviterId, branchId, inviteeId, duty)
 
@@ -246,7 +245,6 @@ class ReliefInviteRevokePostgresTest : BasePostgresTest() {
         return invite.id
     }
 
-    // #707 — unknown invitee 404s before the eligibility 400 (#705 precedent).
     @Test
     fun `create invite with unknown invitee throws 404 with no row or audit`() {
         val unknownInvitee = TestFixtures.uuid()

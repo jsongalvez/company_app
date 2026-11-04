@@ -113,7 +113,7 @@ object DevSeeder {
         }
     }
 
-    /** Local-only developer account (SUPERUSER) for trying "View as" (feedback 378fdb6d). */
+    /** Local-only developer account (SUPERUSER) for trying "View as". */
     private fun seedDeveloper() {
         val userId = ensureUser(Credentials(DEV_SUPERUSER_USERNAME, DEV_SUPERUSER_PASSWORD))
         val roleId =

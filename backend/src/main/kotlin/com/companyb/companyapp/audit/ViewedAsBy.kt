@@ -3,7 +3,7 @@ package com.companyb.companyapp.audit
 import java.util.UUID
 
 /**
- * The superuser behind the current request while they "view as" someone (feedback 378fdb6d).
+ * The superuser behind the current request while they "view as" someone.
  * Set per request by the auth filter; history rows written during the request carry it in
  * `viewed_as_by`, so a change made while viewing as Pat reads "Pat (twisty viewing)".
  */

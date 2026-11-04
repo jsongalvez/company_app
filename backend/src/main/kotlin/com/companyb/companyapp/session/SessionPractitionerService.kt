@@ -40,7 +40,6 @@ internal object SessionPractitionerService {
         return SessionPractitionerRepository.findBySessionId(sessionId)
     }
 
-    // #593 six-param add stays whole (coherent assignment inputs; #535 no arbitrary DTO).
     @Suppress("LongParameterList") // #593
     fun addPractitioner(
         callerId: UUID,
@@ -178,12 +177,6 @@ internal object SessionPractitionerService {
         write: DayWrite = DayWrite.FIX,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findByIdInTransaction(sessionId) ?: throw NotFoundException("Session not found")
-        // client-first lock order (the precedent): serialize with
-        // ClientService.anonymize on the client row so a practitioner write can
-        // never commit inside the anonymize census-to-redaction window. Writes
-        // for anonymized clients 409 (sticky anonymization, the session-create
-        // and PENDING-reopen 409 precedent) instead of reintroducing the
-        // free text #908 scrubs; reads stay open via getForSession.
         val client =
             ClientReads.acquireLockInTransaction(session.clientId) ?: throw NotFoundException("Client not found")
         if (client.deletedAt != null) {

@@ -14,7 +14,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
 
-/** A client expected at a branch on a future day (feedback e4ec363c). */
 data class VisitBooking(
     val id: UUID,
     val branchId: UUID,

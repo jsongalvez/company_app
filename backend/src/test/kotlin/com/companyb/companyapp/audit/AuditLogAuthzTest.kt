@@ -1,4 +1,3 @@
-// #600 scenario coverage stays whole (same precedent as BranchInventoryAuthzTest #597).
 @file:Suppress("LargeClass") // #600
 
 package com.companyb.companyapp.audit

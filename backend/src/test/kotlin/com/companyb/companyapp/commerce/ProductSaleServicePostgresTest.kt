@@ -39,7 +39,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// #597 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
 @Suppress("LargeClass") // #597
 class ProductSaleServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()

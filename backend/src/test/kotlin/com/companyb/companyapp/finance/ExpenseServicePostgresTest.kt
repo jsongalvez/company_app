@@ -1,4 +1,3 @@
-// #596 scenario coverage stays whole (same precedent as SessionServicePostgresTest #593).
 @file:Suppress("LargeClass") // #596
 
 package com.companyb.companyapp.finance

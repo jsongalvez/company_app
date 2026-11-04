@@ -185,7 +185,6 @@ internal object BranchInventoryRepository {
             existing.quantityChange == params.quantityChange &&
             existing.notes == params.notes
 
-    /** Sets the branch's own price and commission on a locked card (503bf228, a6946922). */
     fun setPriceInTransaction(
         cardId: UUID,
         unitPrice: BigDecimal,

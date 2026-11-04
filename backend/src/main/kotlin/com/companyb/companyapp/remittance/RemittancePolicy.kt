@@ -77,7 +77,6 @@ object RemittancePolicy {
         }
     }
 
-    /** A remittance holds one kind of item: sessions, or product sales (feedback 364b18b3). */
     fun assertLineFitsKind(
         kind: RemittanceType,
         line: RemittanceLineType,

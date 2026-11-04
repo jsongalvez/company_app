@@ -108,7 +108,6 @@ object BranchRoutes {
                 )
             }
 
-        // One branch, for whoever may see it. 404 before 403 for an unknown branch (precedent).
         val branchGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)

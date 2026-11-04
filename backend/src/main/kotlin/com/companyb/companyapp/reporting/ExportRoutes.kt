@@ -73,7 +73,6 @@ object ExportRoutes {
         val branchGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid("branchId")
-                // 404 precedence for an unknown branch before the capability gate (precedent).
                 BranchService.findById(branchId)
                 Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
             }

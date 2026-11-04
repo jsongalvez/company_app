@@ -110,7 +110,6 @@
     const correct = $derived(can("CHANGE_CLOSED_DAY", { branch: bid }));
 
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
-    // Feedback 77b8ea5f: on a phone the side lists sit above today's sessions, so they start folded to their counts.
     const phone = new MediaQuery("max-width: 1000px");
     const rosterOpen = $derived(!phone.current || unfolded.roster);
     const bookedOpen = $derived(!phone.current || unfolded.booked);
@@ -489,7 +488,6 @@
 
     {#if isToday}<aside class="panel roster">
             {#if member}
-                <!-- ef1cfb99: on a phone the whole header row folds the block; the button inside keeps it reachable by keyboard. -->
                 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
                 <header class:foldbar={phone.current} onclick={() => phone.current && (unfolded.roster = !unfolded.roster)}>
                     <h2>

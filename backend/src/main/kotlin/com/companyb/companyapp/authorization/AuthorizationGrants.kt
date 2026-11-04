@@ -6,8 +6,8 @@ import java.util.UUID
 /**
  * Narrow grant seam for workforce commands: the relief request/accept/revoke and
  * delegate assign/revoke flows write grants only through here — thin delegations to the
- * internal [GrantStore], not a facade over every store method (the `AccountReads`
- * precedent). Service-to-service calls need no architecture allowlist entry; direct
+ * internal [GrantStore], not a facade over every store method. Service-to-service calls need no
+ * architecture allowlist entry; direct
  * grant-table imports from other owners stay banned.
  */
 object AuthorizationGrants {

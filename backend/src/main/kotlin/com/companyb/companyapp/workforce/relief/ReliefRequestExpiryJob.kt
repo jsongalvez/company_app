@@ -10,7 +10,7 @@ import java.time.ZonedDateTime
  *  (owner: "let carla know she had a relief duty request that day that expired").
  * Runs daily just after the 04:00 Manila day boundary.
  *
- * Request status deliberately stays PENDING — the invite precedent: the
+ * Request status deliberately stays PENDING: the
  * day-state IS the expiry, no status migration. Re-run safety is the UNIQUE
  * (dedup_key, user_id) constraint: an already-announced request inserts nothing,
  * so the job broadcasts unconditionally and counts actual deliveries — no check-then-insert

@@ -135,8 +135,6 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
         assertNull(screen.roster)
     }
 
-    // Feedback d6cc83cf: a session left Waiting on an earlier day no longer blocks today, so Today
-    // names the open days that still hold one, for the branch to mark. No clock-in needed to see it.
     @Test
     fun `Today names earlier open days that still hold a Waiting session`() {
         val today = BranchDayService.currentOperationalDate()
@@ -187,7 +185,6 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
     }
 
     private companion object {
-        // 13: one read names the earlier days still holding a Waiting session (feedback d6cc83cf).
         const val QUERY_BUDGET = 13
     }
 }

@@ -29,7 +29,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Developer "View as" (feedback 378fdb6d): superuser-only, look-only unless changes are allowed. */
 class ViewAsTest : BasePostgresTest() {
     private val dev = TestFixtures.uuid()
     private val otherDev = TestFixtures.uuid()

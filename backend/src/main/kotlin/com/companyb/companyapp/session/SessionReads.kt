@@ -39,8 +39,7 @@ object SessionReads {
      * Anonymization free-text scrub (#908, extended #909 with void/unvoid
      * reasons) — nulls session + practitioner free text and marks void/unvoid
      * reasons for every session of one client on the caller's command
-     * transaction. Writes no audit row of its own (the no-new-events
-     * precedent); the caller redacts the matching audit payloads through the
+     * transaction. Writes no audit row of its own; the caller redacts the matching audit payloads through the
      * audit seam before recording the anonymization event.
      */
     fun scrubSessionTextForClientInTransaction(clientId: UUID): SessionTextScrub {

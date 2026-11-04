@@ -12,8 +12,7 @@ import kotlin.test.assertTrue
  * allowlist and authorization-leak gates in [SemanticOwnershipArchitectureTest].
  *
  * Lives here instead of `SemanticOwnershipArchitectureTest` so that class stays
- * under its `LargeClass` pin (same precedent as `ProjectionArchitectureTest`
- * and `WorkforceReadsArchitectureTest`).
+ * under its `LargeClass` pin.
  */
 class SemanticOwnershipClassificationFixtureTest {
     private fun parse(source: String): KtFile = BackendArchitectureOwners.parseKt(source)

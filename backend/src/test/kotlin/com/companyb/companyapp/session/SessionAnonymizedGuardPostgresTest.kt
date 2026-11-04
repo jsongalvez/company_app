@@ -22,10 +22,9 @@ import kotlin.test.assertFailsWith
 /**
  * #910 — practitioner/concern write paths are sticky on anonymization: once a
  * client is anonymized, every practitioner/concern mutation on the retained
- * sessions 409s (the session-create #692 and PENDING-reopen 409 precedent),
+ * sessions 409s,
  * so no later write can reintroduce the free text #908 scrubs.
- * #917 — price and status-correction writes are sticky too (void/unvoid #911
- * precedent): only reads stay open.
+ * #917 — price and status-correction writes are sticky too: only reads stay open.
  */
 class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()

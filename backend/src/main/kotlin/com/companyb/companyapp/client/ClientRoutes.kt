@@ -120,11 +120,6 @@ object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 
     fun register(config: JavalinConfig) {
-        // clients are global records with no branch context, so the gate accepts
-        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the concern-catalog
-        // precedent and the any-context policy (AuditLogReadScope "client" agrees).
-        // A GLOBAL-only gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never
-        // derives GLOBAL). Relief day-grants satisfy for their windowed day (any day).
         val clientsGate =
             Gate.Before { context ->
                 Access.require(

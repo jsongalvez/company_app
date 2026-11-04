@@ -98,7 +98,6 @@ object CommissionService {
         return CommissionSplitRepository.findByBranchDayId(branchDayId)
     }
 
-    // #596: 6-param inclusion command stays whole per #535; bundle only on a real ownership decision.
     @Suppress("LongParameterList") // #596
     fun createManualInclusion(
         callerId: UUID,
@@ -147,11 +146,6 @@ object CommissionService {
             CommissionAudit.updated(context, mutation.existing, mutation.inclusion)
         }
 
-        // (precedent) — PAST/REMITTED inclusions force the recalc: the day gate above
-        // already required EDIT_PAST_DAY (+reason on REMITTED), so the caller holds the same
-        // authority the manual-recalculate route requires; joining the splits in this
-        // transaction keeps persisted commission_split equal to liveCommissions
-        // instead of stale-until-manual. OPEN-day behavior is unchanged (force is a no-op there).
         recalculateInTransaction(sale.branchDayId, force = true)
 
         logger.info {

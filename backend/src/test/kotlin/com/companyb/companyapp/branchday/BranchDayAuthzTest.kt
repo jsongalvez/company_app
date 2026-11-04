@@ -1,4 +1,3 @@
-// #600 scenario coverage stays whole (same precedent as BranchInventoryAuthzTest #597).
 @file:Suppress("LargeClass") // #600
 
 package com.companyb.companyapp.branchday
@@ -186,11 +185,6 @@ class BranchDayAuthzTest : BasePostgresTest() {
             )
         }
     }
-
-    // ──────────────────────────────────────────────
-    // #733 — unknown branchId returns 404 before the today gate
-    // (#730/#732 precedent; #711 non-member leg)
-    // ──────────────────────────────────────────────
 
     @Test
     fun `GET today with unknown branch returns 404 for EDIT holder elsewhere`() {

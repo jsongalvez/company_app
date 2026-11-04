@@ -71,9 +71,6 @@ import java.util.UUID
 )
 object DailySalesSummaryRoutes {
     fun register(config: JavalinConfig) {
-        // 404 precedence for an unknown branch before the capability gate
-        //  (precedent): the ForBranchId gates alone conflate
-        // "unknown branch" with "known but non-member".
         val branchDailySummaryGate =
             Gate.Before { context ->
                 val branchId = context.pathParamAsUuid("branchId")

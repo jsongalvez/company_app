@@ -26,9 +26,6 @@ import java.util.UUID
 object ClientService {
     private val logger = KotlinLogging.logger {}
 
-    // 13-param client creation stays whole; the single command-owned transaction
-    // (ADR-0024) keeps persistence + audit atomic — splitting would break atomicity
-    // (same precedent as SessionService.create #593, ProductSaleService.sell #597).
     @Suppress("LongParameterList") // #599
     fun create(
         callerId: UUID,
@@ -90,8 +87,6 @@ object ClientService {
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
 
-    // 14-param client update stays whole; the single command-owned transaction
-    // (ADR-0024) keeps lock + patch + audit atomic — splitting would break atomicity.
     @Suppress("LongParameterList") // #599
     fun update(
         callerId: UUID,
@@ -244,8 +239,7 @@ private const val BP_PAIR_MESSAGE =
  * 500. Nulls are absent values (unchanged on PATCH, unset on create) and pass;
  * the BP both-or-none shape stays owned by the pair guards. Throws
  * [ValidationException] so HTTP callers get 400 through the centralized
- * handler; routes mirror with [BadRequestResponse][io.javalin.http.BadRequestResponse]
- * via the `checkClearShape` try/catch precedent.
+ * handler; routes mirror with [BadRequestResponse][io.javalin.http.BadRequestResponse].
  */
 internal fun validateClientRanges(
     age: Int?,
@@ -336,7 +330,6 @@ internal fun checkClearShape(clearFields: Set<String>) {
     }
 }
 
-// #599 10-param patch resolution stays whole per #535; mirrors the update command 1:1.
 @Suppress("LongParameterList") // #599
 internal fun resolveClientPatch(
     firstName: String?,

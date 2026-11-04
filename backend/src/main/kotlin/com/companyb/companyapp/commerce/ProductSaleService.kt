@@ -24,9 +24,6 @@ import java.util.UUID
 object ProductSaleService {
     private val logger = KotlinLogging.logger {}
 
-    // 10-param sale command stays whole; the single command-owned transaction
-    // (ADR-0024) keeps day gate + stock guard + audit + commission recalc atomic — splitting
-    // the sequence would break atomicity (same precedent as RemittanceService.submit #595).
     @Suppress("LongParameterList", "CyclomaticComplexMethod", "LongMethod") // #597
     fun sell(
         callerId: UUID,
@@ -78,7 +75,6 @@ object ProductSaleService {
                 // an unknown branch fails closed before the product/session gates.
                 BranchService.findById(branchDay.branchId)
 
-                // 503bf228 — the branch's own price and commission win over the shared ones.
                 val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
 
                 // persisted-range pre-gate (the fail-closed class): the sale

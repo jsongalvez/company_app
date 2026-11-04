@@ -95,8 +95,8 @@ internal object ReliefAccessRepository {
 
     /**
      * PENDING requests whose Branch Day has ended (date strictly before the current
-     * operational date): the expiry-notice scan set. Status stays PENDING by design (#159 Q6
-     * invite precedent); the stored EXPIRED notice is the only expiry marker.
+     * operational date): the expiry-notice scan set. Status stays PENDING by design; the stored EXPIRED
+     * notice is the only expiry marker.
      */
     fun findPendingWithPastDay(beforeDate: LocalDate): List<ReliefRequestWithBranch> =
         transaction {

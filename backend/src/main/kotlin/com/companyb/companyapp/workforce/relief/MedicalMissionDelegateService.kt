@@ -31,8 +31,6 @@ object MedicalMissionDelegateService {
         role: DelegateRole = DelegateRole.PRACTITIONER,
     ): MedicalMissionDelegate {
         requireTakesHelpers(branchId)
-        // unknown targets 404 before the eligibility 400 (precedent):
-        // isActiveStaffInTransaction alone conflates "unknown user" with "known but ineligible".
         if (!AccountReads.userExists(targetUserId)) {
             throw NotFoundException("User not found")
         }

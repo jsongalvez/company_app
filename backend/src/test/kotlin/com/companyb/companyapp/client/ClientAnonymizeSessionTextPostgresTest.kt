@@ -50,7 +50,7 @@ import kotlin.test.assertTrue
  * client row. Unique markers placed in `session.remarks`/`otherConcerns` and
  * `session_practitioner.remarks` must vanish from live rows, session audit
  * payloads, and the dashboard/bearer/HTTP read paths, while event counts and
- * the anonymization marker are retained (the #524 no-new-events precedent).
+ * the anonymization marker are retained.
  */
 class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()

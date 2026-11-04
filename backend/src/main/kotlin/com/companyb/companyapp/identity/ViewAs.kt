@@ -19,7 +19,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 /**
- * Developer "View as" (feedback 378fdb6d): a SUPERUSER sends [HEADER] with another user's id
+ * Developer "View as": a SUPERUSER sends [HEADER] with another user's id
  * and every API request then runs as that user, with that user's permissions. Look-only unless
  * [CHANGES_HEADER] is "1": without it the server refuses every write. The header is ignored
  * for anyone who is not a SUPERUSER, so it can never widen what a caller may do.

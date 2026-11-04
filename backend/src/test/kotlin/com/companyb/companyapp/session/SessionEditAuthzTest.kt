@@ -198,8 +198,6 @@ class SessionEditAuthzTest : BasePostgresTest() {
         }
     }
 
-    // #128 lesson — the X-Test-User harness can't exercise the real auth filter; 401 needs
-    // the real-JWT harness (the #147/ReportsReadScopeAuthzTest precedent).
     @Test
     fun `unauthenticated request gets 401`() {
         testServer.client.let { client ->
