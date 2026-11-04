@@ -293,7 +293,7 @@ object SessionService {
             computeBasePrice(branchId, sessionType)
         }
 
-    /** In-transaction #424 default — runs on the caller's command transaction. */
+    /** In-transaction default — runs on the caller's command transaction. */
     private fun resolveDefaultBasePriceInTransaction(
         branchId: UUID,
         clientId: UUID,

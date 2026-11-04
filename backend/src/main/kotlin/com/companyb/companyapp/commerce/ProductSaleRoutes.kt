@@ -234,7 +234,7 @@ object ProductSaleRoutes {
         }
     }
 
-    /** Members' commission is private to the branch's members (owed #26). */
+    /** Members' commission is private to the branch's members. */
     private fun Context.seesCommission(branchDayId: UUID): Boolean =
         Access.allows(callerUuid(), Act.SEE_COMMISSION, Place.day(branchDayId))
 

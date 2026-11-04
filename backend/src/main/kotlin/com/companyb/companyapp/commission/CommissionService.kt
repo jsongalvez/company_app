@@ -163,8 +163,8 @@ object CommissionService {
     }
 
     /**
-     * Store-side body for callers already inside their own command-owned write (#326 closeout:
-     * attendance/sale/manual-inclusion commands must not nest this module's write block).
+     * Store-side body for callers already inside their own command-owned write
+     * (attendance/sale/manual-inclusion commands must not nest this module's write block).
      * Acquires the branch-day row lock so concurrent recalcs serialize identically whether the
      * entry point is the standalone wrapper or an enclosing command.
      */

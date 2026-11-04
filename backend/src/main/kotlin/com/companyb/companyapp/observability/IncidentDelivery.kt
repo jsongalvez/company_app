@@ -118,7 +118,7 @@ internal object IncidentDelivery {
     }
 
     /**
-     * Files one packet for delivery without blocking the caller (#526 keeps the
+     * Files one packet for delivery without blocking the caller (keeps the
      * async contract: production sends still run on the sender executor).
      * Returns the outcome so [IncidentService] can evict pre-send failures for
      * a truthful retry while ambiguous post-send failures stay deduped.

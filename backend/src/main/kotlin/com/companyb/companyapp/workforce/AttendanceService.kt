@@ -51,7 +51,7 @@ object AttendanceService {
      * marking 403s, non-member targets 400. Relief users are neither (their attendance is
      * their own deliberate check-in).
      *
-     * Present mirrors self clock-in exactly — same day resolution, #376 branch-day lock,
+     * Present mirrors self clock-in exactly — same day resolution, branch-day lock,
      * active-clock-in guard, idempotent-retry contract, atomic commission recalculation —
      * except `userId` is the target and `markedBy` is the caller. Absent closes the target's
      * open window (a clock-out on behalf): audit attributes the marker via changedBy, the
@@ -76,9 +76,9 @@ object AttendanceService {
         // Extracted so [mark] stays under the ThrowsCount gate (RED repair).
         requireTargetExists(targetUserId)
         return transaction {
-            // Gate inside the command transaction, under the assignment row lock (#404
-            // review): a concurrent revocation or deactivation serializes with the mark
-            // instead of racing a pre-transaction check. #519 — reciprocal marks took
+            // Gate inside the command transaction, under the assignment row lock:
+            // a concurrent revocation or deactivation serializes with the mark
+            // instead of racing a pre-transaction check. Reciprocal marks took
             // caller-first order, a wait-for cycle on the membership rows. Lock the
             // distinct participant set in stable user-ID order, then evaluate both
             // memberships from those locked facts (a self-mark locks once).
@@ -100,7 +100,7 @@ object AttendanceService {
     }
 
     /**
-     * The present leg: mirrors self clock-in — day resolution, #376 branch-day lock,
+     * The present leg: mirrors self clock-in — day resolution, branch-day lock,
      * active-clock-in guard, idempotent-retry contract, atomic commission recalculation —
      * with `userId` = target and `markedBy` = caller.
      */

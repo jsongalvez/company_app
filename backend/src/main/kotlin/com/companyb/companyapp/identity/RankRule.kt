@@ -1,7 +1,7 @@
 package com.companyb.companyapp.identity
 
 /**
- * Who may change whose roles or account (audit H1; the user, message 13675, accepted): only an
+ * Who may change whose roles or account: only an
  * Owner or a Superuser gives or takes away Owner or Manager, nobody changes their own roles, only a
  * Superuser changes or deactivates a Superuser, and only an Owner or a Superuser deactivates an Owner.
  * Each check returns the refusal, or null when the change may go ahead.

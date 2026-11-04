@@ -46,7 +46,7 @@ object ClientService {
         transaction {
             // range pre-gate (mirrors the client CHECKs / varchar width) —
             // fail closed with 400 before the insert instead of surfacing the DB
-            // violation as a 500 (auto-file). Same class as #912/#921.
+            // violation as a 500 (auto-file). 
             validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
             validateEarlierVisits(earlierVisits)
             val result =

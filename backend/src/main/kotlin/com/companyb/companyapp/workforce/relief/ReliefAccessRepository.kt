@@ -157,7 +157,7 @@ internal object ReliefAccessRepository {
      * transaction. The FOR UPDATE row lock + PENDING guard + conditional status update
      * stay here so the grant check+write is atomic; the day-scoped grant itself is
      * written by the command through the authorization seam in the same
-     * transaction. #357: the cross-request winner sweep is retired (multiple
+     * transaction. The cross-request winner sweep is retired (multiple
      * relief workers per branch-day are allowed — there is nothing left to
      * supersede); a redundant second grant is an idempotent replay via the
      * non-PENDING early return.
@@ -309,7 +309,7 @@ internal object ReliefAccessRepository {
 
     /**
      * In-transaction presence read — runs on the caller's command transaction so the
-     * retraction lock commits atomically with the cancel it gates (#357: all retraction
+     * retraction lock commits atomically with the cancel it gates (all retraction
      * stops once the requester clocks in at the branch).
      */
     fun hasActiveClockInInTransaction(

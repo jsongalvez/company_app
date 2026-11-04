@@ -94,7 +94,7 @@ internal object ReliefInviteRepository {
 
     /**
      * True when [userId] holds an ACTIVE day-scoped grant for [branchDayId] — the
-     * GRANTED leg of the per-person create guard (#159 Q3: exclude anyone already
+     * GRANTED leg of the per-person create guard (exclude anyone already
      * PENDING/ACCEPTED/GRANTED for the day). Served by the capabilities view, so
      * INACTIVE users and out-of-window grants are already excluded.
      */
@@ -299,7 +299,7 @@ internal object ReliefInviteRepository {
 
     /**
      * ACCEPTED invites at [branchId] across all inviters whose duty day is on/after
-     * [fromDate] — the revocable window (#377 discovery read: any active member may revoke,
+     * [fromDate] — the revocable window (discovery read: any active member may revoke,
      * so members must see colleagues' accepted duties). Days before [fromDate] are past
      * (day state is lazy-PAST) and cannot be revoked, so they are excluded server-side.
      */
@@ -320,7 +320,7 @@ internal object ReliefInviteRepository {
         }
 
     /**
-     * Every invite at [branchId] on [date], all statuses (#401 deep-link day read — the
+     * Every invite at [branchId] on [date], all statuses (deep-link day read — the
      * tapped notification must render the entity's true state, so resolved rows stay).
      * Joins through BranchDayTable, so a day that was never materialized yields an empty
      * list — no day-row creation from a read.

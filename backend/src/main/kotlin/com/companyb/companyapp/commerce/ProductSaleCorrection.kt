@@ -12,7 +12,7 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
- * Owed #21: a product sale is changed, deleted and restored under the expense rules (any branch
+ * A product sale is changed, deleted and restored under the expense rules (any branch
  * member until the day is remitted, a reason on an earlier day). Every correction is the same
  * step: write the sale's new state, then move each product's stock by what the sale held before
  * minus what it holds now ([stockMoves]), audit both, and recount the day's commission.
@@ -61,7 +61,7 @@ object ProductSaleCorrection {
         transaction {
             val before =
                 ProductSaleRepository.findByIdInTransaction(saleId) ?: throw NotFoundException("Product sale not found")
-            // Day row first, then product, then card: the lock order every stock write shares (#518).
+            // Day row first, then product, then card: the lock order every stock write shares.
             val (day, isRemitted) =
                 BranchDayService.checkBranchDayEditableInTransaction(callerId, before.branchDayId, reason, DayWrite.FIX)
             val after = write(before, day.branchId)

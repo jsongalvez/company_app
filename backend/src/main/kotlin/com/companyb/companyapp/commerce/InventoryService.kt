@@ -225,7 +225,7 @@ object InventoryService {
 }
 
 /**
- * Read-only inventory helpers (#460 governance: keeps `InventoryService` at 10 functions,
+ * Read-only inventory helpers (governance: keeps `InventoryService` at 10 functions,
  * under the `TooManyFunctions` 11 budget — the aggregate-read seam stays on the service,
  * the branch lookup + ledger scan + low-stock filter live here, same file).
  */

@@ -66,7 +66,7 @@ object NotificationService {
         notificationId: UUID,
     ): Notification {
         // Ownership is enforced inside the store's WHERE clause — the 404-on-foreign-row
-        // case must never have mutated the other user's row (audit finding #141: the pre-fix
+        // case must never have mutated the other user's row (the old
         // version updated by id first, then threw 404 after the foreign row committed).
         val notification =
             transaction {

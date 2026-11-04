@@ -201,7 +201,7 @@ internal fun configureAuth(config: io.javalin.config.JavalinConfig) {
 
 /**
  * narrow production route seam callable by contract tests without database
- * or scheduler startup. Retains #471 TraceIdFilter behavior via the caller's
+ * or scheduler startup. Retains TraceIdFilter behavior via the caller's
  * config; tests capture method/path pairs with `config.events.handlerAdded`.
  */
 fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {

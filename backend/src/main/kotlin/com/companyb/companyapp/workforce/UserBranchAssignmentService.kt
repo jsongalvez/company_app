@@ -87,7 +87,7 @@ object UserBranchAssignmentService {
         return CreateResult(result.assignment, result.created)
     }
 
-    /** A medical mission or provincial tour takes only helpers (user, message 13324). */
+    /** A medical mission or provincial tour takes only helpers. */
     private fun requireTakesStaff(branchId: UUID) {
         val branch = BranchService.findByIdOrNull(branchId) ?: throw NotFoundException("Branch not found")
         if (branch.branchType != BranchType.CLINIC) {
@@ -95,7 +95,7 @@ object UserBranchAssignmentService {
         }
     }
 
-    /** "An accountant ... can't be a member of any branch" (user, message 13065). */
+    /** "An accountant ... can't be a member of any branch". */
     private fun requireNotAccountant(userId: UUID) {
         if (AccountReads.isAccountantInTransaction(userId)) {
             throw ValidationException("An accountant can't have a home branch.")
@@ -235,7 +235,7 @@ object UserBranchAssignmentService {
      * name) of [branchId]. Gated at the service layer: a caller passes with either an ACTIVE assignment row
      * at the branch — no capability code involved, so a practitioner without
      * MANAGE_USERS can still read their own branch's names (rule) — or, since
-     * #402, the shared today gate: a BRANCH or BRANCH_DAY-for-today
+     * The shared today gate: a BRANCH or BRANCH_DAY-for-today
      * `EDIT_BRANCH_DATA` grant (GLOBAL excluded), mirroring the session-create
      * gate exactly, so anyone allowed to create sessions at the branch today can load
      * the names those flows need; off-duty non-members still 403.

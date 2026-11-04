@@ -88,7 +88,7 @@ data class LedgerExpense(
 
 /**
  * Pay or allowance paid out on [branchDayId]. Commission shares are left out: members'
- * commission is private to their branch and never in a sales report (owed #26).
+ * commission is private to their branch and never in a sales report.
  */
 data class LedgerPayout(
     val branchDayId: UUID,

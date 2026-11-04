@@ -23,7 +23,7 @@ internal object ShiftGuard {
 
     /**
      * the cutoff protocol shared by every duty-retraction command (relief-request
-     * cancel/withdraw #357, invite revoke #374): serialize against clock-in on the
+     * cancel/withdraw, invite revoke): serialize against clock-in on the
      * branch_day row BEFORE reading attendance. The plain absence check alone is a TOCTOU
      * under READ COMMITTED — a concurrent clock-in commits independently and the
      * retraction would land after the duty started (ruling 3). Clock-in takes the

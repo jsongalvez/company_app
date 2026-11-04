@@ -10,7 +10,7 @@ val MONEY_MAX: BigDecimal = BigDecimal(MONEY_MAX_PLAIN)
 /**
  * Persisted-range pre-gate: every NUMERIC(10,2)
  * money write is checked before the insert/update so overflow returns 400 instead of a
- * Postgres numeric-overflow 500 + #475 auto-file (the/ fail-closed class).
+ * Postgres numeric-overflow 500 + auto-file (the fail-closed class).
  * NUMERIC(15,4) columns (commission splits, sale commission snapshots) are wider and
  * stay outside this bound.
  */

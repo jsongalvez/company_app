@@ -86,7 +86,7 @@
                     show: can("MANAGE_USERS") || can("ASSIGN_DELEGATE") || app.accessible.length > 0,
                     reads: () => (canRead("MANAGE_USERS") ? [load.branches()] : []),
                 },
-                // Owed #25(a): who pays at every branch pays from one page.
+                // Who pays at every branch pays from one page.
                 { path: "/pay", page: "Payouts", text: "Pay, all branches", show: can("PAY", {}) },
                 { path: "/catalog", page: "Catalog", text: "Products", show: canRead("MANAGE_CATALOG"), reads: () => [load.products()] },
                 { path: "/feedback", page: "FeedbackList", text: "Feedback inbox", show: canRead("MANAGE_USERS") },

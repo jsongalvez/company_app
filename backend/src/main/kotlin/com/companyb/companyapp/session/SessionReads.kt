@@ -23,7 +23,7 @@ object SessionReads {
     ): Boolean = SessionRepository.hasActivePendingSessionInTransaction(clientId, excludedSessionId)
 
     /**
-     * Scrubbed free-text census for one client's anonymization (#908, extended
+     * Scrubbed free-text census for one client's anonymization (extended
      * with the void rows): the live session ids nulled plus the
      * practitioner-row and void-row ids whose audit payloads the caller must
      * redact (removed practitioner rows join via history census; void rows are
@@ -36,7 +36,7 @@ object SessionReads {
     )
 
     /**
-     * Anonymization free-text scrub (#908, extended #909 with void/unvoid
+     * Anonymization free-text scrub (extended with void/unvoid
      * reasons) — nulls session + practitioner free text and marks void/unvoid
      * reasons for every session of one client on the caller's command
      * transaction. Writes no audit row of its own; the caller redacts the matching audit payloads through the

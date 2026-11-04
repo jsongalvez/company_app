@@ -249,7 +249,7 @@ object ReliefAccessService {
                     requireActiveMemberInTransaction(callerId, request.branchDayId)
                 }
                 // Owner rule: ALL retraction stops once the requester clocks in as relief
-                // (#376 — the check serializes on the branch_day row, so a concurrent
+                // (the check serializes on the branch_day row, so a concurrent
                 // clock-in cannot slip between the read and this command's commit).
                 ShiftGuard.ensureRetractionAllowed(
                     request.requestedBy,

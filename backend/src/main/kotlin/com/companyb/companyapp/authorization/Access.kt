@@ -39,7 +39,7 @@ enum class Reach {
  * the one place to read who may do what; `AccessTableTest` pins the outcome per role and day.
  * Day state (closed and remitted days) is checked on top by `BranchDayService`, using
  * [CHANGE_CLOSED_DAY]. A read (GET) of an edit route also passes on [whenReading]: whoever may see
- * the place may read what its members read there (owed #23).
+ * the place may read what its members read there.
  */
 enum class Act(
     val code: String,
@@ -55,7 +55,7 @@ enum class Act(
     WORK_ANYWHERE(CapabilityCodes.EDIT_BRANCH_DATA, Reach.ANYWHERE, SEE_ANYWHERE),
     VOID(CapabilityCodes.VOID_SESSION, Reach.HOME_OR_DAY),
 
-    /** What members earned in commission: only the branch's members and its relief for the day (owed #26). */
+    /** What members earned in commission: only the branch's members and its relief for the day. */
     SEE_COMMISSION(CapabilityCodes.VIEW_COMMISSION, Reach.HOME_OR_DAY),
     CHANGE_CLOSED_DAY(CapabilityCodes.EDIT_PAST_DAY, Reach.HOME),
     PAY(CapabilityCodes.ASSIGN_COMPENSATION, Reach.HOME_OR_EVERYWHERE),
@@ -66,7 +66,7 @@ enum class Act(
     MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, Reach.EVERYWHERE),
     MANAGE_USERS(CapabilityCodes.MANAGE_USERS, Reach.EVERYWHERE),
 
-    /** "Erase personal details": Coordinator and up, member or not (audit L2, user message 13675). */
+    /** "Erase personal details": Coordinator and up, member or not. */
     ERASE_CLIENT(CapabilityCodes.ERASE_CLIENT, Reach.EVERYWHERE),
     ASSIGN_DELEGATE(CapabilityCodes.ASSIGN_DELEGATE, Reach.EVERYWHERE),
     ;
@@ -169,7 +169,7 @@ object Access {
     }
 
     /**
-     * Audit M4 (user, message 13675): "you only get paid if you belong to that branch or you were relief
+     * "You only get paid if you belong to that branch or you were relief
      * that day. With or without clock in." So [payee], whoever pays them, must work at [day]: a member,
      * a helper, or relief granted for it, the same grants [Act.WORK_DAY] counts.
      */

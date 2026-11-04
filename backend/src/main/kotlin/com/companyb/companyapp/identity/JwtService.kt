@@ -98,7 +98,7 @@ object JwtService {
                 decoded.issuedAt?.toInstant() ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no issued-at claim" }
                 }
-            // Pre-#505 tokens carry no version claim — treat as generation 0.
+            // Older tokens carry no version claim — treat as generation 0.
             val versionClaim = decoded.getClaim(CREDENTIAL_VERSION_CLAIM)
             val credentialVersion =
                 versionClaim.takeIf { !it.isMissing && !it.isNull }?.asLong() ?: 0L

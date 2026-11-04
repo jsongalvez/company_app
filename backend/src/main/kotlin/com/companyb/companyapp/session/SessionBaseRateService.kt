@@ -37,7 +37,7 @@ internal object SessionBaseRateService {
     ): SetRateResult =
         transaction {
             // MEDICAL_MISSION is always ₱0 (BR invariant) — normalize instead of constraining,
-            // mirroring #405's session-price decision.
+            // mirroring the session-price decision.
             val effectiveRate = if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else rate
             // persisted-range pre-gate on the normalized rate (mission ₱0 first, same as price).
             validateSessionMoney(effectiveRate, "rate")

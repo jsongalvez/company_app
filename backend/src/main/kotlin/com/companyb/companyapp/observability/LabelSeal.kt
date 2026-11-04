@@ -10,7 +10,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Audit L5 (user, message 13675: "On telemetry, sure"). The page sends each tapped label as a
+ * The page sends each tapped label as a
  * 32-bit FNV-1a hash ([LABEL_KEYS]), which anyone can recompute for a short label such as a name.
  * Before an event is stored, the server replaces each one with a keyed HMAC-SHA256 of it, so only
  * someone holding the deployment's secret can match a label. `tools/replay/replay.mjs` derives

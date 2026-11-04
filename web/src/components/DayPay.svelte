@@ -9,7 +9,7 @@
     import State from "./State.svelte";
     import Dialog from "./Dialog.svelte";
 
-    /** One branch day's pay and allowances, for whoever pays there. Commission is never here: it stays with the branch (owed #26).
+    /** One branch day's pay and allowances, for whoever pays there. Commission is never here: it stays with the branch.
      *  `onpay` runs after pay changes: the day's totals count pay, not allowances. */
     let { branchId, dayId, status, onpay }: { branchId: string; dayId: string; status: S["RemittanceDayPickerEntryResponse"]["status"]; onpay?: () => void } =
         $props();
@@ -38,7 +38,7 @@
     });
 
     const closed = $derived(status !== "OPEN");
-    // The user (owed #25): pay on earlier days needs a reason, not past-day rights; a remitted day still does.
+    // Pay on earlier days needs a reason, not past-day rights; a remitted day still does.
     const payEdit = $derived(can("PAY", { branch: branchId, day: dayId }) && (status !== "REMITTED" || can("CHANGE_CLOSED_DAY", { branch: branchId })));
 
     let reason = $state("");

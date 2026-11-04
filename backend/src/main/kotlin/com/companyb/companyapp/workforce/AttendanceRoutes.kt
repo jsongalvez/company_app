@@ -124,7 +124,7 @@ object AttendanceRoutes {
             val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
             val branchId = uuidOrThrow(request.branchId, "branch id")
             BranchService.findById(branchId)
-            // Audit M3 (user, message 13675): a role at the branch, or an approved relief request.
+            // A role at the branch, or an approved relief request.
             Access.require(
                 callerId,
                 Act.WORK_DAY,

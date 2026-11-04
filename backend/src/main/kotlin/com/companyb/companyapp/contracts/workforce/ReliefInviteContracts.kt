@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * Lifecycle of a branch-initiated relief invite: PENDING until the invitee
  * responds (ACCEPTED/DECLINED), the inviter retracts (RETRACTED — PENDING only), or
- * any active branch member revokes an acceptance (REVOKED — #374, the rulings;
+ * any active branch member revokes an acceptance (REVOKED;
  * removes the day grant atomically and stops before the invitee clocks in). The
  * accepted grant is written at ACCEPT time; day-state is the expiry (a PENDING invite
  * whose day is past renders "expired" — no cron).

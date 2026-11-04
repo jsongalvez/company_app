@@ -8,7 +8,7 @@
     import PageHead from "../components/PageHead.svelte";
     import DayPay from "../components/DayPay.svelte";
 
-    // Owed #25(a): the Owner pays at every branch from one page, wages and allowances only; commission stays with
+    // The Owner pays at every branch from one page, wages and allowances only; commission stays with
     // each branch. The user: "A non-member Owner can pay members for earlier days too, not just today."
     const date = $derived(route.current.query.get("date") ?? operationalDate());
     const isToday = $derived(date === operationalDate());

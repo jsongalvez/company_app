@@ -132,7 +132,7 @@ internal object MeRepository {
                 }.map { it[BranchDayTable.branchId] }
                 .toSet()
 
-        // Relief granted today has a member's rights there (owed #23), so the branch is theirs to pick
+        // Relief granted today has a member's rights there, so the branch is theirs to pick
         // before they clock in.
         val grantedDayIds = CapabilityService.findDayWindow(userId)
         val reliefTodayBranchIds =

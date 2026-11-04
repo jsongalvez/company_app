@@ -12,7 +12,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 // session_id is nullable: appointment reminders carry it (session access rides the
-// row, #151), while non-session events (relief) have none. Uniqueness is per
+// row), while non-session events (relief) have none. Uniqueness is per
 // (occurrence, recipient) via UNIQUE (dedup_key, user_id) — one person holds
 // many rows across occurrences, never two deliveries of the same occurrence.
 //
@@ -20,7 +20,7 @@ import java.util.UUID
 // polymorphic: grant_relief_access or relief_invite id, no FK), and the branch day the tap
 // destination points at (target_date). Appointment rows carry the sweep identity instead:
 // event_type APPOINTMENT_REMINDER, source_id = the session, target_date = the upcoming
-// appointment date the sweep announced (#508 — the occurrence dimension that lets a
+// appointment date the sweep announced (the occurrence dimension that lets a
 // genuinely later appointment survive while a same-sweep retry dedups).
 //
 // every row carries the stable occurrence key (dedup_key): appointment identity is
@@ -46,7 +46,7 @@ data class NotificationCreateParams(
     val branchId: UUID,
     val message: String,
     // event rows (sessionId == null) carry navigation metadata for tap-through,
-    // source lookup and bearer access. #614 — metadata is distinct from dedup identity:
+    // source lookup and bearer access. Metadata is distinct from dedup identity:
     // every producer supplies both explicitly, the store never derives one from the other.
     val eventType: String,
     val sourceId: UUID,

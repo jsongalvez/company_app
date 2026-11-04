@@ -165,8 +165,8 @@ internal object UserRepository {
         }
 
     /**
-     * ACTIVE-status check on the caller's command transaction (#926 — roster-path
-     * parity with create-path #366): status-only, never membership, so the deliberate
+     * ACTIVE-status check on the caller's command transaction (roster-path
+     * parity with create-path): status-only, never membership, so the deliberate
      * relief-999 fallback for ACTIVE outsiders is preserved.
      */
     fun isActiveUserInTransaction(userId: UUID): Boolean =
@@ -177,7 +177,7 @@ internal object UserRepository {
             .not()
 
     /**
-     * Display names for notification copy (#358, merged from the retired `UserDisplayNames`
+     * Display names for notification copy (merged from the retired `UserDisplayNames`
      * helper): relief broadcast messages name the people in them. Keeps its transaction
      * wrapper (ADR-0024 rule 6); called inside a command it joins the ambient transaction.
      */
@@ -395,8 +395,7 @@ internal object UserRepository {
 
     /**
      * Who may be a helper (medical-mission delegate): an active account holding a working role.
-     * Onboarding-only people have no access yet, and an Accountant never works a branch (user,
-     * message 13065). Locks the target for pair uniqueness.
+     * Onboarding-only people have no access yet, and an Accountant never works a branch. Locks the target for pair uniqueness.
      */
     fun isActiveStaffInTransaction(userId: UUID): Boolean {
         if (!acquireLockInTransaction(userId)) return false

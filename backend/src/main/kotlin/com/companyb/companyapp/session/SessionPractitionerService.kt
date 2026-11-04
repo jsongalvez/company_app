@@ -27,7 +27,7 @@ internal object SessionPractitionerService {
     private const val DEFAULT_SLOT: Short = 999
 
     /**
-     * Practitioner list read (#348 — the route the frontend's add-self refresh calls; it was
+     * Practitioner list read (the route the frontend's add-self refresh calls; it was
      * never registered). Mirrors [SessionConcernService.getForSession]: 404 for a missing
      * session, then the day-state readability gate. Ordered by slot (display order, BR §206).
      */

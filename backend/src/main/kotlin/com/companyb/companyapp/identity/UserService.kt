@@ -305,7 +305,7 @@ object UserService {
 
     /**
      * The roles [viewer] is shown for someone holding [roles]: "superusers should appear as
-     * practitioners to someone managing users" (user, message 13101) unless the viewer is one.
+     * practitioners to someone managing users" unless the viewer is one.
      */
     private fun rolesAsSeenBy(
         roles: List<String>,

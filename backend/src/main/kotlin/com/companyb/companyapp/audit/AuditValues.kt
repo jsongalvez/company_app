@@ -12,7 +12,7 @@ object AuditValues {
      * Anonymization redaction marker: replaces identifying values in
      * retained client audit payloads. Uniform across every anonymized record,
      * so the marker itself carries no recoverable identity. Distinct from
-     * [NULL] so cleared-state history keeps its shape for #525.
+     * [NULL] so cleared-state history keeps its shape for.
      */
     const val REDACTED = "[redacted]"
 }

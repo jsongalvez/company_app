@@ -187,7 +187,7 @@ object ExpenseRoutes {
         context.json(expense.toResponse())
     }
 
-    /** "4 yes" (owed #21): an earlier day with nothing recorded yet gets its row from the first expense. */
+    /** An earlier day with nothing recorded yet gets its row from the first expense. */
     private fun dayByDate(request: CreateExpenseRequest): UUID {
         val branchId = uuidOrThrow(request.branchId ?: "", "branch id")
         val date =

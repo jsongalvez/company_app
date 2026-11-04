@@ -212,7 +212,7 @@ object AuthService {
      *  (re-invite pattern). False means the caller's IP exceeded its rate budget.
      *
      * Delivery happens after the token transaction commits. Without SMTP the code stays valid
-     * for retry but is never logged (#897 fail-closed; the server-log relay needs the explicit
+     * for retry but is never logged (fail-closed; the server-log relay needs the explicit
      * dev-only PASSWORD_RESET_DEV_RELAY opt-in). SMTP failures do not change token or rate-limit
      * semantics.
      */

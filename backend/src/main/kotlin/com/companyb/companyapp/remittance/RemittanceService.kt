@@ -28,7 +28,7 @@ import java.util.UUID
  * transaction — SERIALIZABLE for the financial submit/undo workflow — choosing its isolation
  * there. Persistence runs on that transaction via the internal `*InTransaction` stores, Branch
  * Day transitions go through the [BranchDayService] boundary (which writes its own domain audit
- * on that same transaction, #603), and the remittance audit rows are inserted directly into
+ * on that same transaction), and the remittance audit rows are inserted directly into
  * the same transaction ([RemittanceAudit]), so every mutation commits together with its audit
  * trail or not at all. Pure state/financial rules live in [RemittancePolicy].
  */
@@ -64,7 +64,7 @@ object RemittanceService {
                     val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
                     // lock covered days before the aggregate reads so a concurrent
                     // day-gated write cannot commit between the sums and the REMITTED
-                    // transition (same sorted order as #507 undo; the later
+                    // transition (same sorted order as undo; the later
                     // markDaysRemittedInTransaction re-lock is a no-op).
                     BranchDayService.lockDaysInTransaction(breakdownIds)
                     // lines and breakdowns must describe the same days before the
@@ -405,7 +405,7 @@ object RemittanceService {
                             ?: throw NotFoundException("Product sale not found")
                     // voided-session sales are excluded from all financial
                     // calculations, so attaching one is an explicit 400 (same as
-                    // SESSION #750; unknown sale stays 404 above).
+                    // SESSION; unknown sale stays 404 above).
                     val linkedSessionId = sale.sessionId
                     if (linkedSessionId != null && SessionReads.isVoidedInTransaction(linkedSessionId)) {
                         throw ValidationException("Product sale's session is voided")

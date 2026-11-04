@@ -66,7 +66,7 @@ object ProductSaleService {
                 }
                 // Locked day read: serializes this sale with remittance's
                 // REMITTED transition inside the same command transaction. The day row
-                // is locked before the product row (#518 day → product → card order,
+                // is locked before the product row (day → product → card order,
                 // shared with InventoryService.recordMovement).
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)

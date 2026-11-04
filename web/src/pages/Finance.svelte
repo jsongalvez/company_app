@@ -39,7 +39,7 @@
     const summary = new Query<S["DailySalesSummaryResponse"]>();
     const sessQ = new Query<S["DashboardSessionResponse"][]>();
     const seeSessions = $derived(canRead("SEE_DAY", { branch: bid, day: dayId || undefined }));
-    // Members' commission is private to the branch: its members, and relief on its day (owed #26).
+    // Members' commission is private to the branch: its members, and relief on its day.
     const seeCommission = $derived(!!dayId && canRead("SEE_COMMISSION", { branch: bid, day: dayId }));
     $effect(() => {
         if (!seeSessions) return;

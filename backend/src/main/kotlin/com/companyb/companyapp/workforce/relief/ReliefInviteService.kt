@@ -183,7 +183,7 @@ object ReliefInviteService {
             transaction {
                 // locked day read: serializes accept with remittance's REMITTED
                 // transition. The OPEN-only expiry rule itself is unchanged (still 400s
-                // when PAST/REMITTED — day-state remains the expiry, #159 Q6).
+                // when PAST/REMITTED — day-state remains the expiry).
                 val branchDay = BranchDayService.findLockedDayInTransaction(invite.branchDayId)
                 val effectiveStatus =
                     BranchDayService.evaluateStatus(

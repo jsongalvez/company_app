@@ -72,7 +72,7 @@ data class ActiveShift(
  * on the caller's (command-owned) transaction, which [AttendanceService] also uses to insert
  * the audit row atomically. Read helpers keep their convenient transaction wrappers.
  *
- * 13 functions — #404 added the member-marking store reads (active-window lookup, roster
+ * 13 functions; the member-marking store reads (active-window lookup, roster
  * presence set, member rows) beside the self clock-in/out family; splitting the object
  * would scatter one aggregate's persistence.
  */

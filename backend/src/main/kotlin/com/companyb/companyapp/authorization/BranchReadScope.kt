@@ -6,10 +6,10 @@ import java.util.UUID
 
 /**
  * Branch read-scoping authority — the single place the all-branches read
- * window is declared (#131, extracted from the `AuditLogReadScope`
+ * window is declared (extracted from the `AuditLogReadScope`
  * pattern so reports/export routes share it).
  *
- * Read window = the caller's branches with any active grant (#98 union
+ * Read window = the caller's branches with any active grant (union
  * pattern, sourced from [CapabilityService.findBranchWindow]); `null` = all
  * branches — the caller holds a GLOBAL `VIEW_BRANCH_DATA` grant (the
  * Accountant "read-only across all branches" shape, V2 seed; SUPERUSER/OWNER

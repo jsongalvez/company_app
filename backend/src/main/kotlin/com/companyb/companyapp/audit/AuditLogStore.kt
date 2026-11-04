@@ -176,7 +176,7 @@ internal object AuditLogStore {
      * Field policy: only `firstName`/`lastName` values that still identify a
      * person become [AuditValues.REDACTED]. Uniform `null` sentinels and
      * existing markers are left alone so cleared-state history keeps its
-     * shape. #525 must extend [CLIENT_IDENTIFYING_KEYS] when it widens the
+     * shape. must extend [CLIENT_IDENTIFYING_KEYS] when it widens the
      * client audit vocabulary — no new identifying value may land in a
      * permanent payload without passing through this gate.
      */
@@ -359,7 +359,7 @@ internal object AuditLogStore {
     }
 
     // Both read joins live here so every audit entry carries its resolved display names:
-    // the actor's (changedByName) and the branch's (branchName — #383; NULL for branchless
+    // the actor's (changedByName) and the branch's (branchName; NULL for branchless
     // rows, which the client renders as an explicit marker).
     private val viewer = AppUserTable.alias("viewer")
 
@@ -550,9 +550,7 @@ internal object AuditLogStore {
 
 /**
  * Client audit keys whose values are nullified on anonymize (BR §Privacy and
- * Cleanup) and therefore must never survive in a retained payload (#524
- * redaction set, extended by #525 when the client vocabulary widened beyond
- * names). Gender/age/id are retained aggregates/identifiers and stay out.
+ * Cleanup) and therefore must never survive in a retained payload. Gender/age/id are retained aggregates/identifiers and stay out.
  */
 private val CLIENT_IDENTIFYING_KEYS =
     setOf(
@@ -569,7 +567,7 @@ private val CLIENT_IDENTIFYING_KEYS =
 
 /**
  * Session free-text keys scrubbed on anonymize (BR §Privacy and Cleanup,
- * #908): operator-entered notes that may carry client identity typed outside
+ *): operator-entered notes that may carry client identity typed outside
  * any validated field. Other session payload keys (ids, prices, status, type,
  * dates, flags) are non-identifying event context and stay.
  */

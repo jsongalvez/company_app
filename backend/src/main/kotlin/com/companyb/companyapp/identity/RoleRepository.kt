@@ -113,7 +113,7 @@ internal object RoleRepository {
         }
     }
 
-    /** "An accountant ... can't be a member of any branch" (user, message 13065). */
+    /** "An accountant ... can't be a member of any branch". */
     private fun requireNoHomeBranchForAccountant(
         userId: UUID,
         roleIds: List<UUID>,

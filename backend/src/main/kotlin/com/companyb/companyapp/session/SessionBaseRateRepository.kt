@@ -26,7 +26,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 private const val RATE_OVERLAP_SQL_STATE = "23P01"
 
-// Far-future open-ended window shared by every rate writer (set rotation + #418 default
+// Far-future open-ended window shared by every rate writer (set rotation + default
 // provisioning); matches the V22 backfill literal.
 private const val FAR_FUTURE_YEAR = 9999
 private const val FAR_FUTURE_MONTH = 12

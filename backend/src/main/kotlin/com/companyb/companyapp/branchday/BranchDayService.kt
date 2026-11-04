@@ -113,19 +113,19 @@ object BranchDayService {
     ): BranchDay? = BranchDayRepository.findByBranchAndDate(branchId, date)
 
     /**
-     * Find-only branch-day lookup by id — never creates (#536 seam for reads that
+     * Find-only branch-day lookup by id — never creates (seam for reads that
      * tolerate a missing day, e.g. notification-bearer detail mapping).
      */
     fun findById(branchDayId: UUID): BranchDay? = BranchDayRepository.findById(branchDayId)
 
     /**
-     * In-transaction find-only read on the caller's open transaction (#536 seam for
+     * In-transaction find-only read on the caller's open transaction (seam for
      * remittance date-range validation — no lock, no create).
      */
     fun findByIdInTransaction(branchDayId: UUID): BranchDay? = BranchDayRepository.findByIdInTransaction(branchDayId)
 
     /**
-     * In-transaction row lock on the caller's open transaction (#536 seam for
+     * In-transaction row lock on the caller's open transaction (seam for
      * clock-in/mark/recalc serialization — replaces direct store locks).
      */
     fun lockDayInTransaction(branchDayId: UUID) {
@@ -134,7 +134,7 @@ object BranchDayService {
     }
 
     /**
-     * In-transaction locked read on the caller's open transaction (#536 seam for
+     * In-transaction locked read on the caller's open transaction (seam for
      * accept-style commands that decide on locked day state).
      */
     fun findLockedDayInTransaction(branchDayId: UUID): BranchDay =

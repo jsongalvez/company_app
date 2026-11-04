@@ -32,7 +32,7 @@ data class ProductSaleResponse(
     val quantity: Int,
     val unitPriceAtTime: String,
     val totalAmountAtTime: String,
-    /** Null for a caller who is not a member of the sale's branch: commission is private (owed #26). */
+    /** Null for a caller who is not a member of the sale's branch: commission is private. */
     val commissionAmountAtTime: String?,
     val soldAt: String,
     val deletedBy: String?,
@@ -41,7 +41,7 @@ data class ProductSaleResponse(
     val version: Int,
 )
 
-/** Owed #21: a sale's product or quantity changes; a past day needs [reason]. */
+/** A sale's product or quantity changes; a past day needs [reason]. */
 @Serializable
 data class UpdateProductSaleRequest(
     val productId: String,

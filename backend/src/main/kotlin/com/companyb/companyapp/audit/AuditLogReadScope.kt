@@ -11,7 +11,7 @@ import java.util.UUID
  * Audit read scoping authority — the single place the window + per-table
  * policy is declared (work item 1).
  *
- * Read window = the caller's branches with any active grant (#98 union pattern,
+ * Read window = the caller's branches with any active grant (union pattern,
  * sourced from [CapabilityService.findBranchWindow]). Branchless (global)
  * tables get a declared per-table capability policy; rows on unlisted tables
  * with a NULL branch (legacy backfill rows) fall back to the
@@ -22,8 +22,8 @@ object AuditLogReadScope {
     /** Branchless tables: DB table name -> the [Act] a caller needs to read its rows. */
     private val BRANCHLESS_POLICY: Map<String, Act> =
         mapOf(
-            // Per #104 D6: "client -> any EDIT_BRANCH_DATA holder" (clients are
-            // global records; #99 F5 gates on GLOBAL EDIT_BRANCH_DATA).
+            // "client -> any EDIT_BRANCH_DATA holder" (clients are
+            // global records; gates on GLOBAL EDIT_BRANCH_DATA).
             "client" to Act.WORK_ANYWHERE,
             // Concern catalog rows (promoteConcern writes with no branch; the
             // /api/concerns route gates GLOBAL EDIT_BRANCH_DATA, promote-concern
