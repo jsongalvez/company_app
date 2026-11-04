@@ -26,26 +26,27 @@ import java.util.UUID
 
 /**
  * Remittance feature commands (ADR-0024). Each mutating command owns exactly one business
- * transaction — SERIALIZABLE for the financial submit/undo workflow — choosing its isolation
- * there. Persistence runs on that transaction via the internal `*InTransaction` stores, Branch
- * Day transitions go through the [BranchDayService] boundary (which writes its own domain audit
- * on that same transaction), and the remittance audit rows are inserted directly into
- * the same transaction ([RemittanceAudit]), so every mutation commits together with its audit
- * trail or not at all. Pure state/financial rules live in [RemittancePolicy].
+ * transaction and chooses its isolation there. Persistence runs on that transaction via the
+ * internal `*InTransaction` stores, Branch Day transitions go through the [BranchDayService]
+ * boundary (which writes its own domain audit on that same transaction), and the remittance audit
+ * rows are inserted directly into the same transaction ([RemittanceAudit]), so every mutation
+ * commits together with its audit trail or not at all. Pure state/financial rules live in
+ * [RemittancePolicy].
  */
 object RemittanceService {
     private val logger = KotlinLogging.logger {}
 
-    private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
-
-    // SERIALIZABLE submit workflow stays in one command-owned transaction (ADR-0024);
-    // splitting the snapshot/day-transition sequence would break atomicity.
+    // Not SERIALIZABLE: Postgres fixes that snapshot at the first statement, before the
+    // day locks are held, and day-gated writers run READ COMMITTED where SSI cannot see
+    // them, so sums read after the locks would miss a write that committed while we waited.
+    // Row locks order submit/undo against those writers; reads after them must be fresh.
+    private const val WORKFLOW_ISOLATION = Connection.TRANSACTION_READ_COMMITTED
 
     /**
      * Freezes the draft into a SUBMITTED remittance: locks the row, validates the transition,
      * computes the financial totals from live lines/compensations/expenses, writes the immutable
      * SESSION snapshot, stamps the submission, marks every covered day REMITTED through the
-     * Branch Day boundary, and audits all of it inside one SERIALIZABLE transaction.
+     * Branch Day boundary, and audits all of it inside one transaction.
      */
     @Suppress("LongMethod") // #595
     fun submit(
@@ -56,7 +57,7 @@ object RemittanceService {
         return traced("RemittanceService.submit") {
             val result =
                 try {
-                    transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                    transaction(transactionIsolation = WORKFLOW_ISOLATION) {
                         val before =
                             RemittanceRepository.lockByIdInTransaction(remittanceId)
                                 ?: return@transaction null
@@ -71,8 +72,8 @@ object RemittanceService {
                         BranchDayService.lockDaysInTransaction(breakdownIds)
                         // lines and breakdowns must describe the same days before the
                         // immutable snapshot freezes gross (lines) with comp/expenses
-                        // (breakdowns); all reads stay `*InTransaction` on this SERIALIZABLE
-                        // transaction and run before any state change.
+                        // (breakdowns); all reads stay `*InTransaction` on this transaction
+                        // and run before any state change.
                         assertSubmitCoverageInTransaction(remittanceId, breakdownIds)
                         val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
                         val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
@@ -188,14 +189,11 @@ object RemittanceService {
             reason = reason,
         )
 
-    // SERIALIZABLE undo workflow stays in one command-owned transaction (ADR-0024);
-    // splitting the snapshot-delete/day-release sequence would break atomicity.
-
     /**
      * Reverts a SUBMITTED remittance to DRAFT within the server-enforced 48-hour window
      * ([RemittancePolicy.assertWithinUndoWindow], database clock), deletes the immutable
      * snapshot (V13 trigger carve-out), releases every covered day back through the Branch Day
-     * boundary, and audits all of it inside one SERIALIZABLE transaction.
+     * boundary, and audits all of it inside one transaction.
      *
      * [now] remains an explicit test seam for deterministic boundary tests.
      */
@@ -209,7 +207,7 @@ object RemittanceService {
     ): Remittance {
         return traced("RemittanceService.undoAt") {
             val remittance =
-                transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                transaction(transactionIsolation = WORKFLOW_ISOLATION) {
                     val before =
                         RemittanceRepository.lockByIdInTransaction(remittanceId)
                             ?: return@transaction null

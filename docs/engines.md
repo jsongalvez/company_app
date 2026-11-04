@@ -168,13 +168,13 @@ WHERE source_type = 'MEDICAL_MISSION_DELEGATE'
 
 **Goal:** Freeze financial state at submission and prevent double-submission via optimistic locking.
 
-**Isolation:** Use `SERIALIZABLE` transaction isolation for this operation.
+**Isolation:** `READ COMMITTED`, ordered by row locks (remittance, then covered days in sorted order). Not `SERIALIZABLE`: Postgres fixes that snapshot at the first statement, before the day locks are held, and day-gated writers run `READ COMMITTED`, so the sums would miss a write that committed while submit waited for the lock. `RemittanceSubmitDayLockPostgresTest` races this.
 
 ### Submission Flow
 
 Input: `remittance_id`, `expected_version` (from client), `submitted_by_id`
 
-**1.** Begin transaction (SERIALIZABLE).
+**1.** Begin transaction (READ COMMITTED).
 
 **2.** Lock and check state:
 ```sql

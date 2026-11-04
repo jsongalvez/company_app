@@ -25,14 +25,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * #517 — submit must hold the covered days before the aggregate reads, so a day-gated
- * write cannot commit between the sums and the REMITTED transition.
- *
- * Each iteration races a submit against a day-gated write that starts just after it.
- * Pre-fix submit holds no day lock during its reads, so the racing write commits onto
- * the still-open day and the frozen snapshot omits it (or SERIALIZABLE aborts). Post-fix
- * submit already holds the day lock, so the racing write blocks, then sees REMITTED and
- * is rejected — every snapshot stays equal to the live sums with no 500.
+ * Each iteration races a submit against a day-gated write that starts a few milliseconds
+ * after it, sweeping the delay so some writes land between submit's first statement and its
+ * day lock. Whatever the timing, the write either commits and is in the frozen snapshot, or
+ * is rejected cleanly, and submit itself never fails.
  */
 class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
@@ -57,7 +53,7 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
             var expenseFailure: Throwable? = null
             val racer =
                 thread {
-                    Thread.sleep(RACE_DELAY_MILLIS)
+                    Thread.sleep(iteration % RACE_DELAY_SWEEP_MILLIS)
                     expenseFailure =
                         runCatching {
                             ExpenseService.create(
@@ -99,7 +95,7 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
             var compensationFailure: Throwable? = null
             val racer =
                 thread {
-                    Thread.sleep(RACE_DELAY_MILLIS)
+                    Thread.sleep(iteration % RACE_DELAY_SWEEP_MILLIS)
                     compensationFailure =
                         runCatching {
                             CompensationService.create(
@@ -188,8 +184,8 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
     companion object {
         private val EXPENSE_AMOUNT = BigDecimal("500.00")
         private val COMPENSATION_AMOUNT = BigDecimal("1500.00")
-        private const val RACE_ITERATIONS = 30
-        private const val RACE_DELAY_MILLIS = 8L
+        private const val RACE_ITERATIONS = 120
+        private const val RACE_DELAY_SWEEP_MILLIS = 12L
         private const val BARRIER_JOIN_MILLIS = 30000L
     }
 }

@@ -297,7 +297,7 @@ internal object RemittanceRepository {
     /**
      * surviving SUBMITTED coverage for [dayIds] excluding [excludeRemittanceId].
      * The undo path retains REMITTED on every day in the returned set; all reads run on
-     * the caller's open transaction so the check joins the same SERIALIZABLE order as
+     * the caller's open transaction so the check joins the same lock order as
      * submit/undo day locks.
      */
     fun findDaysCoveredByOtherSubmittedInTransaction(

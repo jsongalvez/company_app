@@ -419,7 +419,7 @@ with a below-zero guard; sign/notes rules are DB-enforced per movement type.
 Engines live in [`docs/engines.md`](engines.md) (commission recalculation,
 remittance submission); owners are `finance/` + `commission/` + `remittance/`
 ([router](deep-modules.md)). Architectural facts kept here: `BigDecimal`
-throughout, `NUMERIC(15,4)` splits; `SERIALIZABLE` submission with optimistic
+throughout, `NUMERIC(15,4)` splits; lock-ordered `READ COMMITTED` submission with optimistic
 `remittance` versioning; snapshot immutability via trigger (SESSION flow —
 PRODUCT totals derive from `remittance_line`); `no_remittance_overlap` covers
 SUBMITTED rows only, drafts are unconstrained.

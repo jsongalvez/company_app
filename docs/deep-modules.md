@@ -24,7 +24,7 @@ routes (thin: parse → call one service command; each declares its gate, ADR-00
 ```
 
 **Where depth lives:** Branch Day hides day-state semantics behind a handful of
-functions; Commission hides the commission engine and Remittance the serializable
+functions; Commission hides the commission engine and Remittance the lock-ordered
 workflow; Capability is narrow by design; Audit looks trivial but hides JSONB diffing,
 flagging, and read scoping. The remaining top-level services (users, clients,
 products/categories) are shallow CRUD-style
@@ -132,7 +132,7 @@ intentionally shallow.
 
 ## Remittance
 
-**Owns:** the remittance workflow — DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping.
+**Owns:** the remittance workflow — DRAFT→SUBMITTED under row locks (READ COMMITTED, so sums read after the day lock are fresh), immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping.
 **Anchors:** `remittance/RemittanceService.kt` (pure rules in `remittance/RemittancePolicy.kt`) · `remittance/RemittanceAuthz.kt` (feature-owned route gate, #605) · `remittance/RemittanceRoutes.kt`.
 **Public seam:** `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads.
 **Depends on:** Branch Day (mark/release days), Session + Product Sales (line-source validation, gross sums); finance day-entry rows feed remittance sums via direct table reads inside the remittance internal store (deliberate; #546 owns the finance move, no new seam).
