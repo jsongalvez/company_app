@@ -131,6 +131,7 @@ POST /api/feedback-notes                                             400  400  4
 GET /api/feedback-notes                                              200  403  403  403  200  200  200  403  403  403  Before
 PATCH /api/feedback-notes/{feedbackId}                               400  403  403  403  400  400  400  403  403  403  Before
 POST /api/telemetry                                                  400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may send timings
+POST /telemetry                                                      400  400  400  400  400  400  400  400  400  400  Open: a signed-out page's errors and timings, limited per address
 GET /api/branches/{branchId}/monthly-summary                         400  400  400  400  400  400  400  403  403  403  Before
 GET /api/remittances                                                 400  400  400  400  400  400  400  400  400  400  Before
 GET /api/remittances/{remittanceId}                                  404  404  404  404  404  404  404  404  404  404  Before

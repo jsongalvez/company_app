@@ -50,8 +50,8 @@ if [ -n "$FB" ]; then
   [ -n "$SID" ] || SID=$(q "select session_id from telemetry_event where user_id = '$USER_ID' and at between timestamptz '$AT' - interval '30 minutes' and timestamptz '$AT' + interval '1 minute' order by at desc limit 1" 2>/dev/null)
 else
   SID=$ID
-  USER_ID=$(q "select user_id from telemetry_event where session_id::text = '$ID' limit 1")
-  [ -n "$USER_ID" ] || { echo "no report or page load with id $ID" >&2; exit 2; }
+  [ "$(q "select count(*) from telemetry_event where session_id::text = '$ID'")" -gt 0 ] 2>/dev/null || { echo "no report or page load with id $ID" >&2; exit 2; }
+  USER_ID=$(q "select user_id from telemetry_event where session_id::text = '$ID' and user_id is not null limit 1")
   PAGE='#/' W='' H=''
 fi
 if [ -n "$SID" ] && [ "$(q "select count(*) from telemetry_event where session_id = '$SID'" 2>/dev/null)" -gt 0 ] 2>/dev/null; then
@@ -70,13 +70,13 @@ rm -f "$OUT/db.dump"
 REPLAY_DB=verify_$VERIFY_PORT
 if [ "$PII" = 1 ]; then
   echo "WARNING: replaying WITH personal details (--pii); the copy keeps real names and notes until 'verify.sh down'"
-  USERNAME=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -AtXc "select username from app_user where id = '$USER_ID'")
+  [ -z "$USER_ID" ] || USERNAME=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -AtXc "select username from app_user where id = '$USER_ID'")
   echo "signing in as the reporter needs their password; with --pii it is set to the dev owner's in this copy"
-  psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -qAtXc "update app_user set password_hash = (select password_hash from app_user where username = 'owner') where id = '$USER_ID'"
+  [ -z "$USER_ID" ] || psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -qAtXc "update app_user set password_hash = (select password_hash from app_user where username = 'owner') where id = '$USER_ID'"
 else
   psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -q -f "$HERE/redact.sql" || exit 1
-  USERNAME=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -AtXc "select username from app_user where id = '$USER_ID'")
-  echo "personal details replaced (redact.sql); signing in as $USERNAME"
+  [ -z "$USER_ID" ] || USERNAME=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$REPLAY_DB" -AtXc "select username from app_user where id = '$USER_ID'")
+  echo "personal details replaced (redact.sql); signing in as ${USERNAME:-nobody (signed-out page)}"
 fi
 
 NODE=$(command -v node); [ "$("$NODE" -p 'process.versions.node.split(".")[0]')" -ge 24 ] || NODE=$HOME/.local/node/bin/node

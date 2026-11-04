@@ -6,14 +6,10 @@ import { APP_VERSION } from "./version";
 /** The live recorder for this page load; its id goes into problem reports so the replay tool can find it. */
 export const recorder = createRecorder(uuid(), async (body): Promise<Outcome> => {
     const token = getToken();
-    if (!token) return "retry";
+    const headers: Record<string, string> = { "Content-Type": "application/json", traceparent: traceparent() };
+    if (token) headers.Authorization = `Bearer ${token}`;
     try {
-        const res = await fetch("/api/telemetry", {
-            method: "POST",
-            body,
-            keepalive: true,
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, traceparent: traceparent() },
-        });
+        const res = await fetch(token ? "/api/telemetry" : "/telemetry", { method: "POST", body, keepalive: true, headers });
         return res.status === 401 || res.status === 429 || res.status >= 500 ? "retry" : "done";
     } catch {
         return "retry";

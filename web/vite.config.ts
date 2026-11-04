@@ -52,6 +52,7 @@ export default defineConfig({
             "/api": backend,
             "/auth": backend,
             "/health": backend,
+            "/telemetry": backend,
         },
     },
     build: { target: "es2022", sourcemap: true },

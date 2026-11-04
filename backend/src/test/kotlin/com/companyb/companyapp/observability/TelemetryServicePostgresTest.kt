@@ -92,4 +92,33 @@ class TelemetryServicePostgresTest : BasePostgresTest() {
                 .toEpochMilli(),
         )
     }
+
+    @Test
+    fun `a signed-out page's events are stored with no user, in smaller batches`() {
+        val session = TestFixtures.uuid()
+        TelemetryService.record(null, session, events(2))
+        val users =
+            transaction {
+                TelemetryEventTable
+                    .selectAll()
+                    .where {
+                        TelemetryEventTable.sessionId eq session
+                    }.map { it[TelemetryEventTable.userId] }
+            }
+        assertEquals(listOf(null, null), users)
+
+        val now = System.currentTimeMillis()
+        val tooMany =
+            TelemetryBatchRequest(
+                session.toString(),
+                (0..TelemetryRoutes.SIGNED_OUT_BATCH_MAX).map { TelemetryEventInput(it, now, "nav", "{}") },
+            )
+        assertFailsWith<BadRequestResponse> {
+            TelemetryRoutes.parse(
+                tooMany,
+                now,
+                TelemetryRoutes.SIGNED_OUT_BATCH_MAX,
+            )
+        }
+    }
 }

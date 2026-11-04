@@ -97,13 +97,15 @@ const ctx = await browser.newContext({
     viewport: { width: boot.w || 1280, height: boot.h || 800 },
     deviceScaleFactor: 1,
 });
-const login = await ctx.request.post(`${BASE}/auth/login`, {
-    data: { username: USER, password: PASS },
-});
-if (!login.ok())
-    throw new Error(`sign-in as ${USER} failed: ${login.status()}`);
-const { token } = await login.json();
-await ctx.addInitScript((t) => localStorage.setItem("token", t), token);
+if (USER) {
+    const login = await ctx.request.post(`${BASE}/auth/login`, {
+        data: { username: USER, password: PASS },
+    });
+    if (!login.ok())
+        throw new Error(`sign-in as ${USER} failed: ${login.status()}`);
+    const { token } = await login.json();
+    await ctx.addInitScript((t) => localStorage.setItem("token", t), token);
+}
 await ctx.addInitScript(inPage);
 const page = await ctx.newPage();
 page.on("dialog", (d) => d.accept());

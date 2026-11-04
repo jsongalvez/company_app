@@ -54,6 +54,7 @@ object ApiRoutes {
     const val FEEDBACK_NOTES = "$API_ROOT/feedback-notes"
     const val FEEDBACK_NOTE_PATH = "$FEEDBACK_NOTES/{feedbackId}"
     const val TELEMETRY = "$API_ROOT/telemetry"
+    const val TELEMETRY_SIGNED_OUT = "/telemetry"
 
     fun session(id: String) = "$SESSIONS/$id"
 

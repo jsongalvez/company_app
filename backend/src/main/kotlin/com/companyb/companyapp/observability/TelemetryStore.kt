@@ -21,7 +21,7 @@ internal object TelemetryEventTable : Table("telemetry_event") {
 
     val sessionId = javaUUID("session_id")
     val seq = integer("seq")
-    val userId = javaUUID("user_id")
+    val userId = javaUUID("user_id").nullable()
     val at = timestampWithTimeZone("at")
     val kind = varchar("kind", KIND_LENGTH)
     val data = text("data")
@@ -41,7 +41,7 @@ data class TelemetryEvent(
 internal object TelemetryStore {
     /** Idempotent on (session, seq): a batch sent twice is stored once. */
     fun insertInTransaction(
-        userId: UUID,
+        userId: UUID?,
         sessionId: UUID,
         events: List<TelemetryEvent>,
     ) {
@@ -90,7 +90,7 @@ internal object TelemetryService {
     private val rowsSinceTrim = AtomicLong(0)
 
     fun record(
-        userId: UUID,
+        userId: UUID?,
         sessionId: UUID,
         events: List<TelemetryEvent>,
     ) {
