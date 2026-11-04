@@ -55,7 +55,7 @@ node tools/perf/hotspot.mjs --base http://127.0.0.1:18181 --user owner --pass ow
 HOTSPOT_USER=probe HOTSPOT_PASS=... node tools/perf/hotspot.mjs --base https://<public address> --runs 5 --no-save
 ```
 
-From Nov 4 "save a session" is usable once the dialog has closed and the new row is on Today (the save no longer waits for the server). `hotspot-audit.md` holds the ranked audit and the baseline; its "save a session" usable times from before Nov 4 include up to ~400ms of Playwright polling lag (the page had closed the dialog at the answer). Measure on a stack started without `SLOW_STATEMENT_MS=0`: logging every statement slows each request. `hotspot-decisions.tsv` logs each attempt (kept or reverted). Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
+From Nov 4 "save a session" is usable once the dialog has closed and the new row is on Today (the save no longer waits for the server). `hotspot-audit.md` holds the ranked audit and the baseline; its "save a session" usable times from before Nov 4 include up to ~400ms of Playwright polling lag (the page had closed the dialog at the answer). Measure on a stack started without `SLOW_STATEMENT_MS=0`: logging every statement slows each request. `hotspot-decisions.tsv` logs each attempt (kept or reverted), see "Decision log" below. Do not change the profile or the flows without saying so in the PR: the numbers stop being comparable.
 
 # Day volume and fixtures
 
@@ -73,3 +73,30 @@ PROBE_USER=probe PROBE_PASS=... node tools/perf/clean-fixtures.mjs --base https:
 # Statements per request
 
 `SLOW_STATEMENT_MS=0 tools/verify/verify.sh up` logs every SQL statement with its trace id. Drive the app (`calls.mjs`, `hotspot.mjs`), then `python3 tools/perf/sql-trace.py /tmp/verify-run-18181/backend.log [--route clock-in]` lists, per route, the statements of its biggest request and how often each ran, so a lookup repeated per row (`5x`) stands out.
+
+# Decision log
+
+`hotspot-decisions.tsv` has one row per perf attempt: `id hypothesis change before after delta tests verdict note`. `check-decisions.py` runs in the quality workflow (`tools/perf/test/decisions.test.sh`) and refuses:
+
+- a row with no measured before or after;
+- a kept change whose `tests` names no guard that failed before the change (write `fails before` or `fails on the old code`), unless it says `no guard: <reason>`;
+- a plain `kept` with no prod number. Write `kept (pending prod)` at push time, then add a `<id>p` row with the prod run after the deploy.
+
+`python3 tools/perf/check-decisions.py tools/perf/hotspot-decisions.tsv --due` lists the kept rows still waiting for a prod run. Most can be measured with the probe account:
+
+```
+set -a; . ~/.config/company-app-probe.env; set +a
+HOTSPOT_USER="$PROBE_USER" HOTSPOT_PASS="$PROBE_PASS" node tools/perf/hotspot.mjs --base https://app.kiel.party --runs 5
+```
+
+The save flow saves under the live probe's "Probe Client" on the hidden probe branch, so `clean-fixtures.mjs` finds nothing to erase afterwards.
+
+# Past mistakes the tools now catch
+
+| Mistake | What catches it now |
+| --- | --- |
+| Save "usable" read ~400ms late: the harness waited with `locator.waitFor`, which backs off to 500ms polls | `hotspot.mjs` polls at 50ms; compare a harness time with an in-page `performance.now()` mark before trusting a new flow |
+| Measuring with `SLOW_STATEMENT_MS=0` on, which logs every statement and slows each request | the README rule above; take timings on a stack started without it |
+| #986 (service worker) reverted as the cause of the refresh flash; builds from before it flashed too | bisect with `tools/verify/film.mjs` blank-frame counts across builds before reverting a suspect |
+| One batch request (A2) looked 43% faster locally and was within noise on the prod profile; it merged parallel reads, not dependent rounds | count rounds, not calls (`calls.mjs`, `hotspot.mjs`); a `<id>p` prod row before calling it kept |
+| A scan ranked clock-out's cache drop as the top bug; `git log -S` showed it was intended (88793742) | `find-state-machines` step 3 asks for the commit that made the state before calling it a bug |

@@ -205,3 +205,4 @@ jobs:
           bash tools/quality/replicate-test.sh
           bash tools/perf/test/record.test.sh
           bash tools/perf/test/alert.test.sh
+          bash tools/perf/test/decisions.test.sh
