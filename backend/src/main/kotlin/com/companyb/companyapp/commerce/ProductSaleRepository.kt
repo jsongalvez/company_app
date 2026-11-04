@@ -72,8 +72,6 @@ internal object ProductSaleRepository {
         validateRetryOwnership(existing, params)
         return existing
     }
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun insertSaleInTransaction(params: SellProductParams): Boolean =
         ProductSaleTable
             .insertIgnore {
@@ -92,8 +90,6 @@ internal object ProductSaleRepository {
                 it[ProductSaleTable.commissionAmountAtTime] = params.product.commissionAmount
                 it[ProductSaleTable.soldAt] = CurrentTimestampWithTimeZone
             }.insertedCount > 0
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun insertSaleMovementInTransaction(params: SellProductParams) {
         InventoryMovementTable.insert {
             it[InventoryMovementTable.productId] = params.productId
@@ -258,8 +254,6 @@ internal object ProductSaleRepository {
                     ProductSaleTable.deletedAt.isNull() and
                     (ActiveSessionVoidsView.sessionId.isNull())
             }.map { it.toProductSale() }
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun findByIdInTransaction(id: UUID): ProductSale? =
         ProductSaleTable
             .selectAll()

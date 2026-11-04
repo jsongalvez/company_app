@@ -19,7 +19,6 @@ data class AllowanceCreateResult(
 )
 
 internal object AllowanceRepository {
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: AllowanceCreateParams): AllowanceCreateResult {
         val insertedCount =
             AllowanceTable

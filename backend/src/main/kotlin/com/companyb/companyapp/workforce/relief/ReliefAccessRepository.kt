@@ -153,8 +153,7 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. The FOR UPDATE row lock + PENDING guard + conditional status update
+     * The FOR UPDATE row lock + PENDING guard + conditional status update
      * stay here so the grant check+write is atomic; the day-scoped grant itself is
      * written by the command through the authorization seam in the same
      * transaction. The cross-request winner sweep is retired (multiple
@@ -197,8 +196,7 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. The FOR UPDATE row lock + non-PENDING early return stay here so the
+     * The FOR UPDATE row lock + non-PENDING early return stay here so the
      * deny check+write is atomic.
      */
     fun denyInTransaction(requestId: UUID): ReliefAccessMutation {
@@ -268,8 +266,7 @@ internal object ReliefAccessRepository {
     }
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. Three outcomes under the partial unique index
+     * Three outcomes under the partial unique index
      * `idx_one_live_relief_request` (flood control):
      * - `(row, true)` — freshly inserted;
      * - `(row, false)` — the same [id] already existed (an idempotent replay);

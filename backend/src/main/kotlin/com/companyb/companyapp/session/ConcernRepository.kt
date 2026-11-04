@@ -42,8 +42,6 @@ internal object ConcernRepository {
             .where { ConcernTable.id eq id }
             .singleOrNull()
             ?.toConcern()
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun addToSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
@@ -53,8 +51,6 @@ internal object ConcernRepository {
                 it[SessionConcernTable.sessionId] = sessionId
                 it[SessionConcernTable.concernId] = concernId
             }.insertedCount > 0
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun removeFromSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,

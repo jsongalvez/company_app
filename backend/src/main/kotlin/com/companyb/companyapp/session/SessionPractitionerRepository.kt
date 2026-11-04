@@ -34,8 +34,6 @@ internal object SessionPractitionerRepository {
                     (SessionPractitionerTable.practitionerId eq practitionerId)
             }.singleOrNull()
             ?.toSessionPractitioner()
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun addInTransaction(
         id: UUID,
         sessionId: UUID,

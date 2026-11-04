@@ -35,7 +35,6 @@ internal object SessionVoidRepository {
             ?.toSessionVoid()
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      *
      * Ownership-validated replay with re-arm: the insert spans two unique keys (PK
      * `id`, UNIQUE `session_id`), so a swallowed insert is disambiguated — a row owned by
@@ -96,8 +95,6 @@ internal object SessionVoidRepository {
             VoidResult(row, created = rearmed > 0)
         }
     }
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun unvoidInTransaction(
         sessionVoidId: UUID,
         unvoidedBy: UUID,

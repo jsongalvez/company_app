@@ -58,8 +58,7 @@ internal object MedicalMissionDelegateRepository {
             ?.toMedicalMissionDelegate()
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. Owns the delegate row only; the branch-scoped capability grant is
+     * Owns the delegate row only; the branch-scoped capability grant is
      * written by the command through the authorization seam in the same
      * transaction, so neither commits without the other.
      */
@@ -103,8 +102,7 @@ internal object MedicalMissionDelegateRepository {
     }
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. Owns the delegate row only; the capability-window close goes
+     * Owns the delegate row only; the capability-window close goes
      * through the authorization seam in the same transaction.
      */
     fun revokeInTransaction(delegateId: UUID): DelegateRevokeResult {

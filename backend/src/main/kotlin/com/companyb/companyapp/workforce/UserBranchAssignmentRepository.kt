@@ -30,7 +30,6 @@ data class AssignmentMutation(
 )
 
 internal object UserBranchAssignmentRepository {
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
         // the single ownership seam: same-ID classification + active-key guard both
         // live here, transaction-local. Same-ID replay returns idempotent; different owner
@@ -158,8 +157,6 @@ internal object UserBranchAssignmentRepository {
             .where { UserBranchAssignmentTable.id eq id }
             .singleOrNull()
             ?.toAssignment()
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun setEndedAtInTransaction(id: UUID): AssignmentMutation {
         val before =
             UserBranchAssignmentTable
@@ -180,8 +177,6 @@ internal object UserBranchAssignmentRepository {
                 .toAssignment()
         return AssignmentMutation(before, after)
     }
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun updateSlotInTransaction(
         id: UUID,
         slot: Short,

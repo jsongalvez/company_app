@@ -23,7 +23,6 @@ data class BranchCreateResult(
 )
 
 internal object BranchRepository {
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: BranchCreateParams): BranchCreateResult {
         val insertedCount =
             BranchTable

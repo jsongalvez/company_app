@@ -42,8 +42,6 @@ internal object ReliefInviteRepository {
      * constraint class here is exactly the per-person guard, and the read-back by id
      * can only miss if the insert was swallowed).
      *
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction.
      */
     fun insertInTransaction(
         id: UUID,
@@ -377,8 +375,7 @@ internal object ReliefInviteRepository {
      * WHERE carries the status, so a concurrent response wins and this update hits
      * 0 rows → null → the service 409s). `respondedAt` stamps the DB clock.
      *
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. Returns null when the invite is missing, not PENDING, or lost a race.
+     * Returns null when the invite is missing, not PENDING, or lost a race.
      */
     fun respondInTransaction(
         id: UUID,
@@ -405,8 +402,7 @@ internal object ReliefInviteRepository {
      * the same transaction (the grant must not outlive a failed status flip, and
      * the status flip must not commit without the grant).
      *
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. Returns null when the invite is not PENDING (concurrent response won,
+     * Returns null when the invite is not PENDING (concurrent response won,
      * or a stale client).
      */
     fun acceptInTransaction(id: UUID): ReliefInviteMutation? {
@@ -432,8 +428,7 @@ internal object ReliefInviteRepository {
      * itself lives in the authorization seam — the
      * command pairs the two inside its one transaction.
      *
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction. Returns null when the invite is missing, not ACCEPTED, or lost a race.
+     * Returns null when the invite is missing, not ACCEPTED, or lost a race.
      */
     fun revokeInTransaction(id: UUID): ReliefInviteMutation? {
         val before = findByIdInTransaction(id) ?: return null

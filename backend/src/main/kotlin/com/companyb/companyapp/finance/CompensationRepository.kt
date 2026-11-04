@@ -40,7 +40,6 @@ data class CompensationWithUser(
 )
 
 internal object CompensationRepository {
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: CompensationCreateParams): CompensationCreateResult {
         val insertedCount =
             CompensationTable

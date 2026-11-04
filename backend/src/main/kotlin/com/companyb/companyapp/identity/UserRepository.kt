@@ -81,8 +81,6 @@ internal object UserRepository {
                     )
                 }.singleOrNull()
         }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createUserInTransaction(params: UserCreateParams): UUID {
         val insert =
             AppUserTable.insertIgnore {

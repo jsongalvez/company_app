@@ -93,8 +93,6 @@ internal object ClientRepository {
     private const val RECENT_LIMIT = 20
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
-
-    /** In-transaction store operation (ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: ClientCreateParams): ClientCreateResult {
         val insertedCount =
             ClientTable
@@ -171,7 +169,6 @@ internal object ClientRepository {
             ?.toClient()
 
     /**
-     * In-transaction store operation (ADR-0024) — runs on the caller's command transaction.
      * Returns the updated row count and the post-write row; null after when the row is missing or
      * anonymized (H4 mirror: an update can never land on a soft-deleted record).
      */

@@ -38,8 +38,6 @@ internal object GrantStore {
      * request flow's grant and the invite flow's accept. `insertIgnore` keeps a redundant
      * grant harmless (the decision: capabilities ≠ assignments).
      *
-     * In-transaction store operation (ADR-0024) — runs on the caller's command
-     * transaction.
      */
     fun grantReliefCapabilityInTransaction(params: GrantReliefCapabilityParams) {
         UserCapabilityTable.insertIgnore {
