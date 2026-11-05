@@ -179,8 +179,6 @@ object CompensationService {
                     CompensationRepository.findByIdInTransaction(compensationId)
                         ?: throw NotFoundException("Compensation not found")
 
-                // gate BOTH stored legs — the work day was previously re-read for the
-                // same-branch invariant only, never for editability.
                 val gate =
                     checkWorkAndPayingDaysEditableInTransaction(
                         callerId,
@@ -188,8 +186,6 @@ object CompensationService {
                         before.payingBranchDayId,
                         reason,
                     )
-                // Same-branch invariant on the stored record too: a legacy row whose days
-                // span branches must not stay updatable through either day's gate alone.
                 assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
                 val after =

@@ -200,11 +200,6 @@ object ProductSaleService {
         }
     }
 
-    /**
-     * client existence gate for sell (runs on the caller's command
-     * transaction): unknown clientId fails closed with 404 before the insert,
-     * so the FK never surfaces as a 500. Null stays allowed (anonymous walk-in).
-     */
     private fun requireClientExistsInTransaction(clientId: UUID?) {
         if (clientId == null) return
         ClientReads.acquireLockInTransaction(clientId) ?: throw NotFoundException("Client not found")
