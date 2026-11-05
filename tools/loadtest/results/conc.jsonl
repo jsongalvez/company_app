@@ -1,0 +1,15 @@
+{"label":"after","c":1,"route":"GET /api/start","n":104,"errors":0,"p50":8.3,"p95":20.1,"server_p50":5,"server_p95":16,"load1":2.74}
+{"label":"after","c":1,"route":"GET today-screen","n":104,"errors":0,"p50":9.2,"p95":21.2,"server_p50":6,"server_p95":17,"load1":2.74}
+{"label":"after","c":1,"route":"GET sessions (day)","n":104,"errors":0,"p50":13.4,"p95":28,"server_p50":9,"server_p95":23,"load1":2.74}
+{"label":"after","c":1,"route":"GET recent-clients","n":104,"errors":0,"p50":10.3,"p95":27,"server_p50":7,"server_p95":20,"load1":2.74}
+{"label":"after","c":1,"route":"GET clients search","n":104,"errors":0,"p50":72.9,"p95":206.1,"server_p50":69,"server_p95":203,"load1":2.74}
+{"label":"after","c":5,"route":"GET /api/start","n":122,"errors":0,"p50":30.6,"p95":73,"server_p50":27,"server_p95":67,"load1":3.75}
+{"label":"after","c":5,"route":"GET today-screen","n":121,"errors":0,"p50":33.9,"p95":93.1,"server_p50":29,"server_p95":87,"load1":3.75}
+{"label":"after","c":5,"route":"GET sessions (day)","n":122,"errors":0,"p50":59,"p95":141,"server_p50":48,"server_p95":130,"load1":3.75}
+{"label":"after","c":5,"route":"GET recent-clients","n":123,"errors":0,"p50":43.1,"p95":95.8,"server_p50":37,"server_p95":89,"load1":3.75}
+{"label":"after","c":5,"route":"GET clients search","n":124,"errors":0,"p50":401.8,"p95":687.3,"server_p50":398,"server_p95":683,"load1":3.75}
+{"label":"after","c":20,"route":"GET /api/start","n":149,"errors":0,"p50":135,"p95":351,"server_p50":129,"server_p95":325,"load1":4.91}
+{"label":"after","c":20,"route":"GET today-screen","n":152,"errors":0,"p50":137,"p95":394.3,"server_p50":129,"server_p95":392,"load1":4.91}
+{"label":"after","c":20,"route":"GET sessions (day)","n":154,"errors":0,"p50":338.4,"p95":1027,"server_p50":334,"server_p95":1006,"load1":4.91}
+{"label":"after","c":20,"route":"GET recent-clients","n":155,"errors":0,"p50":199.9,"p95":612.9,"server_p50":194,"server_p95":609,"load1":4.91}
+{"label":"after","c":20,"route":"GET clients search","n":158,"errors":0,"p50":892.7,"p95":1717.1,"server_p50":884,"server_p95":1685,"load1":4.91}

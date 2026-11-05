@@ -25,7 +25,9 @@ tools/loadtest/run.sh down
 
 `bench.mjs --only <text>` runs just the routes whose name holds the text. `LT_LOGIN_N=8` adds sign-in timings (7s apart: sign-in is limited to 10 a minute per address).
 
-For a before/after: bench with label `before`, make the change, `run.sh app <scale>` again (a new index migration lands on the same database), bench with label `after`. Two medians differ for real when their intervals do not overlap.
+For a before/after on a busy box, prefer `ab.sh`: it runs both apps at once on two copies of the database and benches them in alternating rounds, reads only, so box load lands on both sides (`ab.sh <root-before> 1000b <root-after> 1000 4 15`, then `python3 stats.py results/ab.jsonl results/ab-summary.csv`). `conc.mjs --c 1,5,20` times the hot reads under C parallel clients (wall p50/p95, req/s).
+
+The single-app way: bench with label `before`, make the change, `run.sh app <scale>` again (a new index migration lands on the same database), bench with label `after`. Two medians differ for real when their intervals do not overlap.
 
 ## Gotchas
 
@@ -47,3 +49,12 @@ Server ms (`Server-Timing` db + app), median of 30 with its 95% bootstrap interv
 | My history | 7 [7, 8] | 40 [36, 44] | 16 [13, 17] | shifts by user had no index |
 
 Every other route stayed flat from 1x to 1000x. The VPS ran other work during these runs (load average 4-6 on 2 cores), so routes under ~20ms move by 2x between runs; compare a before and an after taken back to back.
+
+## Rerun (2026-11-06, back to back, `ab.sh`)
+
+`a6185a87` on `lt_x1000b` (a copy of `lt_x1000` with V11 dropped) against master `6f7a1215`+ on `lt_x1000`, both just `VACUUM ANALYZE`d, 4 alternating rounds of 15, load average 2.5-4.7 (the two apps and the bench on 2 cores). `results/ab-summary.txt`.
+
+- The slowdown on untouched routes was noise. Back to back, audit-log entries, flagged, remittance detail, remittance-days and remittances (branch) have overlapping intervals; audit-log (record) is faster after (16 -> 10.5).
+- Client search 1259 -> 67 and recent clients 3024 -> 8 hold.
+- Client directory is 112.5 [111, 123] before and 139.5 [135, 149.5] after: with fresh statistics the old plan is faster, so most of the 843 -> 165 above came from `ANALYZE`, not the partial name index (inferred, plans not compared).
+- Concurrency (`conc.mjs`, after, 5 hot reads): 35 req/s at 1 client, 41 at 5, 51 at 20. At 20, sessions (day) p95 is 1027ms and client search p95 1717ms; the box is CPU-bound (`results/conc.jsonl`).

@@ -1,0 +1,43 @@
+route,scale,label,n,measure,median_ms,ci_low,ci_high,db_median_ms,wall_median_ms
+GET /api/start,1000,after,60,server_ms,9.0,7.0,12.5,5.0,15.0
+GET /api/start,1000,before,60,server_ms,10.5,8.0,12.0,5.0,16.1
+GET audit-log (record),1000,after,60,server_ms,10.5,10.0,12.0,6.0,13.6
+GET audit-log (record),1000,before,60,server_ms,16.0,14.0,19.0,10.0,18.5
+GET audit-log/entries,1000,after,60,server_ms,14.0,12.0,18.0,8.0,20.6
+GET audit-log/entries,1000,before,60,server_ms,14.5,13.0,16.0,8.0,18.7
+GET audit-log/flagged,1000,after,60,server_ms,7.0,6.0,8.0,3.0,10.1
+GET audit-log/flagged,1000,before,60,server_ms,6.0,5.0,9.0,3.0,10.2
+GET client history,1000,after,60,server_ms,7.0,4.0,8.0,4.0,9.1
+GET client history,1000,before,60,server_ms,3.0,3.0,3.0,2.0,5.2
+GET client-directory,1000,after,60,server_ms,139.5,135.0,149.5,85.5,174.2
+GET client-directory,1000,before,60,server_ms,112.5,111.0,123.0,72.5,149.7
+GET clients search,1000,after,60,server_ms,67.0,65.5,71.5,63.0,72.2
+GET clients search,1000,before,60,server_ms,1259.0,1151.0,1639.5,1256.0,1262.1
+GET daily-summary,1000,after,60,server_ms,4.0,4.0,6.0,2.0,6.6
+GET daily-summary,1000,before,60,server_ms,4.0,4.0,5.0,2.0,7.0
+GET expenses (day),1000,after,60,server_ms,4.0,3.0,5.0,1.0,6.7
+GET expenses (day),1000,before,60,server_ms,4.0,4.0,6.0,2.0,7.9
+GET export/report (30d),1000,after,60,server_ms,129.5,120.0,157.0,85.5,141.6
+GET export/report (30d),1000,before,60,server_ms,131.5,115.5,153.0,75.0,143.2
+GET me/history,1000,after,60,server_ms,7.0,6.0,8.0,4.0,11.2
+GET me/history,1000,before,60,server_ms,6.0,5.0,7.0,4.0,10.5
+GET members,1000,after,60,server_ms,2.0,2.0,3.0,1.0,4.7
+GET members,1000,before,60,server_ms,3.0,3.0,4.0,1.0,5.7
+GET monthly-summary,1000,after,60,server_ms,3.0,3.0,4.0,2.0,5.8
+GET monthly-summary,1000,before,60,server_ms,5.0,4.0,6.5,2.5,8.7
+GET notifications/history,1000,after,60,server_ms,1.0,1.0,2.0,0.0,3.6
+GET notifications/history,1000,before,60,server_ms,1.0,1.0,2.0,0.0,3.5
+GET product-sales (day),1000,after,60,server_ms,5.0,4.0,7.0,2.0,8.9
+GET product-sales (day),1000,before,60,server_ms,5.0,4.0,6.0,2.0,10.1
+GET recent-clients,1000,after,60,server_ms,8.0,7.0,11.5,5.0,11.7
+GET recent-clients,1000,before,60,server_ms,3023.5,2933.5,3118.0,3021.0,3027.5
+GET remittance detail,1000,after,60,server_ms,8.0,7.0,9.0,4.0,12.8
+GET remittance detail,1000,before,60,server_ms,9.5,8.5,11.0,4.0,14.7
+GET remittance-days,1000,after,60,server_ms,4.0,4.0,5.5,2.0,8.8
+GET remittance-days,1000,before,60,server_ms,5.5,4.0,7.0,2.0,10.4
+GET remittances (branch),1000,after,60,server_ms,12.0,10.0,14.5,5.0,20.1
+GET remittances (branch),1000,before,60,server_ms,14.0,12.0,16.0,6.5,23.8
+GET sessions (day),1000,after,60,server_ms,12.0,11.0,13.0,6.0,18.1
+GET sessions (day),1000,before,60,server_ms,12.5,11.0,15.0,6.0,19.3
+GET today-screen,1000,after,60,server_ms,9.0,9.0,10.0,6.0,14.2
+GET today-screen,1000,before,60,server_ms,9.0,7.0,12.0,5.0,14.2

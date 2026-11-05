@@ -1,10 +1,11 @@
 // Server time of the hot routes on a seeded load-test database, from the app's own Server-Timing (db + app ms),
 // so the network and the client are out of the number. Writes one JSON line per request to --out.
-//   node tools/loadtest/bench.mjs --base http://127.0.0.1:18401 --scale 10 --n 30 --out results/raw.jsonl [--label before]
+//   node tools/loadtest/bench.mjs --base http://127.0.0.1:18401 --scale 10 --n 30 --out results/raw.jsonl [--label before] [--writes 0] [--round 1]
 // Reads run as `owner` (sees every branch) and `staff` (member of the fixture branch); writes as `staff`.
 // Sign-in is limited to 10 a minute per address, so it is timed apart, --login-n times, 7s apart.
 import { randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
+import { loadavg } from "node:os";
 
 const arg = (name, dflt) => {
     const i = process.argv.indexOf(`--${name}`);
@@ -17,6 +18,8 @@ const SCALE = arg("scale", "?");
 const LABEL = arg("label", "before");
 const OUT = arg("out", "/dev/stdout");
 const ONLY = arg("only", "");
+const WRITES = arg("writes", "1") !== "0";
+const ROUND = arg("round", "");
 
 const timing = (h) => {
     const t = Object.fromEntries([...(h.get("server-timing") ?? "").matchAll(/(\w+);dur=([\d.]+)/g)].map((m) => [m[1], Number(m[2])]));
@@ -36,7 +39,7 @@ const call = async (method, path, token, body) => {
     return { json: text && isJson ? JSON.parse(text) : null, wall, ...timing(r.headers) };
 };
 const record = (route, res) =>
-    appendFileSync(OUT, JSON.stringify({ label: LABEL, scale: SCALE, route, db: res.db, app: res.app, wall: Math.round(res.wall * 10) / 10 }) + "\n");
+    appendFileSync(OUT, JSON.stringify({ label: LABEL, scale: SCALE, round: ROUND, route, db: res.db, app: res.app, wall: Math.round(res.wall * 10) / 10, load1: loadavg()[0] }) + "\n");
 
 const signIn = async (username, password) => (await call("POST", "/auth/login", null, { username, password })).json.token;
 const owner = await signIn("owner", "owner-dev-pass");
@@ -88,7 +91,7 @@ for (const [name, token, path] of reads) {
 }
 
 // Writes: clock in and out, save a walk-in session (as the phone does, with withToday).
-if (!ONLY || "writes".includes(ONLY)) {
+if (WRITES && (!ONLY || "writes".includes(ONLY))) {
     const open = (await call("GET", "/api/me/active-attendance", staff)).json?.shift;
     if (open?.attendanceId) await call("POST", "/api/attendance/clock-out", staff, { attendanceId: open.attendanceId });
     for (let i = 0; i < N; i++) {
