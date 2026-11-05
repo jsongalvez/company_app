@@ -334,6 +334,13 @@ internal object ClientRepository {
             }
         }
 
+    /** Sessions after [cursor] in (created_at, id) descending order. */
+    private fun olderThan(cursor: Pair<OffsetDateTime, UUID>): Op<Boolean> {
+        val (at, id) = cursor
+        val sameTimeLowerId = (SessionTable.createdAt eq at) and (SessionTable.id less id)
+        return (SessionTable.createdAt less at) or sameTimeLowerId
+    }
+
     /** Total session history per client for authoritative client read models. */
     fun countSessions(clientIds: Collection<UUID>): Map<UUID, Int> {
         if (clientIds.isEmpty()) return emptyMap()
@@ -397,13 +404,6 @@ internal object ClientRepository {
             ilike(ClientTable.firstName, namePattern) or
             ilike(ClientTable.lastName, namePattern) or
             ilike(ClientTable.middleName, namePattern)
-}
-
-/** Sessions after [cursor] in (created_at, id) descending order. */
-private fun olderThan(cursor: Pair<OffsetDateTime, UUID>): Op<Boolean> {
-    val (at, id) = cursor
-    val sameTimeLowerId = (SessionTable.createdAt eq at) and (SessionTable.id less id)
-    return (SessionTable.createdAt less at) or sameTimeLowerId
 }
 
 private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
