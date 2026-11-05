@@ -143,10 +143,6 @@ object AuthRoutes {
         }
     }
 
-    /**
-     * public forgot-password request leg. Always 204 on success (the body reveals
-     * nothing about identifier existence); 429 when the caller's IP exceeds its budget.
-     */
     fun forgotPassword(config: JavalinConfig) {
         config.post(ApiRoutes.AUTH_FORGOT_PASSWORD, Gate.Open("asks for a reset email")) { context ->
             val request = context.bodyAsClass<ForgotPasswordRequest>()

@@ -306,12 +306,7 @@ internal object UserRepository {
         return boundary
     }
 
-    /**
-     * Sets INACTIVE status and stamps [AppUserTable.deactivatedAt]. Idempotent for
-     * already-INACTIVE users — no update and no audit row are written (`changed=false`),
-     * so a retry never resets the "deactivated X ago" timestamp. Returns null when the
-     * user does not exist.
-     */
+    /** Null when the user does not exist. */
     fun deactivateInTransaction(userId: UUID): UserStatusTransition? {
         val beforeRow =
             AppUserTable

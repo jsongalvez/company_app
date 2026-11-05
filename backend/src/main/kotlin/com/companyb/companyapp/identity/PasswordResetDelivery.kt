@@ -26,7 +26,6 @@ internal fun interface PasswordResetSender {
 }
 
 internal object PasswordResetDelivery {
-    /** Explicit dev-only opt-in for the server-log relay; never enable where logs ship. */
     const val DEV_RELAY_ENV = "PASSWORD_RESET_DEV_RELAY"
 
     private val logger = KotlinLogging.logger {}
@@ -143,8 +142,6 @@ internal object PasswordResetDelivery {
         logger.error { "[PASSWORD-RESET] SMTP delivery is not configured; reset code remains valid for retry" }
     }
 
-    // dev-only console relay behind the explicit PASSWORD_RESET_DEV_RELAY opt-in: the
-    // only log line that may carry a live code, never enabled where logs are shipped.
     private fun logRelay(
         identifier: String,
         rawCode: String,

@@ -212,15 +212,8 @@ object AuthService {
     }
 
     /**
-     * public reset request. The response is uniform whether or not [identifier] matches
-     * an account (true either way): enumeration resistance. A matching account gets a fresh
-     * 24h PASSWORD_RESET token; any of its outstanding reset codes are invalidated first
-     *  (re-invite pattern). False means the caller's IP exceeded its rate budget.
-     *
-     * Delivery happens after the token transaction commits. Without SMTP the code stays valid
-     * for retry but is never logged (fail-closed; the server-log relay needs the explicit
-     * dev-only PASSWORD_RESET_DEV_RELAY opt-in). SMTP failures do not change token or rate-limit
-     * semantics.
+     * A matching account gets a fresh 24h code, and its outstanding reset codes stop working. False
+     * means the caller's address spent its reset budget.
      */
     fun requestPasswordReset(
         identifier: String,

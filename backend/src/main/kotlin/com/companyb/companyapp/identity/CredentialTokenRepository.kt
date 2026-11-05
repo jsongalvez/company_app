@@ -53,11 +53,7 @@ internal object CredentialTokenRepository {
             .singleOrNull()
             ?.toRow()
 
-    /**
-     * Atomic single-use + expiry guard: consumes the token only when unconsumed and unexpired
-     * (DB clock), so two concurrent accepts cannot both win and an expired code can never be
-     * redeemed. False means the token was already used or is expired — the caller classifies.
-     */
+    /** False when the token was already used or has expired; the caller says which. */
     fun consumeIfLiveInTransaction(id: UUID): Boolean =
         CredentialTokenTable.update(
             where = {
