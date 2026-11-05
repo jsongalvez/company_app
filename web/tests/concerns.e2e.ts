@@ -24,10 +24,12 @@ test("add concerns to a session by typing", { session: "owner" }, async ({ app, 
     await dialog.getByLabel("Vertigo").check();
     await dialog.getByLabel(/^Other illness/).fill(concern);
     await dialog.getByRole("button", "Add session").tap();
-    // Until the save lands the dialog stays open, and its copy of the name is the first match.
     await expect(dialog).toBeHidden();
+    // The row shows at once but opens only after the server has it; its Done button says it landed.
+    const row = screen.getByRole("row").filter({ hasText: `${first} Tester` });
+    await expect(row.getByRole("button", "Done")).toBeVisible({ timeout: 15_000 });
 
-    await screen.getByText(`${first} Tester`).first().tap();
+    await row.getByText(`${first} Tester`).tap();
     const box = screen.getByLabel("Add illness");
     await expect(
         screen
