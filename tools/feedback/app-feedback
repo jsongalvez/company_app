@@ -1,0 +1,46 @@
+#!/bin/sh
+# company_app feedback reports in the prod database, without hand-written psql.
+#   app-feedback open             reports not DONE: id, date, page, text
+#   app-feedback show ID          one report in full, plus the reporter's telemetry sessions around it
+#   app-feedback done ID...       mark these DONE (8-char id prefixes are fine)
+#   app-feedback since DAYS       every report from the last DAYS days (for the pattern log)
+#   app-feedback give AGENT TEXT  an agent files what tripped it up; triage picks it up within 10 min
+#   app-feedback triage           every verdict the triage timer wrote, newest first
+# Report text prints redacted (triage.py redact) between <<<user-report and user-report>>> markers.
+set -e
+HERE=$(dirname "$(readlink -f "$0")")
+C=$(docker ps --format '{{.Names}}' | grep '^0jpjzfk' | head -1)
+[ -n "$C" ] || { echo "prod postgres container (0jpjzfk*) not running" >&2; exit 2; }
+q() { docker exec "$C" psql -U company_user -d company_app -At -F ' | ' -c "$1"; }
+# Rows tab-separated; columns after the first $2 are report text, which never reaches the terminal unfenced.
+fenced() { docker exec "$C" psql -U company_user -d company_app -At -F "$(printf '\t')" -v ON_ERROR_STOP=1 -c "$1" > "${TMPDIR:-/tmp}/app-feedback.$$" || { rm -f "${TMPDIR:-/tmp}/app-feedback.$$"; exit 1; }
+  TRIAGE_DB_CONTAINER=$C python3 -I "$HERE/triage.py" fence "$2" < "${TMPDIR:-/tmp}/app-feedback.$$"; r=$?; rm -f "${TMPDIR:-/tmp}/app-feedback.$$"; return $r; }
+flat() { echo "translate($1, E'\\n\\t', '  ')"; }
+case "$1" in
+  open)
+    fenced "select left(id::text,8), created_at::date, kind, coalesce(page,''), $(flat message), left($(flat "coalesce(details,'')"),200) from user_feedback where status<>'DONE' order by created_at" 4 ;;
+  show)
+    id=${2:-}; case "$id" in *[!0-9a-f-]*|???????|??????|?????|????|???|??|?|'') echo "bad id (hex, 8+ chars): $id" >&2; exit 2;; esac
+    fenced "select id, to_char(created_at at time zone 'Asia/Manila','YYYY-MM-DD HH24:MI') || ' Manila', status, kind, coalesce(page,''), 'build ' || coalesce(app_version,''), 'user ' || left(user_id::text,8),
+       replace(translate(message, E'\\t', ' '), E'\\n', '\\n'), replace(translate(coalesce(details,''), E'\\t', ' '), E'\\n', '\\n') from user_feedback where id::text like '$id%'" 7
+    echo; echo "sessions within 30 min:"; exec app-telemetry around "$id" ;;
+  done)
+    shift; [ $# -gt 0 ] || { echo "usage: app-feedback done ID..." >&2; exit 2; }
+    for id in "$@"; do
+      case "$id" in *[!0-9a-f-]*|???????|??????|?????|????|???|??|?) echo "bad id (hex, 8+ chars): $id" >&2; exit 2;; esac
+      q "update user_feedback set status='DONE' where id::text like '$id%' returning left(id::text,8), status"
+    done
+    q "select status, count(*) from user_feedback group by 1" ;;
+  since)
+    d=${2:-7}; case "$d" in *[!0-9]*) echo "DAYS must be a number" >&2; exit 2;; esac
+    fenced "select left(id::text,8), created_at::date, status, kind, coalesce(page,''), $(flat message), left($(flat "coalesce(details,'')"),200) from user_feedback where created_at > now() - interval '$d days' order by created_at" 5 ;;
+  give)
+    a=${2:-}; shift 2 2>/dev/null || true; t="$*"
+    case "$a" in ''|*[!A-Za-z0-9_-]*) echo "usage: app-feedback give AGENT TEXT (AGENT: letters, digits, - or _)" >&2; exit 2;; esac
+    [ -n "$t" ] || { echo "usage: app-feedback give AGENT TEXT" >&2; exit 2; }
+    echo "insert into agent_feedback (agent, message) values (:'a', :'t') returning left(id::text,8);" \
+      | docker exec -i "$C" psql -U company_user -d company_app -At -v ON_ERROR_STOP=1 -v a="$a" -v t="$t" ;;
+  triage)
+    fenced "select left(coalesce(feedback_id, agent_feedback_id)::text,8), triaged_at::date, case when agent_feedback_id is null then 'user' else 'agent' end, verdict, classifier, $(flat reason) from feedback_triage order by triaged_at desc" 5 ;;
+  *) sed -n '2,8p' "$0"; exit 2 ;;
+esac

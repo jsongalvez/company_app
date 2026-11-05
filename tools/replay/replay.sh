@@ -46,7 +46,10 @@ fi
 FB=$(q "select id, user_id, created_at, coalesce(page,'#/'), coalesce(app_version,''), coalesce(substring(details from 'Telemetry: ([0-9a-f-]{36})'),''), coalesce(substring(details from 'Screen: ([0-9]+)'),''), coalesce(substring(details from 'Screen: [0-9]+.([0-9]+)'),'') from user_feedback where id::text like '$ID%' limit 1")
 if [ -n "$FB" ]; then
   IFS='|' read -r FID USER_ID AT PAGE VERSION SID W H <<<"$FB"
-  echo "report $FID at $AT on $PAGE (app $VERSION): $(q "select replace(message, E'\n', ' ') from user_feedback where id = '$FID'")"
+  q "$(python3 -I "$ROOT/tools/feedback/triage.py" names-sql)" > "$OUT/names"
+  { printf 'report %s at %s on %s (app %s)\t' "$FID" "$AT" "$PAGE" "$VERSION"; q "select translate(message, E'\n\t', '  ') from user_feedback where id = '$FID'"; } \
+    | NAMES="$OUT/names" python3 -I "$ROOT/tools/feedback/triage.py" fence 1 || exit 1
+  rm -f "$OUT/names"
   [ -n "$SID" ] || SID=$(q "select session_id from telemetry_event where user_id = '$USER_ID' and at between timestamptz '$AT' - interval '30 minutes' and timestamptz '$AT' + interval '1 minute' order by at desc limit 1" 2>/dev/null)
 else
   SID=$ID
