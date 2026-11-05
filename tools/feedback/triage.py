@@ -4,7 +4,8 @@
   triage.py run                      triage every untriaged user and agent report on prod, one ntfy each
   triage.py eval ROWS LABELS [--haiku]  accuracy of the classifiers on a labelled set (ROWS: id<TAB>kind<TAB>text)
   triage.py self-test                pure checks, no database
-  triage.py fence N                  stdin TSV rows; columns past N are report text: print them redacted inside markers
+  triage.py fence N [--one]          stdin TSV rows; columns past N are report text: print them redacted inside markers
+                                     (--one: every row inside a single pair, one line each, for event logs)
                                      (names from the file $NAMES if set, else prod)
   triage.py names-sql                the query whose rows are the names redact() replaces
 Verdict: rules and Haiku together; AUTO_FIX or NOT_A_BUG only when both agree, else FEATURE_REQUEST.
@@ -17,9 +18,9 @@ VERDICTS = ("AUTO_FIX", "FEATURE_REQUEST", "NOT_A_BUG")
 SHORT = {"A": "AUTO_FIX", "F": "FEATURE_REQUEST", "N": "NOT_A_BUG"}
 
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
-PHONE = re.compile(r"\+?\d[\d\s-]{6,}\d")
+PHONE = re.compile(r"\+?\(?\d[\d\s().-]{6,}\d")
 APP_WORDS = {"client", "new", "owner", "user", "person", "admin", "test", "branch", "session", "sessions", "relief", "helper"}
-UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
+UUID = re.compile(r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
 
 
 def redact(text, names):
@@ -27,7 +28,7 @@ def redact(text, names):
     text = EMAIL.sub("[email]", text)
     text = UUID.sub("[id]", text)
     text = PHONE.sub("[phone]", text)
-    for n in sorted({n for n in names if len(n) >= 3 and n.lower() not in APP_WORDS}, key=len, reverse=True):
+    for n in sorted({w for n in names for w in n.split() if len(w) >= 3 and w.lower() not in APP_WORDS}, key=len, reverse=True):
         text = re.sub(r"(?i)\b" + re.escape(n) + r"\b", "[name]", text)
     return text
 
@@ -44,6 +45,15 @@ def fence(rows, meta, names):
         text = redact(text, names).replace("<<<", "< < <").replace(">>>", "> > >")
         out += [" | ".join(r[:meta]), OPEN, text, CLOSE]
     return "\n".join(out)
+
+
+def fence_block(rows, meta, names):
+    """All rows inside one pair of markers, one line each: the first `meta` columns as they are, the rest redacted."""
+    lines = []
+    for r in rows:
+        text = " ".join(c for c in r[meta:] if c)
+        lines.append(" | ".join(r[:meta] + [redact(text, names)]).replace("<<<", "< < <").replace(">>>", "> > >"))
+    return "\n".join([HEADER, OPEN, *lines, CLOSE])
 
 
 DEFECT = re.compile(r"(?i)\b(error|40\d|50\d|broken|bug|crash|slow(er)?|sluggish|load(ing|ed)?\b.*\b(long|seconds|slower)|"
@@ -222,6 +232,10 @@ def self_test():
     r = redact("Why can't i add Juan dela Ceiz? mail juan@x.com +63 917 555 1234 id 3101d1b5-0000-4000-8000-000000000000",
                ["Juan", "dela", "Ceiz"])
     assert "Juan" not in r and "juan@x.com" not in r and "917" not in r and "3101d1b5-" not in r, r
+    for raw, names in [("Clara called", ["Maria Clara"]), ("call (0917) 555-0142", []), ("call +63 917.555.0142", []),
+                       ("id 3101D1B5-0000-4000-8000-000000000000", []), ("José came", ["José"])]:
+        out = redact(raw, names)
+        assert not any(w in out for w in ("Clara", "0917", "917", "555", "3101D1B5", "José")), (raw, out)
     assert rules("IDEA", "Why not a range picker?")[0] == "FEATURE_REQUEST"
     assert rules("PROBLEM", "Got 400 error")[0] == "AUTO_FIX"
     assert rules("PROBLEM", "verify.sh up hung for 5 min with no output")[0] == "AUTO_FIX"
@@ -275,10 +289,10 @@ if __name__ == "__main__":
         run()
     elif a[:1] == ["eval"] and len(a) >= 3:
         evaluate(a[1], a[2], "--haiku" in a)
-    elif a[:1] == ["fence"] and len(a) == 2:
+    elif a[:1] == ["fence"] and (len(a) == 2 or a[2:] == ["--one"]):
         rows = [l.rstrip("\n").split("\t") for l in sys.stdin if l.strip()]
         names = [n.strip() for n in open(os.environ["NAMES"])] if os.environ.get("NAMES") else [r[0] for r in psql(NAMES)]
-        print(fence(rows, int(a[1]), names))
+        print((fence_block if a[2:] else fence)(rows, int(a[1]), names))
     elif a[:1] == ["names-sql"]:
         print(NAMES)
     elif a[:1] == ["self-test"]:

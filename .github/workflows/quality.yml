@@ -234,3 +234,4 @@ jobs:
           bash tools/perf/test/decisions.test.sh
           python3 -I tools/feedback/triage.py self-test
           bash tools/feedback/test/app-feedback-test.sh
+          bash tools/feedback/test/app-telemetry-test.sh
