@@ -135,8 +135,8 @@ class AccessTableTest : BasePostgresTest() {
     }
 
     /**
-     * Audit M4 (user, message 13675): "you only get paid if you belong to that branch or you were
-     * relief that day. With or without clock in." Payees here belong to the branch, relief payees
+     * Pay goes only to the branch's members and that day's relief, with or without a clock-in. Payees
+     * here belong to the branch, relief payees
      * hold today's relief grant, strangers neither.
      */
     private fun seedPayees() {

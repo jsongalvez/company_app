@@ -122,7 +122,6 @@ class RoleRulesTest : BasePostgresTest() {
 
     @Test
     fun `an Owner cannot change a Superuser's roles`() {
-        // Audit H1, accepted by the user (message 13675): only a Superuser changes a Superuser.
         val r =
             testServer.client.put(
                 "${ApiRoutes.USERS}/$superuser/roles",

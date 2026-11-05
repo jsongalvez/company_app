@@ -282,8 +282,8 @@ class UserServicePostgresTest : BasePostgresTest() {
                 RoleRepository.findIdByNameInTransaction("SUPERUSER")!!,
             )
         }
-        // Owed #24: a non-superuser sees a Superuser as a Practitioner, so saving what they see keeps
-        // SUPERUSER; audit H1 (user, message 13675): changing anything else of a Superuser is refused.
+        // A non-superuser sees a Superuser as a Practitioner, so saving what they see keeps SUPERUSER;
+        // changing anything else of a Superuser is refused.
         UserService.replaceRoles(callerId, targetUserId, listOf("PRACTITIONER"))
         assertFailsWith<ForbiddenException> { UserService.replaceRoles(callerId, targetUserId, listOf("OWNER")) }
         assertEquals(

@@ -9,7 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
-/** Audit L5: a stored tap never carries the guessable label hash the page sent. */
+/** A stored tap never carries the guessable label hash the page sent. */
 class LabelSealTest {
     private val tap = """{"el":{"tag":"button","h":"1x2y3z","al":"9abc"},"lh":"q7","w":360,"h2":"keep"}"""
 

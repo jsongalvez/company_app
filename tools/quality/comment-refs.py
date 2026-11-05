@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comments name no issue, owed-item or chat-message ids: the reason goes in the comment, the history in git.
+"""Comments name no issue, owed-item, chat-message or audit-finding ids (`Audit H1`): the reason goes in the comment, the history in git.
 
 Usage: comment-refs.py [--fix] [PATH...]   (defaults to backend/src/main web/src)
 Without --fix: prints each hit and exits 1. With --fix: strips the common id forms, then prints what is left
@@ -8,7 +8,7 @@ detekt RequireSafetyComment and SuppressRequiresTicket demand one there.
 """
 import pathlib, re, sys
 
-REF = re.compile(r"#\d{2,4}\b|\bmessage \d{4,5}\b|\b[Oo]wed #\d+")
+REF = re.compile(r"#\d{2,4}\b|\bmessage \d{4,5}\b|\b[Oo]wed #\d+|\b[Aa]udit [HML]\d\b")
 SKIP = {"web/src/api/schema.d.ts", "web/src/lib/access.gen.ts"}
 COMMENT_LINE = re.compile(r"^\s*(//|\*|/\*\*?|<!--)")
 TRAILING = re.compile(r"[;)}\w\"]\s+//\s")
@@ -63,7 +63,7 @@ def main(argv):
     for h in hits:
         print(h)
     if hits:
-        print(f"{len(hits)} comment lines name an issue, owed item or message id: say the reason, drop the id"
+        print(f"{len(hits)} comment lines name an issue, owed item, message or audit-finding id: say the reason, drop the id"
               " (tools/quality/comment-refs.py --fix strips the common forms)", file=sys.stderr)
     return 1 if hits and not fix else 0
 

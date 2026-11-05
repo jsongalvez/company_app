@@ -26,12 +26,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The pre-launch audit's rank and clock-in rules (owed #24, user message 13675).
- *
- * H1: only an Owner or a Superuser gives or takes away Owner or Manager; nobody changes their own
- * roles; only a Superuser changes or deactivates a Superuser; only an Owner or a Superuser
- * deactivates an Owner. M3: a clock-in needs a home at that branch or relief granted for the day.
- * M4: pay goes only to the branch's members and the day's relief, the payer included.
+ * Only an Owner or a Superuser gives or takes away Owner or Manager; nobody changes their own roles;
+ * only a Superuser changes or deactivates a Superuser; only an Owner or a Superuser deactivates an
+ * Owner. A clock-in needs a home at that branch or relief granted for the day. Pay goes only to the
+ * branch's members and the day's relief, the payer included.
  */
 class RankGuardTest : BasePostgresTest() {
     private val home = TestFixtures.uuid()

@@ -30,4 +30,9 @@ printf '/** Locks first (#518). */\nfun c() = Unit\n' > "$T/Bad.kt"
 python3 "$CHECK" --fix "$T/Bad.kt" > /dev/null
 grep -q '/\*\* Locks first. \*/' "$T/Bad.kt" || { echo "comment-refs-test: --fix left: $(cat "$T/Bad.kt")" >&2; status=1; }
 expect "after --fix" "$T/Bad.kt" 0
+
+printf '// Audit H1: only a Superuser changes a Superuser.\nfun d() = Unit\n' > "$T/Label.kt"
+expect "audit finding label" "$T/Label.kt" 1
+printf '// Security audit M1: the server sends a CSP.\nfun e() = Unit\n' > "$T/Label2.kt"
+expect "security audit finding label" "$T/Label2.kt" 1
 exit $status
