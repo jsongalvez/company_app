@@ -3,5 +3,6 @@ Description=Alert on failed company_app deploys and a failing /health
 
 [Service]
 Type=oneshot
+TimeoutStartSec=2min
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/bin/company-app-alert.sh

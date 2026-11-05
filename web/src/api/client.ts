@@ -1,6 +1,7 @@
 import { nowIso, plain } from "../lib/format";
 import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
+import { jittered } from "../lib/backoff";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 import { canQueue, eager, enqueue, mustQueue, onlyEagerAhead } from "../lib/outbox.svelte";
 import { traceparent } from "../lib/telemetry";
@@ -142,11 +143,11 @@ async function resilientFetch(req: Request): Promise<Response> {
             // The phone says it has no signal: say so now; waiting out retries only feels slow.
             if (!navigator.onLine || knownBad) throw new NetError(false);
             if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
-            await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
+            await onlineOrTimeout(jittered(RETRY_WAITS_MS[attempt]!));
             continue;
         }
         if (GATEWAY.has(res.status) && !last) {
-            await onlineOrTimeout(RETRY_WAITS_MS[attempt]!);
+            await onlineOrTimeout(jittered(RETRY_WAITS_MS[attempt]!));
             continue;
         }
         if (GATEWAY.has(res.status) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query);

@@ -3,5 +3,6 @@ Description=Deploy company_app when GitHub runs on master are green
 
 [Service]
 Type=oneshot
+TimeoutStartSec=5min
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/deploy-gate/deploy-gate.sh

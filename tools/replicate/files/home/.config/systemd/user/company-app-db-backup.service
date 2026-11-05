@@ -2,4 +2,5 @@
 Description=Encrypted company_app DB backup to Cloudflare R2
 [Service]
 Type=oneshot
+TimeoutStartSec=30min
 ExecStart=%h/bin/company-app-db-backup.sh

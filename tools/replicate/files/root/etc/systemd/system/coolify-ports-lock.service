@@ -6,6 +6,7 @@ PartOf=docker.service
 
 [Service]
 Type=oneshot
+TimeoutStartSec=2min
 RemainAfterExit=yes
 ExecStart=/usr/local/sbin/coolify-ports-lock
 

@@ -14,6 +14,12 @@ object DatabaseConfig {
     private const val MIN_IDLE = 3
     private const val CONNECTION_TIMEOUT_MS = 30_000L
 
+    /**
+     * The phone stops waiting after 20 s, so a statement still running then helps no one and holds a pool
+     * connection. Migrations take their own connection without these limits.
+     */
+    private const val SESSION_LIMITS = "-c statement_timeout=20s -c idle_in_transaction_session_timeout=1min"
+
     data class PoolStats(
         val active: Int,
         val idle: Int,
@@ -60,6 +66,7 @@ object DatabaseConfig {
                 addDataSourceProperty("databaseName", cfg.dbName)
                 addDataSourceProperty("serverName", cfg.dbHost)
                 addDataSourceProperty("portNumber", cfg.dbPort)
+                addDataSourceProperty("options", SESSION_LIMITS)
 
                 maximumPoolSize = MAX_POOL_SIZE
                 minimumIdle = MIN_IDLE
@@ -82,8 +89,11 @@ object DatabaseConfig {
             val flyway =
                 Flyway
                     .configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration")
+                    .dataSource(
+                        "jdbc:postgresql://${config.dbHost}:${config.dbPort}/${config.dbName}",
+                        config.dbUser,
+                        config.dbPassword,
+                    ).locations("classpath:db/migration")
                     .load()
             flyway.migrate()
             logger.info { "[INITIALIZE-DATABASE] Flyway initialization done" }

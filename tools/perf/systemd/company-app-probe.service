@@ -3,5 +3,6 @@ Description=Probe company_app sign-in, Today, saving a session and Finance, and 
 
 [Service]
 Type=oneshot
+TimeoutStartSec=5min
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/.local/share/company-app-perf/probe.sh

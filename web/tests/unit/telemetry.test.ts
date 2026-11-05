@@ -98,3 +98,55 @@ test("busy or failing server keeps the batch for later", async () => {
         "retry",
     );
 });
+
+const settle = () => new Promise((r) => setTimeout(r, 20));
+
+/** A timer that fires at once and keeps the wait it was asked for. */
+function instant(waits: number[]) {
+    return (run: () => void, ms: number) => {
+        waits.push(ms);
+        queueMicrotask(run);
+    };
+}
+
+test("an upload that keeps failing waits longer each time, up to a cap, and a success resets it", async () => {
+    const waits: number[] = [];
+    const outcomes: Outcome[] = ["retry", "retry", "retry", "retry", "retry", "retry", "retry", "done", "retry", "done"];
+    const r = createRecorder(
+        "s1",
+        async () => outcomes.shift() ?? "done",
+        Date.now,
+        instant(waits),
+        () => 1,
+    );
+    r.record("tap", {});
+    await settle();
+    assert.deepEqual(waits, [15_000, 15_000, 30_000, 60_000, 120_000, 240_000, 300_000, 300_000]);
+    waits.length = 0;
+    r.record("tap", {});
+    await settle();
+    assert.deepEqual(waits, [15_000, 15_000]);
+});
+
+test("retry waits are jittered, so phones knocked off together don't come back together", async () => {
+    const waits: number[] = [];
+    const outcomes: Outcome[] = ["retry", "done"];
+    const r = createRecorder(
+        "s1",
+        async () => outcomes.shift() ?? "done",
+        Date.now,
+        instant(waits),
+        () => 0,
+    );
+    r.record("tap", {});
+    await settle();
+    assert.deepEqual(waits, [15_000, 7_500]);
+});
+
+test("an upload the server never answers gives up, so later events still go out", async () => {
+    const hang = (_url: string, init: { signal?: AbortSignal }) =>
+        new Promise<{ status: number }>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+    const started = Date.now();
+    assert.equal(await sendBatch("{}", "t", hang, 50), "retry");
+    assert.ok(Date.now() - started < 2000, "gave up near the limit");
+});

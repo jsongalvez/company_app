@@ -1,3 +1,5 @@
+import { backoff } from "./backoff";
+
 /**
  * What this page load did (screens, taps, field changes, API calls, errors), uploaded in the background so a
  * reported problem can be traced and replayed (docs/telemetry.md). Nothing typed and no names leave the phone:
@@ -18,6 +20,8 @@ export const BUFFER_MAX = 1000;
 export const DATA_MAX = 1000;
 const BATCH_CHARS_MAX = 48_000;
 export const FLUSH_MS = 15_000;
+const RETRY_CAP_MS = 300_000;
+const UPLOAD_TIMEOUT_MS = 20_000;
 export const PATH_DEPTH = 6;
 export const TEXT_MAX = 200;
 
@@ -101,17 +105,28 @@ export function routeOf(hashPart: string): string {
     return (q ? `${path}?${q}` : path!).slice(0, 200);
 }
 
-type Fetch = (url: string, init: { method: "POST"; body: string; keepalive: true; headers: Record<string, string> }) => Promise<{ status: number }>;
+type Fetch = (
+    url: string,
+    init: { method: "POST"; body: string; keepalive: true; headers: Record<string, string>; signal: AbortSignal },
+) => Promise<{ status: number }>;
 
 /**
  * A token the server refuses (expired, revoked) sends the batch on the open route with no user. Held back instead,
  * it would go out after the next sign-in, under whoever signed in.
  */
-export async function sendBatch(body: string, token: string | null, fetchFn: Fetch): Promise<Outcome> {
+export async function sendBatch(body: string, token: string | null, fetchFn: Fetch, timeoutMs = UPLOAD_TIMEOUT_MS): Promise<Outcome> {
     const send = async (signedIn: string | null) => {
         const headers: Record<string, string> = { "Content-Type": "application/json", traceparent: traceparent() };
         if (signedIn) headers.Authorization = `Bearer ${signedIn}`;
-        return (await fetchFn(signedIn ? "/api/telemetry" : "/telemetry", { method: "POST", body, keepalive: true, headers })).status;
+        return (
+            await fetchFn(signedIn ? "/api/telemetry" : "/telemetry", {
+                method: "POST",
+                body,
+                keepalive: true,
+                headers,
+                signal: AbortSignal.timeout(timeoutMs),
+            })
+        ).status;
     };
     try {
         let status = await send(token);
@@ -124,8 +139,15 @@ export async function sendBatch(body: string, token: string | null, fetchFn: Fet
 
 export type Schedule = (run: () => void, ms: number) => void;
 
-export function createRecorder(sessionId: string, post: Post, now: () => number = Date.now, schedule: Schedule = (run, ms) => void setTimeout(run, ms)) {
+export function createRecorder(
+    sessionId: string,
+    post: Post,
+    now: () => number = Date.now,
+    schedule: Schedule = (run, ms) => void setTimeout(run, ms),
+    rand: () => number = Math.random,
+) {
     let seq = 0;
+    let failures = 0;
     const queue: Event[] = [];
     let waiting = false;
     let sending = false;
@@ -161,8 +183,11 @@ export function createRecorder(sessionId: string, post: Post, now: () => number 
         if (outcome === "retry") {
             queue.unshift(...batch);
             if (queue.length > BUFFER_MAX) queue.splice(0, queue.length - BUFFER_MAX);
-            later();
-        } else if (queue.length) later(0);
+            later(backoff(failures++, FLUSH_MS, RETRY_CAP_MS, rand));
+            return;
+        }
+        failures = 0;
+        if (queue.length) later(0);
     }
 
     return { sessionId, record, flush, pending: () => queue.length };
