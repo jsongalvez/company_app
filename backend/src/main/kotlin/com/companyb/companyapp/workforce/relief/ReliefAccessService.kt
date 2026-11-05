@@ -71,11 +71,6 @@ object ReliefAccessService {
     /** The caller's own requests across branches/days with branch context. */
     fun listMine(callerId: UUID): List<ReliefRequestWithBranch> = ReliefAccessRepository.findMine(callerId)
 
-    /**
-     * deep-link read: a notification tap carries (branchId, date), not a branch-day id.
-     * Find-only day resolution — a stale link never materializes a missing day; empty list
-     * when no such day exists. Same audience rules as [listForCaller].
-     */
     fun listForCallerByDay(
         callerId: UUID,
         branchId: UUID,
@@ -329,10 +324,6 @@ object ReliefAccessService {
                     val (lockedDay, isRemitted) =
                         BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id, reason)
 
-                    // per-person duty guard (mirrors the invite create guard): the
-                    // requester must not already hold the day (a GRANTED request or an
-                    // active day grant incl. the invite path). Without it a second grant
-                    // would hit idx_one_grant_per_day as a 500.
                     requireNoExistingDutyInTransaction(callerId, lockedDay.id)
 
                     val pair =
@@ -429,10 +420,6 @@ object ReliefAccessService {
         }
     }
 
-    /**
-     * grant-path sibling guard: the requester must not
-     * already hold a GRANTED row for the day under a different request id.
-     */
     private fun requireNoSiblingGrantedInTransaction(
         requestedBy: UUID,
         branchDayId: UUID,
@@ -445,12 +432,6 @@ object ReliefAccessService {
         }
     }
 
-    /**
-     * grant-path invite guard: the requester must not
-     * already hold the day through the invite path (an ACCEPTED invite writes the
-     * same day-scoped capability under another table, invisible to the sibling
-     * guard above).
-     */
     private fun requireNoInviteDutyInTransaction(
         requestedBy: UUID,
         branchDayId: UUID,
@@ -460,11 +441,6 @@ object ReliefAccessService {
         }
     }
 
-    /**
-     * creation-path duty guard: the requester must hold
-     * neither a GRANTED request nor an active day grant (either path's grant writes
-     * the same day-scoped capability) for the day.
-     */
     private fun requireNoExistingDutyInTransaction(
         requesterId: UUID,
         branchDayId: UUID,

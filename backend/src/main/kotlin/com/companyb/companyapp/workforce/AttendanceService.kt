@@ -162,12 +162,6 @@ object AttendanceService {
         return AttendanceMarkResult(attendance, wasCreated, isRelief = false)
     }
 
-    /**
-     * The absent leg: closes the target's open window (a clock-out on behalf). Find-only
-     * day resolution — an absent-mark never creates a branch day; with no
-     * day row or no open window it is an idempotent no-op. The audit attributes the marker
-     * via changedBy and the recalculation joins the same transaction.
-     */
     private fun markAbsent(
         callerId: UUID,
         branchId: UUID,
@@ -352,12 +346,6 @@ data class AttendanceRosterEntry(
     val present: Boolean,
 )
 
-/**
- * unknown-target 404 precedence for mark (runs before the command
- * transaction): an unknown user fails closed with 404 before the membership
- * gate, so a non-member never surfaces as 403-masking-404. Extracted so
- * [AttendanceService.mark] stays under the ThrowsCount gate (RED repair).
- */
 private fun requireTargetExists(targetUserId: UUID) {
     if (!AccountReads.userExists(targetUserId)) {
         throw NotFoundException("User not found")

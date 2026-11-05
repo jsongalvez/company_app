@@ -18,11 +18,6 @@ data class BranchMemberRow(
     val displayName: String,
 )
 
-/**
- * the requested-practitioner directory reads: ACTIVE members (id + display name)
- * of one branch. Joins the user row and filters on status so deactivated users never
- * surface — the assignment query alone filters [UserBranchAssignmentTable.endedAt] only.
- */
 internal object BranchMemberRepository {
     fun findActiveMemberNames(branchId: UUID): List<BranchMemberRow> =
         traced("BranchMemberRepository.findActiveMemberNames") {

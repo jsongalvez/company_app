@@ -147,12 +147,6 @@ internal object ReliefInviteRepository {
             }.empty()
             .not()
 
-    /**
-     * ACCEPTED invites whose duty day is [dutyDate]: the reminder-job scan set.
-     * Suppression lives in current state, not events — declined/retracted/revoked/expired
-     * rows are other statuses and never appear here; a revocation suppresses by
-     * moving the row OUT of ACCEPTED (REVOKED), no marker cleanup.
-     */
     fun findAcceptedForDutyDate(dutyDate: java.time.LocalDate): List<AcceptedInviteWithBranch> =
         traced("ReliefInviteRepository.findAcceptedForDutyDate") {
             transaction {
@@ -278,12 +272,6 @@ internal object ReliefInviteRepository {
             }
         }
 
-    /**
-     * Received invites (caller = invitee) — PENDING only, newest first. Resolved rows
-     * (ACCEPTED/DECLINED/RETRACTED) never leave the server: the section renders rows
-     * until RESOLVED, not until read, so a re-entry or cross-device load must
-     * not resurrect an answered invite with live buttons.
-     */
     fun findReceivedByInvitee(invitee: UUID): List<ReliefInviteView> =
         traced("ReliefInviteRepository.findReceivedByInvitee") {
             transaction {
@@ -340,12 +328,6 @@ internal object ReliefInviteRepository {
             }
         }
 
-    /**
-     * Every invite at [branchId] on [date], all statuses (deep-link day read — the
-     * tapped notification must render the entity's true state, so resolved rows stay).
-     * Joins through BranchDayTable, so a day that was never materialized yields an empty
-     * list — no day-row creation from a read.
-     */
     fun findByBranchAndDate(
         branchId: UUID,
         date: java.time.LocalDate,

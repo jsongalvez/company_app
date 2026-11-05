@@ -205,13 +205,6 @@ object ReliefInviteService {
                     }
                     val validTo = BranchDayService.expirationUtc(branchDay.date)
 
-                    // one duty per person per day (the rule, cross-path
-                    // twin): the invitee must not already hold the day through either
-                    // path (a GRANTED request or any active day grant). Without it an
-                    // accepted invite stacks a second active capability row next to
-                    // the request grant. Runs after the day lock, atomic with the
-                    // accept below. Revoked/expired duties hold no grant, so
-                    // re-invites still pass.
                     requireNoExistingDutyInTransaction(callerId, branchDay.id)
 
                     val mutation =
@@ -371,13 +364,6 @@ object ReliefInviteService {
         }
     }
 
-    /**
-     * Candidate search for the inviter side: ACTIVE users whose username/displayName
-     * starts with [query] (blank → all), minus the caller and anyone already
-     * PENDING/ACCEPTED/GRANTED for the day. The day resolves find-only: no day row means
-     * no invites/grants can exist for it, so no exclusions apply (the gate shape —
-     * a search must never create rows).
-     */
     fun searchCandidates(
         callerId: UUID,
         branchId: UUID,
@@ -465,12 +451,6 @@ object ReliefInviteService {
         }
     }
 
-    /**
-     * accept-path duty guard: mirrors the
-     * request creation guard — the invitee must hold neither a GRANTED request
-     * nor an active day grant (either path's grant writes the same day-scoped
-     * capability) for the day.
-     */
     private fun requireNoExistingDutyInTransaction(
         userId: UUID,
         branchDayId: UUID,
