@@ -101,6 +101,27 @@ export function routeOf(hashPart: string): string {
     return (q ? `${path}?${q}` : path!).slice(0, 200);
 }
 
+type Fetch = (url: string, init: { method: "POST"; body: string; keepalive: true; headers: Record<string, string> }) => Promise<{ status: number }>;
+
+/**
+ * A token the server refuses (expired, revoked) sends the batch on the open route with no user. Held back instead,
+ * it would go out after the next sign-in, under whoever signed in.
+ */
+export async function sendBatch(body: string, token: string | null, fetchFn: Fetch): Promise<Outcome> {
+    const send = async (signedIn: string | null) => {
+        const headers: Record<string, string> = { "Content-Type": "application/json", traceparent: traceparent() };
+        if (signedIn) headers.Authorization = `Bearer ${signedIn}`;
+        return (await fetchFn(signedIn ? "/api/telemetry" : "/telemetry", { method: "POST", body, keepalive: true, headers })).status;
+    };
+    try {
+        let status = await send(token);
+        if (status === 401 && token) status = await send(null);
+        return status === 429 || status >= 500 ? "retry" : "done";
+    } catch {
+        return "retry";
+    }
+}
+
 export type Schedule = (run: () => void, ms: number) => void;
 
 export function createRecorder(sessionId: string, post: Post, now: () => number = Date.now, schedule: Schedule = (run, ms) => void setTimeout(run, ms)) {

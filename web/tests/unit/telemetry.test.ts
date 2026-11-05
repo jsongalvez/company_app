@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BUFFER_MAX, createRecorder, hash, routeOf, type Outcome } from "../../src/lib/telemetry";
+import { BUFFER_MAX, createRecorder, hash, routeOf, sendBatch, type Outcome } from "../../src/lib/telemetry";
 
 test("hash is stable FNV-1a in base 36", () => {
     assert.equal(hash(""), (0x811c9dc5).toString(36));
@@ -66,4 +66,35 @@ test("an oversized event is cut to a marker, never sent whole", async () => {
     r.record("error", { msg: "x".repeat(5000) });
     await r.flush();
     assert.equal(bodies[0]!.events[0]!.data, JSON.stringify({ cut: 5010 }));
+});
+
+test("a refused sign-in sends the batch with no user, so a later sign-in never claims it", async () => {
+    const calls: { url: string; auth: string | undefined }[] = [];
+    const fetchFn = async (url: string, init: { headers: Record<string, string> }) => {
+        calls.push({ url, auth: init.headers.Authorization });
+        return { status: url === "/api/telemetry" ? 401 : 204 };
+    };
+    assert.equal(await sendBatch("{}", "expired-token", fetchFn), "done");
+    assert.deepEqual(calls, [
+        { url: "/api/telemetry", auth: "Bearer expired-token" },
+        { url: "/telemetry", auth: undefined },
+    ]);
+});
+
+test("a signed-out page sends to the open route; a signed-in one to its own", async () => {
+    const urls: string[] = [];
+    const fetchFn = async (url: string) => (urls.push(url), { status: 204 });
+    assert.equal(await sendBatch("{}", null, fetchFn), "done");
+    assert.equal(await sendBatch("{}", "good", fetchFn), "done");
+    assert.deepEqual(urls, ["/telemetry", "/api/telemetry"]);
+});
+
+test("busy or failing server keeps the batch for later", async () => {
+    for (const status of [429, 500, 503]) assert.equal(await sendBatch("{}", null, async () => ({ status })), "retry");
+    assert.equal(
+        await sendBatch("{}", null, async () => {
+            throw new Error("offline");
+        }),
+        "retry",
+    );
 });

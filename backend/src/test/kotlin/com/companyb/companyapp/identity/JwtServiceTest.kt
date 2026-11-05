@@ -2,16 +2,27 @@ package com.companyb.companyapp.identity
 
 import com.auth0.jwt.JWT
 import com.companyb.companyapp.app.AppConfig
+import java.time.Duration
+import java.time.Instant
 import kotlin.concurrent.thread
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class JwtServiceTest {
     @AfterTest
     fun tearDown() {
         JwtService.init(configurations.first())
+    }
+
+    @Test
+    fun `a token past its day is refused before anything reads its user`() {
+        JwtService.init(configurations.first())
+        val issued = Instant.now().minus(ISSUED_DAY_AND_TWO_MINUTES_AGO)
+
+        assertNull(JwtService.verifyToken(JwtService.generateToken(USER_ID, 0L, issued)))
     }
 
     @Test
@@ -60,6 +71,7 @@ class JwtServiceTest {
     }
 
     private companion object {
+        private val ISSUED_DAY_AND_TWO_MINUTES_AGO: Duration = Duration.ofMinutes(24L * 60 + 2)
         const val GENERATOR_COUNT = 4
         const val INITIALIZATION_COUNT = 100
         const val TOKENS_PER_GENERATOR = 250

@@ -1,20 +1,10 @@
 import { api, getToken, uuid } from "../api/client";
 import { REFUSED, type Refused } from "./outbox.svelte";
-import { createRecorder, describe, fieldOf, norm, plainPath, routeOf, traceparent, type Outcome } from "./telemetry";
+import { createRecorder, describe, fieldOf, norm, plainPath, routeOf, sendBatch } from "./telemetry";
 import { APP_VERSION } from "./version";
 
 /** The live recorder for this page load; its id goes into problem reports so the replay tool can find it. */
-export const recorder = createRecorder(uuid(), async (body): Promise<Outcome> => {
-    const token = getToken();
-    const headers: Record<string, string> = { "Content-Type": "application/json", traceparent: traceparent() };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    try {
-        const res = await fetch(token ? "/api/telemetry" : "/telemetry", { method: "POST", body, keepalive: true, headers });
-        return res.status === 401 || res.status === 429 || res.status >= 500 ? "retry" : "done";
-    } catch {
-        return "retry";
-    }
-});
+export const recorder = createRecorder(uuid(), (body) => sendBatch(body, getToken(), fetch));
 
 const route = () => routeOf(location.hash);
 
