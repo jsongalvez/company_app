@@ -33,7 +33,7 @@ internal object WebErrorAlerts {
     private const val SERVER_ERROR_MIN = 500
     private const val QUEUE = 20
     private val ID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", RegexOption.IGNORE_CASE)
-    private val ERROR_CLASS = Regex("\\b([A-Z][A-Za-z]*(?:Error|Exception))\\b")
+    private val ERROR_CLASS = Regex("\\b((?:[A-Z][A-Za-z]*)?(?:Error|Exception))\\b")
 
     @Volatile
     private var channel: NtfyChannel? = null
@@ -77,6 +77,17 @@ internal object WebErrorAlerts {
         }
     }
 
+    // An ApiError is a refused call, already judged by its "api" event.
+    private fun scriptErrorLine(
+        msg: String?,
+        screen: String,
+    ): String? =
+        when (val type = msg?.let { ERROR_CLASS.find(it)?.groupValues?.get(1) }) {
+            "ApiError" -> null
+            null -> "Uncaught error on $screen"
+            else -> "$type on $screen"
+        }
+
     /** The alert's first line for [event], or null when it isn't one to alert on. */
     internal fun line(event: TelemetryEvent): String? {
         val data = runCatching { Json.parseToJsonElement(event.data) as? JsonObject }.getOrNull() ?: return null
@@ -89,8 +100,7 @@ internal object WebErrorAlerts {
                 if (outbox != null) {
                     "Offline save refused: ${outbox.replace(ID, "{id}")} answered ${text("s")} on $screen"
                 } else {
-                    val type = text("msg")?.let { ERROR_CLASS.find(it)?.groupValues?.get(1) } ?: "Script error"
-                    "$type on $screen"
+                    scriptErrorLine(text("msg"), screen)
                 }
             }
 

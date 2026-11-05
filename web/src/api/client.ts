@@ -159,6 +159,8 @@ export const api = createClient<paths>({ baseUrl: location.origin, fetch: resili
 api.use(auth);
 
 export class ApiError extends Error {
+    override readonly name = "ApiError";
+
     constructor(
         readonly status: number,
         message: string,

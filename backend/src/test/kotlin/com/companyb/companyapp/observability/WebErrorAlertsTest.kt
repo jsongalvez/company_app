@@ -64,6 +64,14 @@ class WebErrorAlertsTest {
     }
 
     @Test
+    fun `a refused call the screen left unhandled stays quiet, and a bare Error is named Error`() {
+        val signedOut = """{"r":"#/users","msg":"ApiError: You were signed out. Please sign in again."}"""
+        assertNull(WebErrorAlerts.line(event("error", signedOut)))
+        assertEquals("Error on #/users", WebErrorAlerts.line(event("error", """{"r":"#/users","msg":"Error: boom"}""")))
+        assertEquals("Uncaught error on #/users", WebErrorAlerts.line(event("error", """{"r":"#/users"}""")))
+    }
+
+    @Test
     fun `a refused offline save reaches ntfy`() {
         WebErrorAlerts.notice(
             session,
