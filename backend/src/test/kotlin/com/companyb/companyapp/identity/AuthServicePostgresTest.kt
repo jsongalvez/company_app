@@ -43,6 +43,21 @@ class AuthServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `sign-in and password-reset budgets for one address are separate`() {
+        RateLimiter.resetForTest()
+        val ip = "203.0.113.77"
+        repeat(11) { AuthService.login("nobody-$it", "wrong-password", ip) }
+        assertEquals(LoginResult.RateLimited, AuthService.login("nobody", "wrong-password", ip))
+        assertTrue(AuthService.requestPasswordReset("no-such-account", ip), "spent sign-ins leave resets open")
+
+        RateLimiter.resetForTest()
+        repeat(11) { AuthService.requestPasswordReset("no-such-account-$it", ip) }
+        assertTrue(!AuthService.requestPasswordReset("no-such-account", ip), "the reset budget bites")
+        assertEquals(LoginResult.InvalidCredentials, AuthService.login("nobody", "wrong-password", ip))
+        RateLimiter.resetForTest()
+    }
+
+    @Test
     fun `logout denies user and invalidates token`() {
         val token = JwtService.generateToken(userId.toString())
 

@@ -60,8 +60,6 @@ object AuthService {
     // unauthenticated self-service reachable by anyone who knows an identifier.
     private const val RESET_VALID_HOURS = 24L
 
-    // Independent rate-limit budget per IP — login hammering must not starve resets and vice
-    // versa (RateLimiter keys on the exact string).
     private const val RESET_RATE_KEY_PREFIX = "reset:"
 
     // DB-derived issuance skew: guarantees the minted iat lands strictly after
@@ -76,7 +74,6 @@ object AuthService {
         return traced("AuthService.login") {
             logger.info { "[LOGIN] Login attempt from $ip" }
 
-            // Per address, then per account: many addresses must not add up to unlimited guesses at one account.
             val refusal =
                 when {
                     !RateLimiter.isAllowed(ip) -> LoginResult.RateLimited
