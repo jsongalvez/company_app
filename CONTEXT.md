@@ -30,8 +30,8 @@ Rules for app wording:
 | User | Anyone who signs in. | `app_user` |
 | Practitioner | Treats clients and logs sessions. | `PRACTITIONER` |
 | Coordinator | Handles expenses, pay and remittances for their branches. The only one who can change closed days. | `COORDINATOR` |
-| Manager | A coordinator who can also manage users and helpers. | `MANAGER` |
-| Owner | Runs the business: users, branches and products. Sees every branch, look-only; works like a member only where they are one. Pays staff at every branch, but never sees anyone's commission outside their own branch. | `OWNER` |
+| Manager | A coordinator who can also manage users and helpers. Works every medical mission and provincial tour as staff. | `MANAGER` |
+| Owner | Runs the business: users, branches and products. Sees every branch, look-only; works like a member where they are one and at every medical mission and provincial tour. Pays staff at every branch, but never sees anyone's commission outside their own branch. | `OWNER` |
 | Accountant | Can see every branch's numbers but can't change anything, and is never a branch member. Sees no commission. | `ACCOUNTANT` |
 | Superuser | Full access, for setup and support. The developer's role; only a superuser can "View as" someone. Works at every branch without being a member. Shown as Practitioner to anyone else who manages users. | `SUPERUSER` |
 | View as | A superuser seeing the app as another person, with that person's permissions. Look-only unless "Allow changes" is on. | `X-View-As` header |
@@ -42,7 +42,7 @@ Rules for app wording:
 | Order | Where a person appears in staff lists at a branch (1 is first). | slot |
 | Invite code | A one-time code a manager gives a new user so they can set their password. | invite |
 | Deactivate / Reactivate | Block someone from signing in, or let them back in. Nothing they did is deleted. | `INACTIVE` / `ACTIVE` |
-| Helper | Someone an Owner or Manager adds to a medical mission or provincial tour, the only people who work there. Works it like relief, with no end day, and shares its commission until removed. The role picked when adding them (Practitioner or Coordinator) sets their rights there. | delegate, `ASSIGN_DELEGATE` |
+| Helper | Someone an Owner or Manager adds to a medical mission or provincial tour. Helpers and every Owner and Manager are the only people who work there. Works it like relief, with no end day, and shares its commission until removed. The role picked when adding them (Practitioner or Coordinator) sets their rights there. | delegate, `ASSIGN_DELEGATE` |
 
 ## Duty
 
