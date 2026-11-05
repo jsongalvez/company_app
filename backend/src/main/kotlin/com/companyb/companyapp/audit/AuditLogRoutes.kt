@@ -119,10 +119,6 @@ import java.util.UUID
 )
 object AuditLogRoutes {
     fun register(config: JavalinConfig) {
-        // No route gate (D9: always-visible; backend-authoritative read scoping
-        // inside the service). The GLOBAL ASSIGN_COMPENSATION filter was
-        // broken by construction (F2) and is removed here.
-
         config.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH, Gate.InHandler("AuditLogService: per row")) { context ->
             val response = handleBrowse(context)
             context.status(HttpStatus.OK)

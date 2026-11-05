@@ -1,15 +1,8 @@
 package com.companyb.companyapp.audit
 
 /**
- * Single backend source listing the audited tables (DB table name -> readable label).
- *
- * This is the contract of the audit write-sites: every table that gets an
- * [AuditLog.record*] call must be registered here, or it is invisible to
- * the Audit Log UI (the table-list endpoint serves this registry, NOT
- * `DISTINCT table_name` from live data — a freshly audited table with zero rows
- * would otherwise be missing until its first write, D4).
- *
- * New audited tables must register here at their write-site.
+ * The audited tables (DB table name -> readable label). The Audit Log table list serves this, not
+ * `DISTINCT table_name`, so a table with no rows yet still shows.
  */
 object AuditLogTableRegistry {
     data class AuditedTableEntry(

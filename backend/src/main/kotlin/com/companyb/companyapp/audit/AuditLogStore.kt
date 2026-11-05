@@ -332,12 +332,6 @@ internal object AuditLogStore {
     // A global viewer's "every branch" stops short of hidden ones: the latency probe saves and voids every 5 minutes.
     private fun hiddenBranches() = BranchTable.select(BranchTable.id).where { BranchTable.hidden eq true }
 
-    /**
-     * Scope predicate: branch rows must be in the caller's window (null window =
-     * all branches — GLOBAL VIEW_BRANCH_DATA holder); NULL-branch rows are
-     * readable when their table passes the branchless policy or the caller holds
-     * the global-view fallback (AuditLogReadScope owns the policy).
-     */
     private fun scopedWhere(
         windowBranchIds: List<UUID>?,
         branchlessTables: Set<String>,

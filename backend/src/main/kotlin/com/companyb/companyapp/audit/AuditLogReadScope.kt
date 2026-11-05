@@ -62,11 +62,6 @@ object AuditLogReadScope {
      */
     fun canReadNullRows(callerId: UUID): Boolean = BranchReadScope.hasGlobalView(callerId)
 
-    /**
-     * Single-entry read verdict — used by acknowledge and any per-row scope
-     * check. Branch rows must be in the window; NULL-branch rows follow the
-     * branchless-table policy or the global-view fallback.
-     */
     fun canReadEntry(
         callerId: UUID,
         tableName: String,

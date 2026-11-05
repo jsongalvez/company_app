@@ -43,10 +43,8 @@ data class AuditBrowseFilter(
 )
 
 /**
- * Cross-feature audit append seam: every mutating command records its audit row
- * through here, inside its own command transaction — never in routes, never opened from
- * a store. The only audit surface other owners may import; table/query internals live in
- * [AuditLogStore] and scoped reads in [AuditLogService].
+ * Every mutating command records its audit row through here, inside its own command transaction,
+ * not in routes. Table internals live in [AuditLogStore], scoped reads in [AuditLogService].
  */
 @Suppress("TooManyFunctions") // #549 ten-function append vocabulary on one seam
 object AuditLog {
