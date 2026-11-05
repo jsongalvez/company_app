@@ -69,9 +69,6 @@ object NotificationService {
         notificationId: UUID,
     ): Notification {
         return traced("NotificationService.markRead") {
-            // Ownership is enforced inside the store's WHERE clause — the 404-on-foreign-row
-            // case must never have mutated the other user's row (the old
-            // version updated by id first, then threw 404 after the foreign row committed).
             val notification =
                 transaction {
                     NotificationRepository.markReadInTransaction(callerId, notificationId)

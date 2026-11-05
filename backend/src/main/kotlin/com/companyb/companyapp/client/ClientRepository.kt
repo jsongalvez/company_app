@@ -176,7 +176,7 @@ internal object ClientRepository {
 
     /**
      * Returns the updated row count and the post-write row; null after when the row is missing or
-     * anonymized (H4 mirror: an update can never land on a soft-deleted record).
+     * anonymized.
      */
     fun updateInTransaction(params: ClientUpdateParams): Pair<Int, Client?> {
         val updatedCount =
