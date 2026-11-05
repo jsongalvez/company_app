@@ -1,0 +1,360 @@
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":199,"app":173,"wall":453.6,"load1":3.98}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":191,"app":229,"wall":519.7,"load1":3.98}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":185,"app":223,"wall":492.9,"load1":3.98}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":160,"app":220,"wall":479.1,"load1":3.98}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":162,"app":138,"wall":344.6,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":186,"app":123,"wall":362,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":151,"app":78,"wall":276.3,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":177,"app":78,"wall":312.1,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":164,"app":141,"wall":354.3,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":141,"app":90,"wall":297.1,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":180,"app":150,"wall":392.2,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":128,"app":53,"wall":223.5,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":99,"app":77,"wall":226.8,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":88,"app":49,"wall":174.3,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET client-directory","db":129,"app":68,"wall":270.2,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":104,"app":11,"wall":125.7,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":167,"app":18,"wall":202.2,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":113,"app":14,"wall":136.3,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":162,"app":14,"wall":183.3,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":114,"app":8,"wall":130.1,"load1":3.9}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":141,"app":8,"wall":156.7,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":179,"app":7,"wall":195.2,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":168,"app":8,"wall":185,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":141,"app":13,"wall":160.2,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":141,"app":7,"wall":155.1,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":152,"app":8,"wall":167.2,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":162,"app":12,"wall":183.1,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":141,"app":23,"wall":172.7,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":161,"app":6,"wall":171.3,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET clients search","db":192,"app":18,"wall":218.3,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":18,"app":11,"wall":32.2,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":13,"app":5,"wall":25.9,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":13,"app":11,"wall":36.6,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":9,"app":11,"wall":31.1,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":13,"app":6,"wall":28.7,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":10,"app":7,"wall":21.3,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":8,"app":8,"wall":21.8,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":10,"app":6,"wall":20.5,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":12,"app":5,"wall":24.4,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":7,"app":7,"wall":18.6,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":10,"app":8,"wall":23,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":7,"app":8,"wall":27,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":7,"app":7,"wall":21.3,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":9,"app":7,"wall":24.6,"load1":3.83}
+{"label":"before","scale":"1000","round":"1","route":"GET recent-clients","db":11,"app":14,"wall":35.8,"load1":3.83}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":155,"app":209,"wall":471.2,"load1":4.24}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":262,"app":253,"wall":622.6,"load1":4.24}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":194,"app":256,"wall":542.4,"load1":4.24}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":180,"app":169,"wall":422.5,"load1":4.24}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":204,"app":173,"wall":447,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":215,"app":128,"wall":449.3,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":227,"app":104,"wall":381.3,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":192,"app":112,"wall":383.6,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":168,"app":98,"wall":328.6,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":193,"app":145,"wall":405.8,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":218,"app":123,"wall":405.4,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":203,"app":67,"wall":339.2,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":182,"app":85,"wall":303.9,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":119,"app":78,"wall":242.8,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET client-directory","db":170,"app":111,"wall":333.5,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":130,"app":7,"wall":146.7,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":71,"app":14,"wall":98.5,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":112,"app":19,"wall":136.2,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":64,"app":14,"wall":84.2,"load1":4.31}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":65,"app":10,"wall":79.6,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":63,"app":9,"wall":79.6,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":72,"app":9,"wall":85.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":84,"app":14,"wall":102.3,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":64,"app":9,"wall":78,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":65,"app":6,"wall":77.9,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":77,"app":8,"wall":95.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":84,"app":9,"wall":99.5,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":82,"app":8,"wall":95.5,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":77,"app":12,"wall":93.9,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET clients search","db":74,"app":9,"wall":88.2,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":18,"app":11,"wall":34.7,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":6,"app":8,"wall":18.5,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":17,"app":5,"wall":29.9,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":12,"app":11,"wall":28.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":5,"app":5,"wall":16.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":6,"app":4,"wall":14,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":8,"app":10,"wall":23.2,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":6,"app":9,"wall":20.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":12,"app":6,"wall":26.9,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":12,"app":8,"wall":26.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":9,"app":8,"wall":22.7,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":13,"app":9,"wall":29.9,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":11,"app":10,"wall":30.7,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":12,"app":7,"wall":34.7,"load1":4.12}
+{"label":"after","scale":"1000","round":"1","route":"GET recent-clients","db":29,"app":12,"wall":62.8,"load1":4.12}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":97,"app":51,"wall":188.6,"load1":4.12}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":87,"app":49,"wall":225.6,"load1":4.12}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":100,"app":63,"wall":233.2,"load1":4.12}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":119,"app":54,"wall":221.1,"load1":4.12}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":111,"app":60,"wall":210.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":98,"app":51,"wall":185.1,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":95,"app":65,"wall":193.8,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":83,"app":47,"wall":166.8,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":90,"app":57,"wall":177.6,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":88,"app":52,"wall":168.4,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":86,"app":66,"wall":188.9,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":106,"app":70,"wall":209.7,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":79,"app":46,"wall":174.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":82,"app":47,"wall":151.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET client-directory","db":83,"app":48,"wall":158.5,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":74,"app":14,"wall":94.1,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":68,"app":9,"wall":83,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":75,"app":5,"wall":86.9,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":182,"app":11,"wall":202,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":134,"app":9,"wall":152.3,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":99,"app":11,"wall":118.4,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":76,"app":5,"wall":88.6,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":68,"app":8,"wall":81.4,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":85,"app":6,"wall":95.6,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":75,"app":6,"wall":85.5,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":72,"app":6,"wall":82.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":66,"app":4,"wall":73.6,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":64,"app":4,"wall":71.8,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":65,"app":4,"wall":73.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET clients search","db":62,"app":6,"wall":73.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":11.1,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":3,"wall":11.7,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":3,"wall":12.7,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":3,"wall":10.1,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":13.6,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":11.3,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":14.7,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":3,"wall":11.8,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":3,"wall":10.9,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":6,"app":7,"wall":17.5,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":7,"app":5,"wall":17.2,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":12.7,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":7,"app":3,"wall":16.7,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":4,"wall":14.9,"load1":4.11}
+{"label":"after","scale":"1000","round":"2","route":"GET recent-clients","db":7,"app":7,"wall":19.9,"load1":4.11}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":72,"app":65,"wall":200.3,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":106,"app":59,"wall":215.7,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":89,"app":81,"wall":228.9,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":123,"app":78,"wall":255.8,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":81,"app":79,"wall":194.9,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":84,"app":38,"wall":174.7,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":78,"app":44,"wall":172.6,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":74,"app":46,"wall":142.8,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":73,"app":48,"wall":153.2,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":79,"app":40,"wall":154.4,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":95,"app":62,"wall":188,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":64,"app":39,"wall":129.8,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":62,"app":39,"wall":123.2,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":67,"app":44,"wall":135.1,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET client-directory","db":68,"app":38,"wall":137.5,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":66,"app":5,"wall":78.5,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":63,"app":5,"wall":71.7,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":74,"app":4,"wall":82.3,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":61,"app":6,"wall":70.9,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":61,"app":5,"wall":69.7,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":62,"app":3,"wall":69.4,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":61,"app":4,"wall":69.1,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":60,"app":4,"wall":68,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":61,"app":3,"wall":68.4,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":62,"app":3,"wall":70.2,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":62,"app":5,"wall":71.2,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":62,"app":4,"wall":70,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":68,"app":6,"wall":78,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":62,"app":4,"wall":69.9,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET clients search","db":67,"app":5,"wall":76.1,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":3,"wall":12.8,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":3,"wall":12.5,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":16.1,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":6,"app":6,"wall":19,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":11.9,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":11.3,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":6,"wall":15.5,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":4,"wall":13.6,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":4,"wall":13.1,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":3,"wall":11.3,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":11.4,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":12.2,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":6,"app":5,"wall":15.1,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":5,"app":3,"wall":11.4,"load1":3.94}
+{"label":"before","scale":"1000","round":"2","route":"GET recent-clients","db":4,"app":4,"wall":19.6,"load1":3.94}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":67,"app":37,"wall":130.6,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":85,"app":49,"wall":168.5,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":71,"app":38,"wall":139,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":81,"app":39,"wall":144.9,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":72,"app":40,"wall":135.5,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":64,"app":36,"wall":127.1,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":65,"app":35,"wall":125.1,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":67,"app":47,"wall":137.1,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":64,"app":37,"wall":127.9,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":67,"app":37,"wall":165.3,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":89,"app":40,"wall":153.6,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":74,"app":38,"wall":139.8,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":64,"app":36,"wall":123.7,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":68,"app":37,"wall":140.3,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET client-directory","db":87,"app":54,"wall":168.9,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":65,"app":4,"wall":72.4,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":82,"app":4,"wall":89.6,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":62,"app":4,"wall":70.4,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":77,"app":11,"wall":91.2,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":77,"app":6,"wall":90.7,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":84,"app":6,"wall":94.5,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":64,"app":3,"wall":72.1,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":64,"app":6,"wall":75.8,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":63,"app":5,"wall":72.9,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":68,"app":9,"wall":82.3,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":83,"app":4,"wall":92.6,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":85,"app":4,"wall":92.5,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":63,"app":4,"wall":71.4,"load1":4.91}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":68,"app":5,"wall":78.3,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET clients search","db":75,"app":5,"wall":84.1,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":6,"wall":14.3,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":12.4,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":4,"wall":10.9,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":4,"wall":12.5,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":4,"wall":11.5,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":3,"wall":11.9,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":10.9,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":10.6,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":3,"wall":12.1,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":13.4,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":6,"app":3,"wall":12.7,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":4,"wall":11.3,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":4,"wall":14.6,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":12.6,"load1":4.59}
+{"label":"before","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":4,"wall":13.2,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":119,"app":63,"wall":211.7,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":89,"app":57,"wall":178.4,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":85,"app":48,"wall":179.6,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":90,"app":51,"wall":171.9,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":90,"app":54,"wall":169.3,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":175,"app":81,"wall":290.8,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":91,"app":59,"wall":176.9,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":96,"app":56,"wall":189.2,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":128,"app":52,"wall":206.6,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":88,"app":58,"wall":174.7,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":86,"app":48,"wall":161.3,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":87,"app":47,"wall":157.9,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":81,"app":44,"wall":169.6,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":86,"app":65,"wall":178.7,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET client-directory","db":87,"app":49,"wall":160.2,"load1":4.59}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":73,"app":4,"wall":82.8,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":72,"app":7,"wall":85.3,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":61,"app":5,"wall":70.3,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":63,"app":4,"wall":70.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":62,"app":4,"wall":70.6,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":61,"app":4,"wall":68.1,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":64,"app":4,"wall":72.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":70,"app":4,"wall":77.9,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":63,"app":4,"wall":71.5,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":61,"app":6,"wall":70.5,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":61,"app":4,"wall":69.4,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":71,"app":4,"wall":79.3,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":65,"app":4,"wall":73.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":71,"app":5,"wall":80.1,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET clients search","db":92,"app":5,"wall":101.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":10.7,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":3,"wall":11.7,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":3,"wall":15.5,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":9,"app":9,"wall":28.5,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":4,"wall":13,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":3,"wall":12.1,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":3,"wall":13.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":5,"app":4,"wall":13.3,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":7,"app":4,"wall":19.9,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":6,"app":6,"wall":17.9,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":7,"app":5,"wall":19,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":4,"app":6,"wall":14.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":9,"app":8,"wall":21,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":6,"app":3,"wall":12.8,"load1":4.63}
+{"label":"after","scale":"1000","round":"3","route":"GET recent-clients","db":8,"app":4,"wall":17.9,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":77,"app":45,"wall":148.5,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":161,"app":69,"wall":258.7,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":77,"app":66,"wall":210.1,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":76,"app":49,"wall":152.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":79,"app":46,"wall":148.4,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":80,"app":47,"wall":153.2,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":78,"app":51,"wall":172.8,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":85,"app":53,"wall":163.3,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":76,"app":44,"wall":143.6,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":80,"app":49,"wall":160.7,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":79,"app":45,"wall":148.4,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":78,"app":59,"wall":167.7,"load1":4.63}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":77,"app":53,"wall":174.4,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":95,"app":70,"wall":190.3,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET client-directory","db":87,"app":56,"wall":184.8,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":68,"app":4,"wall":75.4,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":68,"app":5,"wall":79.3,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":66,"app":4,"wall":75.6,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":84,"app":5,"wall":92.8,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":108,"app":5,"wall":120.6,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":70,"app":6,"wall":82.2,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":87,"app":6,"wall":103.4,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":75,"app":6,"wall":87.5,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":62,"app":5,"wall":69.9,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":61,"app":4,"wall":67.9,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":62,"app":4,"wall":69.3,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":62,"app":6,"wall":74,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":65,"app":4,"wall":72.4,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":68,"app":5,"wall":78,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET clients search","db":69,"app":6,"wall":82.8,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":3,"wall":12,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":12,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":2,"wall":13,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":4,"wall":13.7,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":6,"app":3,"wall":12,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":10.5,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":2,"wall":10.5,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":2,"wall":11.2,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":9,"app":3,"wall":16.9,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":11.2,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":2,"wall":11.1,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":2,"wall":12,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":11,"app":4,"wall":19.2,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":2,"wall":14.2,"load1":4.34}
+{"label":"after","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":2,"wall":11.7,"load1":4.34}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":74,"app":38,"wall":147,"load1":4.34}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":87,"app":43,"wall":176.6,"load1":4.34}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":146,"app":65,"wall":268.1,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":87,"app":64,"wall":195.5,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":99,"app":55,"wall":185.4,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":89,"app":53,"wall":196.2,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":117,"app":66,"wall":225.8,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":108,"app":62,"wall":220,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":88,"app":49,"wall":187.6,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":143,"app":53,"wall":242.3,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":72,"app":43,"wall":156.1,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":87,"app":87,"wall":223.5,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":114,"app":62,"wall":220.4,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":115,"app":60,"wall":210.3,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET client-directory","db":94,"app":48,"wall":187.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":125,"app":7,"wall":140.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":120,"app":3,"wall":127.9,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":133,"app":3,"wall":142,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":112,"app":5,"wall":123.2,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":79,"app":5,"wall":89.4,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":90,"app":7,"wall":101.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":65,"app":6,"wall":77.4,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":67,"app":4,"wall":75.9,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":91,"app":5,"wall":100.2,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":69,"app":4,"wall":77,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":64,"app":4,"wall":73,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":64,"app":5,"wall":73.5,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":69,"app":6,"wall":80.3,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":65,"app":4,"wall":74.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET clients search","db":63,"app":3,"wall":71.5,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":6,"app":3,"wall":14.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":10.5,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":7,"app":2,"wall":14.6,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":7,"wall":20.2,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":8,"app":4,"wall":15.8,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":5,"wall":11.9,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":11.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":5,"app":4,"wall":15.6,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":13.9,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":6,"app":2,"wall":11.9,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":10,"app":9,"wall":29.7,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":8,"app":3,"wall":26.4,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":6,"app":2,"wall":11.8,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":4,"app":3,"wall":15.1,"load1":4.71}
+{"label":"before","scale":"1000","round":"4","route":"GET recent-clients","db":6,"app":4,"wall":13.1,"load1":4.71}

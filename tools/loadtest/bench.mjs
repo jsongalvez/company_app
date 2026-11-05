@@ -54,7 +54,8 @@ const remittanceId = (remittances.items ?? remittances)[0]?.id;
 const sessions = (await call("GET", `/api/branches/${b}/sessions?date=${today}`, staff)).json;
 const [yy, mm] = today.split("-").map(Number);
 const firstSession = (sessions.items ?? sessions.sessions ?? sessions)[0];
-const clientId = firstSession?.clientId ?? firstSession?.client?.id;
+// A day with no sessions yet (a seed older than today) falls back to the newest client, so history is still timed.
+const clientId = firstSession?.clientId ?? firstSession?.client?.id ?? (await call("GET", "/api/recent-clients", staff)).json?.[0]?.id;
 const dayId = start.today?.branchDayId ?? firstSession?.branchDayId;
 
 const reads = [
