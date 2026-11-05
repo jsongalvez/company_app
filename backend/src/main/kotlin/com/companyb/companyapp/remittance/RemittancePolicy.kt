@@ -41,7 +41,6 @@ object RemittancePolicy {
      */
     fun requiresSnapshot(type: RemittanceType): Boolean = type == RemittanceType.SESSION
 
-    /** Transition guard for submit: the row must be a DRAFT at [expectedVersion]. */
     fun assertSubmittable(
         status: RemittanceStatus,
         actualVersion: Int,
@@ -54,7 +53,6 @@ object RemittancePolicy {
         }
     }
 
-    /** Transition guard for undo: the row must be SUBMITTED at [expectedVersion]. */
     fun assertUndoable(
         status: RemittanceStatus,
         actualVersion: Int,
@@ -114,10 +112,9 @@ object RemittancePolicy {
     }
 
     /**
-     * Submit-coverage guard: the frozen snapshot mixes gross (summed over lines) with
-     * compensation/expenses (summed over day breakdowns), so the two sets must describe the
-     * same days. An empty breakdown set would freeze a zero snapshot while still consuming
-     * the day's submitted slot and arming the SUBMITTED-only overlap exclusion.
+     * The snapshot sums gross over lines and compensation and expenses over day breakdowns, so both
+     * must cover the same days. An empty breakdown set would freeze a zero snapshot yet still use up
+     * the day's submitted slot.
      */
     fun assertNonEmptyCoverage(breakdownDayIds: Collection<UUID>) {
         if (breakdownDayIds.isEmpty()) {
@@ -125,12 +122,6 @@ object RemittancePolicy {
         }
     }
 
-    /**
-     * Submit-coverage guard: every active line's source branch day must sit in the
-     * breakdown set, else gross and comp/expenses cover different days' books. Callers pass
-     * the already-resolved source day ids; emptiness is checked separately so the two
-     * rejections stay distinct.
-     */
     fun assertLinesCoveredByBreakdowns(
         breakdownDayIds: Collection<UUID>,
         lineSourceDayIds: Collection<UUID>,

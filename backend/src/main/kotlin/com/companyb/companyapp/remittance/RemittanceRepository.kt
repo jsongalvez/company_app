@@ -188,10 +188,8 @@ internal object RemittanceRepository {
     }
 
     /**
-     * payload-identity for draft replays (class): the UUID owner is the
-     * branch plus the full caller-controlled header (type/method/range) plus the
-     * submitting caller. Server-stamped fields (submittedDate/status/version) are
-     * excluded — retries across the operational-day boundary must still ack.
+     * Server-stamped fields (submittedDate, status, version) stay out, so a retry across the
+     * operational-day boundary still acks.
      */
     private fun assertCreateReplayMatches(
         existing: Remittance,
@@ -439,11 +437,6 @@ internal object RemittanceRepository {
             }
         }
 
-    /**
-     * Session picker: offers only COMPLETED non-voided sessions — the same membership
-     * the addLine guard enforces and the submit aggregation counts, so the picker never
-     * offers what the guard would reject.
-     */
     fun findSessionsInRange(
         branchId: UUID,
         from: LocalDate,
@@ -493,10 +486,7 @@ internal object RemittanceRepository {
             transaction {
                 ProductSaleTable
                     .innerJoin(BranchDayTable, { ProductSaleTable.branchDayId }, { BranchDayTable.id })
-                    // voided-session sales are excluded from all financial
-                    // calculations: a null session link never joins, so walk-in sales
-                    // without a session pass the IS NULL filter; an unvoided session
-                    // drops out of the view and its sales return to the picker.
+                    // A sale with no session never joins, so walk-in sales pass the IS NULL filter.
                     .leftJoin(
                         ActiveSessionVoidsView,
                         { ProductSaleTable.sessionId },

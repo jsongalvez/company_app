@@ -70,10 +70,6 @@ object RemittanceService {
                         // transition (same sorted order as undo; the later
                         // markDaysRemittedInTransaction re-lock is a no-op).
                         BranchDayService.lockDaysInTransaction(breakdownIds)
-                        // lines and breakdowns must describe the same days before the
-                        // immutable snapshot freezes gross (lines) with comp/expenses
-                        // (breakdowns); all reads stay `*InTransaction` on this transaction
-                        // and run before any state change.
                         assertSubmitCoverageInTransaction(remittanceId, breakdownIds)
                         val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
                         val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
@@ -388,10 +384,7 @@ object RemittanceService {
                     if (SessionReads.isVoidedInTransaction(sourceId)) {
                         throw ValidationException("Session is voided")
                     }
-                    // PENDING income is unrealized and NO_SHOW/CANCELLED sessions
-                    // produce no income, while daily_sales_summary.gross_income counts only
-                    // COMPLETED sessions: attaching any other status is an explicit 400 so
-                    // the frozen snapshot can never diverge from the reporting view.
+                    // daily_sales_summary counts only COMPLETED sessions; the snapshot must match it.
                     if (session.sessionStatus != SessionStatus.COMPLETED) {
                         throw ValidationException("Only COMPLETED sessions can be added to a remittance")
                     }
@@ -547,12 +540,6 @@ object RemittanceService {
         }
     }
 
-    /**
-     * submit-time reconciliation: gross is summed over lines while comp/expenses are
-     * summed over day breakdowns, so every active line's source branch day must sit in the
-     * breakdown set and the set itself must be non-empty. All reads are `*InTransaction`
-     * on the caller's open SERIALIZABLE transaction and run before any state change.
-     */
     private fun assertSubmitCoverageInTransaction(
         remittanceId: UUID,
         breakdownIds: List<UUID>,
@@ -589,11 +576,6 @@ object RemittanceService {
             ?: throw NotFoundException("Product sale not found")
     }
 
-    /**
-     * a header range edit must not orphan already-added content: every active line's
-     * source date and every covered day must sit inside the new range, else 400. All reads
-     * here are `*InTransaction` on the caller's open transaction.
-     */
     private fun assertExistingContentInRange(
         remittanceId: UUID,
         rangeStart: LocalDate,
