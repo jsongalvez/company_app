@@ -28,18 +28,39 @@ class AuditLogTableRegistryTest {
 
     @Test
     fun `every table a write-site audits is in the registry`() {
-        val sources = File("backend/src/main/kotlin").walk().filter { it.extension == "kt" }.map { it.readText() }.toList()
+        val sources =
+            File("backend/src/main/kotlin")
+                .walk()
+                .filter { it.extension == "kt" }
+                .joinToString("\n") { it.readText() }
         assertTrue(sources.isNotEmpty(), "no backend sources found")
-        val all = sources.joinToString("\n")
-        val tableOf =
-            Regex("""object (\w+)\s*:\s*Table\("([a-z_]+)"\)""").findAll(all).associate { it.groupValues[1] to it.groupValues[2] } +
-                Regex("""const val (\w+) = "([a-z_]+)"""").findAll(all).associate { it.groupValues[1] to it.groupValues[2] }
-        val audited = Regex("""AuditedRow\(\s*(\w+)\b""").findAll(all).map { it.groupValues[1] }.filterNot { it == "val" }.toSet()
+        val tableOf = names(TABLE_OBJECT, sources) + names(STRING_CONST, sources)
+        val audited =
+            AUDITED_ROW
+                .findAll(sources)
+                .map { it.groupValues[1] }
+                .filterNot { it == "val" }
+                .toSet()
         assertTrue(audited.size > 10, "found only $audited")
         val registered = AuditLogTableRegistry.tables.map { it.tableName }.toSet()
-        val missing = audited.map { tableOf[it] ?: "unresolved $it" }.filterNot { it in registered }.sorted()
+        val missing =
+            audited
+                .map { tableOf[it] ?: "unresolved $it" }
+                .filterNot { it in registered }
+                .sorted()
         // visit_booking is audited but not listed yet; listing it changes the Audit Log table list.
         assertEquals(listOf("visit_booking"), missing, "audited at a write-site but missing from AuditLogTableRegistry")
+    }
+
+    private fun names(
+        pattern: Regex,
+        sources: String,
+    ): Map<String, String> = pattern.findAll(sources).associate { it.groupValues[1] to it.groupValues[2] }
+
+    private companion object {
+        val TABLE_OBJECT = Regex("""object (\w+)\s*:\s*Table\("([a-z_]+)"\)""")
+        val STRING_CONST = Regex("""const val (\w+) = "([a-z_]+)"""")
+        val AUDITED_ROW = Regex("""AuditedRow\(\s*(\w+)\b""")
     }
 
     @Test
