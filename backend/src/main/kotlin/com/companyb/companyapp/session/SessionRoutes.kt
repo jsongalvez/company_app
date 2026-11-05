@@ -777,8 +777,6 @@ private val sessionConcernsGate =
         SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
     }
 
-// the DELETE child path needs its own gate: Javalin path filters match
-// exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
 private val sessionConcernGate =
     Gate.Before { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
@@ -787,19 +785,11 @@ private val sessionConcernGate =
 
 private val concernsGate =
     Gate.Before { context ->
-        // the catalog list is global with no branch context, so the gate accepts
-        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
-        // the session-anchored promote write requires at its session branch. A GLOBAL-only
-        // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
         Access.require(context, Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
     }
 
 private val concernGate =
     Gate.Before { context ->
-        // the catalog list is global with no branch context, so the gate accepts
-        // EDIT_BRANCH_DATA in any context (BRANCH/BRANCH_DAY/GLOBAL) — the same capability
-        // the session-anchored promote write requires at its session branch. A GLOBAL-only
-        // gate 403'd every role-derived branch holder (EDIT_BRANCH_DATA never derives GLOBAL).
         Access.require(context, Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
     }
 

@@ -473,7 +473,6 @@ object SessionService {
             }
         }
 
-    /** Correcting a mark is for branch members, as voiding is; relief day grants never carry VOID_SESSION. */
     private fun requireMemberToCorrect(
         callerId: UUID,
         session: Session,

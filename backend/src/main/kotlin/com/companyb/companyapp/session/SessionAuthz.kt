@@ -35,11 +35,7 @@ object SessionAuthz {
         Access.require(context, act, Place.day(session.branchDayId))
     }
 
-    /**
-     * Status corrections (no-show to cancelled and the like) are for branch members, as voiding is:
-     * VOID_SESSION at the session's branch, which relief day grants never carry. The command
-     * repeats this check after locking the branch day.
-     */
+    /** The command repeats this check after locking the branch day. */
     fun requireStatusCorrectionCapability(
         context: Context,
         sessionId: UUID,
