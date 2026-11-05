@@ -21,13 +21,13 @@ import org.jetbrains.exposed.v1.core.VarCharColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
+import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.like
-import org.jetbrains.exposed.v1.core.max
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateStatement
@@ -38,6 +38,7 @@ import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -92,6 +93,7 @@ internal object ClientRepository {
     private const val SEARCH_LIMIT = 20
     private const val DIRECTORY_LIMIT = 5000
     private const val RECENT_LIMIT = 20
+    private const val RECENT_SCAN_BATCH = 200
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
@@ -232,6 +234,8 @@ internal object ClientRepository {
     fun search(query: String): List<Client> =
         traced("ClientRepository.search") {
             transaction {
+                // `%` is the indexable form of similarity >= threshold; it reads the threshold from this setting.
+                exec("SET LOCAL pg_trgm.similarity_threshold = $TRIGRAM_SIMILARITY_THRESHOLD")
                 val tokens = query.split(" ").filter { it.isNotBlank() }
                 val searchQuery = query.trim()
                 val colType: org.jetbrains.exposed.v1.core.IColumnType<String> = ClientTable.firstName.columnType
@@ -291,29 +295,42 @@ internal object ClientRepository {
     /**
      * The live clients with the latest non-voided session, newest first. The client table has no
      * creation time, so a client with no session yet is not listed; searching still finds them.
+     * Walks sessions newest first on (created_at, id) and keeps each client's first: the same order as
+     * grouping by client on max(created_at), without reading every session.
      */
     fun recent(): List<Client> =
         traced("ClientRepository.recent") {
             transaction {
-                val lastSeen = SessionTable.createdAt.max()
-                val ids =
-                    SessionTable
-                        .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
-                        .leftJoin(
-                            ActiveSessionVoidsView,
-                            { SessionTable.id },
-                            { ActiveSessionVoidsView.sessionId },
-                        ).select(SessionTable.clientId, lastSeen)
-                        .where { ActiveSessionVoidsView.sessionId.isNull() and ClientTable.deletedAt.isNull() }
-                        .groupBy(SessionTable.clientId)
-                        .orderBy(lastSeen to SortOrder.DESC)
-                        .limit(RECENT_LIMIT)
-                        .map { it[SessionTable.clientId] }
+                val ids = LinkedHashSet<UUID>()
+                var after: Pair<OffsetDateTime, UUID>? = null
+                while (ids.size < RECENT_LIMIT) {
+                    val cursor = after
+                    val batch =
+                        SessionTable
+                            .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
+                            .leftJoin(
+                                ActiveSessionVoidsView,
+                                { SessionTable.id },
+                                { ActiveSessionVoidsView.sessionId },
+                            ).select(SessionTable.id, SessionTable.clientId, SessionTable.createdAt)
+                            .where {
+                                val live =
+                                    ActiveSessionVoidsView.sessionId.isNull() and ClientTable.deletedAt.isNull() and
+                                        SessionTable.createdAt.isNotNull()
+                                if (cursor == null) live else live and olderThan(cursor)
+                            }.orderBy(SessionTable.createdAt to SortOrder.DESC, SessionTable.id to SortOrder.DESC)
+                            .limit(RECENT_SCAN_BATCH)
+                            .toList()
+                    batch.forEach { if (ids.size < RECENT_LIMIT) ids += it[SessionTable.clientId] }
+                    if (batch.size < RECENT_SCAN_BATCH) break
+                    after = batch.last().let { it[SessionTable.createdAt] to it[SessionTable.id] }
+                }
+                val order = ids.withIndex().associate { (i, id) -> id to i }
                 ClientTable
                     .selectAll()
                     .where { ClientTable.id inList ids }
                     .map { it.toClient() }
-                    .sortedBy { ids.indexOf(it.id) }
+                    .sortedBy { order.getValue(it.id) }
             }
         }
 
@@ -382,15 +399,24 @@ internal object ClientRepository {
             ilike(ClientTable.middleName, namePattern)
 }
 
+/** Sessions after [cursor] in (created_at, id) descending order. */
+private fun olderThan(cursor: Pair<OffsetDateTime, UUID>): Op<Boolean> {
+    val (at, id) = cursor
+    val sameTimeLowerId = (SessionTable.createdAt eq at) and (SessionTable.id less id)
+    return (SessionTable.createdAt less at) or sameTimeLowerId
+}
+
 private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
 
 private fun trigramMatch(
     col: Expression<*>,
     tokenParam: QueryParameter<String>,
-): Op<Boolean> {
-    val sim = similarity(col, tokenParam)
-    return sim greaterEq TRIGRAM_SIMILARITY_THRESHOLD
-}
+): Op<Boolean> = TrigramSimilarOp(col, tokenParam)
+
+private class TrigramSimilarOp(
+    expr1: Expression<*>,
+    expr2: Expression<*>,
+) : ComparisonOp(expr1, expr2, "%")
 
 private fun similarity(
     expr1: Expression<*>,

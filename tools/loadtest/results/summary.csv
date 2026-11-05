@@ -1,0 +1,193 @@
+route,scale,label,n,measure,median_ms,ci_low,ci_high,db_median_ms,wall_median_ms
+GET /api/start,1,after,30,server_ms,29.0,23.5,35.0,12.5,39.8
+GET /api/start,1,before,30,server_ms,31.0,28.0,33.0,15.5,41.1
+GET /api/start,10,after,30,server_ms,49.5,36.0,58.0,17.0,67.3
+GET /api/start,10,before,30,server_ms,14.0,12.5,15.5,6.0,18.9
+GET /api/start,100,after,30,server_ms,29.0,26.0,33.0,15.0,40.2
+GET /api/start,100,before,30,server_ms,31.5,27.0,35.0,15.5,43.1
+GET /api/start,1000,after,30,server_ms,35.0,32.0,39.5,17.5,50.3
+GET /api/start,1000,before,30,server_ms,30.0,22.0,38.0,18.0,40.4
+GET audit-log (record),1,after,30,server_ms,10.5,9.0,13.5,5.0,13.1
+GET audit-log (record),1,before,30,server_ms,15.5,13.0,18.0,10.0,19.8
+GET audit-log (record),10,after,30,server_ms,17.5,16.0,21.0,8.5,22.9
+GET audit-log (record),10,before,30,server_ms,9.0,8.0,9.0,4.0,11.6
+GET audit-log (record),100,after,30,server_ms,9.0,9.0,11.5,5.0,11.9
+GET audit-log (record),100,before,30,server_ms,8.5,8.0,11.0,4.5,11.4
+GET audit-log (record),1000,after,30,server_ms,38.5,31.0,50.0,17.5,49.0
+GET audit-log (record),1000,before,30,server_ms,8.0,8.0,9.0,4.0,10.8
+GET audit-log/entries,1,after,30,server_ms,15.0,12.5,17.0,7.0,20.6
+GET audit-log/entries,1,before,30,server_ms,12.0,11.0,13.0,5.5,16.3
+GET audit-log/entries,10,after,30,server_ms,18.0,15.0,20.0,7.0,26.0
+GET audit-log/entries,10,before,30,server_ms,12.0,12.0,13.0,7.0,15.9
+GET audit-log/entries,100,after,30,server_ms,11.0,10.0,12.0,5.0,14.6
+GET audit-log/entries,100,before,30,server_ms,9.0,9.0,11.0,4.5,12.7
+GET audit-log/entries,1000,after,30,server_ms,29.0,25.0,33.0,15.5,33.5
+GET audit-log/entries,1000,before,30,server_ms,11.0,10.0,12.0,6.0,14.8
+GET audit-log/flagged,1,after,30,server_ms,4.0,4.0,5.0,2.0,6.8
+GET audit-log/flagged,1,before,30,server_ms,5.0,4.0,5.0,2.0,7.0
+GET audit-log/flagged,10,after,30,server_ms,5.0,4.0,6.0,2.0,7.8
+GET audit-log/flagged,10,before,30,server_ms,3.0,3.0,3.0,1.0,4.7
+GET audit-log/flagged,100,after,30,server_ms,3.0,3.0,4.0,1.0,5.6
+GET audit-log/flagged,100,before,30,server_ms,3.5,3.0,4.0,1.0,6.0
+GET audit-log/flagged,1000,after,30,server_ms,9.0,7.5,10.0,4.0,14.1
+GET audit-log/flagged,1000,before,30,server_ms,3.0,3.0,3.0,1.0,4.9
+GET client history,1,after,30,server_ms,6.0,5.0,8.0,3.0,8.4
+GET client history,1,before,30,server_ms,10.0,8.5,11.0,5.0,14.3
+GET client history,10,after,30,server_ms,9.0,6.5,10.0,4.0,13.1
+GET client history,10,before,30,server_ms,10.0,9.0,10.5,5.0,14.2
+GET client history,100,after,30,server_ms,5.5,4.5,7.0,3.0,8.4
+GET client history,100,before,30,server_ms,32.5,27.0,35.0,25.0,37.2
+GET client history,1000,after,30,server_ms,4.0,4.0,5.0,2.5,6.8
+GET client history,1000,before,30,server_ms,189.0,176.5,214.0,181.5,194.8
+GET client-directory,1,after,30,server_ms,23.0,19.5,25.5,7.0,35.1
+GET client-directory,1,before,30,server_ms,32.0,28.5,34.5,8.0,47.5
+GET client-directory,10,after,30,server_ms,133.5,116.5,159.0,62.5,195.7
+GET client-directory,10,before,30,server_ms,219.5,200.5,241.0,86.0,301.5
+GET client-directory,100,after,30,server_ms,96.0,90.0,101.5,46.5,135.9
+GET client-directory,100,before,30,server_ms,233.5,215.0,248.0,149.0,286.7
+GET client-directory,1000,after,30,server_ms,165.0,151.0,175.5,92.0,198.3
+GET client-directory,1000,before,30,server_ms,842.5,760.5,985.5,753.5,892.8
+GET clients search,1,after,30,server_ms,7.0,6.0,8.0,4.0,9.7
+GET clients search,1,before,30,server_ms,16.0,14.0,22.0,6.0,28.4
+GET clients search,10,after,30,server_ms,37.0,34.0,41.5,32.5,42.5
+GET clients search,10,before,30,server_ms,36.0,32.5,37.5,28.0,40.9
+GET clients search,100,after,30,server_ms,19.0,18.0,20.0,14.0,23.4
+GET clients search,100,before,30,server_ms,448.5,266.5,554.5,437.0,463.4
+GET clients search,1000,after,30,server_ms,68.0,66.0,71.5,63.5,70.9
+GET clients search,1000,before,30,server_ms,2508.5,2228.5,2614.0,2493.0,2523.4
+GET daily-summary,1,after,30,server_ms,11.5,10.0,14.5,4.0,17.3
+GET daily-summary,1,before,30,server_ms,12.0,10.5,14.0,5.0,17.2
+GET daily-summary,10,after,30,server_ms,12.0,8.0,18.5,4.5,21.6
+GET daily-summary,10,before,30,server_ms,6.0,6.0,8.0,2.5,9.3
+GET daily-summary,100,after,30,server_ms,11.0,10.0,12.0,6.0,17.1
+GET daily-summary,100,before,30,server_ms,11.0,10.0,12.0,5.0,15.4
+GET daily-summary,1000,after,30,server_ms,16.0,15.0,19.5,8.0,23.1
+GET daily-summary,1000,before,30,server_ms,11.0,10.0,12.0,5.5,16.1
+GET expenses (day),1,after,30,server_ms,4.0,3.5,5.0,2.0,7.2
+GET expenses (day),1,before,30,server_ms,7.5,7.0,8.0,3.0,12.7
+GET expenses (day),10,after,30,server_ms,6.0,4.5,7.0,2.0,9.7
+GET expenses (day),10,before,30,server_ms,3.5,3.0,4.5,1.0,6.0
+GET expenses (day),100,after,30,server_ms,8.5,8.0,11.0,4.0,14.9
+GET expenses (day),100,before,30,server_ms,9.5,7.0,11.0,3.0,14.4
+GET expenses (day),1000,after,30,server_ms,11.5,9.5,13.0,4.5,15.7
+GET expenses (day),1000,before,30,server_ms,8.0,5.5,9.5,3.0,11.9
+GET export/report (30d),1,after,30,server_ms,100.0,82.5,119.5,26.5,113.8
+GET export/report (30d),1,before,30,server_ms,125.0,116.0,139.0,30.0,138.5
+GET export/report (30d),10,after,30,server_ms,167.0,140.0,203.0,43.5,189.7
+GET export/report (30d),10,before,30,server_ms,75.0,72.0,80.5,24.0,82.8
+GET export/report (30d),100,after,30,server_ms,109.0,101.0,167.0,61.0,117.4
+GET export/report (30d),100,before,30,server_ms,103.0,97.5,111.0,55.5,110.3
+GET export/report (30d),1000,after,30,server_ms,169.0,157.0,184.0,93.0,184.2
+GET export/report (30d),1000,before,30,server_ms,120.0,114.0,123.0,66.5,128.8
+GET me/history,1,after,30,server_ms,9.0,8.0,11.0,5.0,16.7
+GET me/history,1,before,30,server_ms,7.0,7.0,8.0,5.0,11.5
+GET me/history,10,after,30,server_ms,9.0,8.5,10.0,5.0,15.1
+GET me/history,10,before,30,server_ms,5.0,5.0,6.0,3.0,9.4
+GET me/history,100,after,30,server_ms,14.0,12.5,16.0,9.5,19.4
+GET me/history,100,before,30,server_ms,11.0,9.0,12.0,8.0,14.0
+GET me/history,1000,after,30,server_ms,16.0,13.0,17.0,11.0,21.6
+GET me/history,1000,before,30,server_ms,40.0,36.0,44.0,37.0,44.2
+GET members,1,after,30,server_ms,7.0,6.0,8.5,2.0,12.0
+GET members,1,before,30,server_ms,6.0,5.0,7.0,2.0,9.9
+GET members,10,after,30,server_ms,7.0,6.0,8.0,2.0,12.0
+GET members,10,before,30,server_ms,3.0,3.0,3.0,1.0,5.3
+GET members,100,after,30,server_ms,7.0,5.5,8.0,3.0,13.2
+GET members,100,before,30,server_ms,6.0,5.0,7.0,2.5,10.2
+GET members,1000,after,30,server_ms,8.0,7.0,9.5,3.0,12.6
+GET members,1000,before,30,server_ms,5.0,4.0,6.0,2.0,9.1
+GET monthly-summary,1,after,30,server_ms,8.5,7.0,9.0,3.0,12.4
+GET monthly-summary,1,before,30,server_ms,5.0,5.0,6.0,3.0,8.8
+GET monthly-summary,10,after,30,server_ms,5.0,5.0,7.0,2.0,8.9
+GET monthly-summary,10,before,30,server_ms,3.0,3.0,4.0,1.0,5.5
+GET monthly-summary,100,after,30,server_ms,4.0,3.0,5.0,2.0,6.3
+GET monthly-summary,100,before,30,server_ms,3.5,3.0,4.0,1.5,5.8
+GET monthly-summary,1000,after,30,server_ms,7.5,7.0,8.0,4.5,11.2
+GET monthly-summary,1000,before,30,server_ms,4.0,4.0,5.0,2.0,6.8
+GET notifications/history,1,after,30,server_ms,2.0,1.0,3.0,0.0,5.2
+GET notifications/history,1,before,30,server_ms,3.0,2.0,4.0,0.0,7.0
+GET notifications/history,10,after,30,server_ms,2.0,1.0,3.0,0.0,5.3
+GET notifications/history,10,before,30,server_ms,1.0,1.0,1.0,0.0,3.2
+GET notifications/history,100,after,30,server_ms,4.0,4.0,5.0,1.0,7.6
+GET notifications/history,100,before,30,server_ms,2.0,1.0,2.0,0.0,4.2
+GET notifications/history,1000,after,30,server_ms,6.0,4.5,7.0,1.0,10.6
+GET notifications/history,1000,before,30,server_ms,2.5,1.0,3.0,0.0,5.1
+GET product-sales (day),1,after,30,server_ms,8.0,7.0,9.0,3.0,15.9
+GET product-sales (day),1,before,30,server_ms,6.0,6.0,7.0,3.0,11.4
+GET product-sales (day),10,after,30,server_ms,7.0,6.0,8.0,2.5,12.6
+GET product-sales (day),10,before,30,server_ms,3.0,3.0,4.0,1.0,6.7
+GET product-sales (day),100,after,30,server_ms,8.0,7.0,10.0,4.0,16.1
+GET product-sales (day),100,before,30,server_ms,11.0,9.0,14.0,4.0,19.5
+GET product-sales (day),1000,after,30,server_ms,9.0,8.0,9.0,3.0,15.9
+GET product-sales (day),1000,before,30,server_ms,6.5,4.5,8.0,2.0,13.2
+GET recent-clients,1,after,30,server_ms,7.0,6.0,10.5,4.0,11.4
+GET recent-clients,1,before,30,server_ms,10.5,9.0,12.0,6.0,16.8
+GET recent-clients,10,after,30,server_ms,12.5,11.0,14.5,7.0,19.2
+GET recent-clients,10,before,30,server_ms,17.0,17.0,18.0,13.0,22.3
+GET recent-clients,100,after,30,server_ms,13.0,12.0,15.0,8.0,17.6
+GET recent-clients,100,before,30,server_ms,361.0,248.0,416.5,339.0,365.2
+GET recent-clients,1000,after,30,server_ms,7.0,6.0,9.0,5.0,10.2
+GET recent-clients,1000,before,30,server_ms,3681.0,3490.5,3934.5,3675.5,3685.8
+GET remittance detail,1,after,30,server_ms,14.0,13.5,15.5,6.0,20.8
+GET remittance detail,1,before,30,server_ms,13.0,12.0,14.5,6.0,19.9
+GET remittance detail,10,after,30,server_ms,8.0,8.0,9.5,4.0,13.4
+GET remittance detail,10,before,30,server_ms,8.0,8.0,9.0,3.0,12.1
+GET remittance detail,100,after,30,server_ms,7.5,7.0,8.0,3.0,11.3
+GET remittance detail,100,before,30,server_ms,7.0,7.0,8.0,3.0,10.6
+GET remittance detail,1000,after,30,server_ms,19.0,16.0,20.5,8.5,28.9
+GET remittance detail,1000,before,30,server_ms,8.0,8.0,8.0,3.0,12.4
+GET remittance-days,1,after,30,server_ms,9.0,7.5,10.0,3.0,15.3
+GET remittance-days,1,before,30,server_ms,8.0,7.0,10.5,3.5,14.0
+GET remittance-days,10,after,30,server_ms,5.0,4.0,6.0,2.0,9.8
+GET remittance-days,10,before,30,server_ms,4.0,3.0,5.0,1.0,7.9
+GET remittance-days,100,after,30,server_ms,12.0,10.5,12.0,5.0,16.3
+GET remittance-days,100,before,30,server_ms,6.0,5.0,8.0,2.5,12.1
+GET remittance-days,1000,after,30,server_ms,11.0,10.5,13.0,6.0,18.6
+GET remittance-days,1000,before,30,server_ms,4.0,4.0,5.5,1.0,8.8
+GET remittances (branch),1,after,30,server_ms,5.0,4.5,6.0,2.0,9.3
+GET remittances (branch),1,before,30,server_ms,7.0,7.0,9.0,4.0,13.9
+GET remittances (branch),10,after,30,server_ms,5.0,4.0,6.5,2.0,9.3
+GET remittances (branch),10,before,30,server_ms,3.0,3.0,3.0,1.0,6.1
+GET remittances (branch),100,after,30,server_ms,8.0,6.5,10.5,3.0,13.2
+GET remittances (branch),100,before,30,server_ms,5.5,5.0,6.0,2.0,9.1
+GET remittances (branch),1000,after,30,server_ms,19.5,18.0,22.0,8.0,38.0
+GET remittances (branch),1000,before,30,server_ms,11.0,10.0,12.0,4.0,16.2
+GET sessions (day),1,after,30,server_ms,28.0,23.5,30.0,9.0,37.7
+GET sessions (day),1,before,30,server_ms,25.0,22.0,27.0,9.0,34.5
+GET sessions (day),10,after,30,server_ms,46.0,42.0,50.5,14.0,65.9
+GET sessions (day),10,before,30,server_ms,14.0,12.5,14.5,5.0,19.3
+GET sessions (day),100,after,30,server_ms,26.0,24.5,33.0,11.5,36.3
+GET sessions (day),100,before,30,server_ms,22.0,18.0,28.0,9.0,31.7
+GET sessions (day),1000,after,30,server_ms,33.0,31.0,41.0,13.0,46.0
+GET sessions (day),1000,before,30,server_ms,26.5,21.5,28.0,10.5,36.2
+GET today-screen,1,after,30,server_ms,13.0,12.0,16.0,6.0,21.2
+GET today-screen,1,before,30,server_ms,18.0,16.0,22.0,9.0,26.1
+GET today-screen,10,after,30,server_ms,27.0,21.5,37.5,11.0,49.8
+GET today-screen,10,before,30,server_ms,10.0,9.0,11.0,4.0,15.4
+GET today-screen,100,after,30,server_ms,18.0,17.0,18.5,9.5,27.1
+GET today-screen,100,before,30,server_ms,18.0,17.0,20.5,9.0,26.6
+GET today-screen,1000,after,30,server_ms,19.5,18.0,22.0,11.0,29.1
+GET today-screen,1000,before,30,server_ms,16.0,15.0,18.0,9.0,25.1
+POST clock-in,1,after,30,server_ms,33.5,30.0,50.0,19.0,40.9
+POST clock-in,1,before,30,server_ms,29.0,27.0,32.5,17.0,33.0
+POST clock-in,10,after,30,server_ms,78.5,66.5,94.5,46.5,90.0
+POST clock-in,10,before,30,server_ms,58.0,52.0,68.0,41.5,64.3
+POST clock-in,100,after,30,server_ms,36.5,34.5,42.5,23.5,41.0
+POST clock-in,100,before,30,server_ms,47.5,43.5,59.5,31.0,51.8
+POST clock-in,1000,after,30,server_ms,46.0,40.5,57.0,30.5,53.2
+POST clock-in,1000,before,30,server_ms,41.5,35.0,45.0,26.5,46.6
+POST clock-out,1,after,30,server_ms,21.5,18.0,36.0,12.0,26.4
+POST clock-out,1,before,30,server_ms,19.0,17.0,21.0,10.5,21.9
+POST clock-out,10,after,30,server_ms,42.0,33.0,49.0,25.0,51.5
+POST clock-out,10,before,30,server_ms,38.0,33.5,41.0,27.5,44.7
+POST clock-out,100,after,30,server_ms,24.5,20.5,28.5,14.0,28.6
+POST clock-out,100,before,30,server_ms,31.5,27.0,46.0,21.5,37.0
+POST clock-out,1000,after,30,server_ms,28.0,26.0,32.5,20.0,32.5
+POST clock-out,1000,before,30,server_ms,27.0,22.0,33.0,16.5,31.8
+POST session (save),1,after,30,server_ms,19.0,19.0,24.5,11.5,24.7
+POST session (save),1,before,30,server_ms,18.0,16.5,19.5,10.0,21.9
+POST session (save),10,after,30,server_ms,55.0,40.5,78.5,32.0,71.3
+POST session (save),10,before,30,server_ms,38.0,36.0,48.0,30.0,51.0
+POST session (save),100,after,30,server_ms,25.0,23.5,28.0,17.5,29.4
+POST session (save),100,before,30,server_ms,33.5,28.5,37.5,23.5,39.6
+POST session (save),1000,after,30,server_ms,35.5,29.5,44.5,25.0,43.1
+POST session (save),1000,before,30,server_ms,31.0,26.0,37.0,20.0,36.5
