@@ -31,7 +31,7 @@ done
 cd "$ROOT"
 # Source code only. Generated files (OpenAPI types) and data files are not code anyone edits.
 sources=$(git ls-files -- '*.kt' '*.kts' '*.ts' '*.svelte' '*.js' '*.mjs' '*.cjs' '*.py' '*.sh' '*.sql' \
-  | grep -vE '(^|/)(node_modules|build|dist)/|^web/src/api/schema\.d\.ts$' || true)
+  | grep -vE '(^|/)(node_modules|build|dist)/' | grep -vxF web/src/api/schema.d.ts || true)
 
 status=0
 fail() { echo "check-file-size: $1" >&2; status=1; }
