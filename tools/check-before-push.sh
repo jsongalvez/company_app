@@ -124,6 +124,7 @@ refs_flag=""
 if [ $plan_only -eq 1 ]; then
   echo "check-before-push: tools/quality/check-references.sh $refs_flag"
   echo "check-before-push: tools/quality/check-patterns.sh"
+  echo "check-before-push: tools/quality/check-file-size.sh"
   echo "check-before-push: tools/quality/shot-gate.sh"
   [ $want_shell -eq 1 ] && ci_shell_tests | sed 's/^/check-before-push: shell test: /'
   exit 0
@@ -134,6 +135,7 @@ status=0
 
 tools/quality/check-references.sh $refs_flag || status=1
 tools/quality/check-patterns.sh || status=1
+tools/quality/check-file-size.sh || status=1
 tools/quality/shot-gate.sh || status=1
 
 if [ ${#tasks[@]} -gt 0 ]; then

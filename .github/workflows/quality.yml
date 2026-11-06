@@ -206,6 +206,9 @@ jobs:
       - name: Patterns log rows say whether they still happen
         run: bash tools/quality/check-patterns.sh
 
+      - name: Source files stay under 1000 lines (older big files shrink only)
+        run: bash tools/quality/check-file-size.sh
+
       - name: Comments name no issue, owed-item or message ids
         run: python3 tools/quality/comment-refs.py
 
@@ -223,6 +226,7 @@ jobs:
           bash tools/quality/check-before-push-test.sh
           bash tools/quality/check-references-test.sh
           bash tools/quality/check-patterns-test.sh
+          bash tools/quality/check-file-size-test.sh
           bash tools/quality/comment-refs-test.sh
           bash tools/quality/drop-comment-at-test.sh
           bash tools/quality/push-test.sh

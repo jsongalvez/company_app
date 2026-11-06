@@ -1,0 +1,8 @@
+# Files over the 1000-line cap when it was added. Shrink-only: see tools/quality/check-file-size.sh.
+1457 backend/src/test/kotlin/com/companyb/companyapp/api/routes/RouteValidationTest.kt
+1340 backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryServicePostgresTest.kt
+1348 backend/src/test/kotlin/com/companyb/companyapp/finance/ExpenseServicePostgresTest.kt
+1132 backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceAuthzTest.kt
+1537 backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt
+1190 backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceServicePostgresTest.kt
+1673 backend/src/test/kotlin/com/companyb/companyapp/session/SessionServicePostgresTest.kt
