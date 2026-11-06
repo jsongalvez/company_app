@@ -15,6 +15,9 @@ async function saveApp() {
 async function savePage(res) {
     const html = await res.clone().text();
     const files = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
+    // Say which build is downloading, so an open app can show it is on its way before Update is ready.
+    const coming = html.match(/\/assets\/index-[\w-]+\.js/)?.[0];
+    if (coming) for (const c of await self.clients.matchAll()) c.postMessage({ coming });
     await saveFiles(files);
     await put("/", res);
     const saved = html.match(/\/assets\/index-[\w-]+\.js/)?.[0];

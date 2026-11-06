@@ -24,6 +24,8 @@ test("Update is offered only once the phone holds the new version", { session: "
     await expect.poll(() => checks, { timeout: 10_000 }).toBeGreaterThan(before);
     await new Promise((r) => setTimeout(r, 500));
     await expect(screen.getByRole("button", { name: "Update" })).toHaveCount(0);
+    // Feedback 725f6d39: while the phone downloads the new version (seconds on a hotspot), say so, so nobody refreshes to find it.
+    await expect(screen.getByText(/newer version is downloading/i)).toBeVisible({ timeout: 2_000 });
 
     await browser.evaluate(async (html) => {
         await (await caches.open("app-shell-v1")).put("/", new Response(html, { headers: { "Content-Type": "text/html" } }));

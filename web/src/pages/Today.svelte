@@ -353,14 +353,14 @@
         <div class="k">Product commission</div>
         <div class="v" use:changed={ownCommission}>{peso(ownCommission ?? 0)}</div>
     </div>
-    <div>
-        <!-- Each sale is changed or deleted on Expenses & pay, which lists the day's sales. -->
-        <div class="k"><a href={`#/finance?date=${date}`}>Product sales</a></div>
+    <!-- Each sale is changed or deleted on Expenses & pay, which lists the day's sales. -->
+    <a href={`#/finance?date=${date}`}>
+        <div class="k">Product sales</div>
         {#if isToday}<div class="v" use:changed={dash.data?.commission.productSalesCount}>
                 {(dash.data?.commission.productSalesCount ?? 0) + pendingSales(today.day?.branchDayId)}
             </div>
         {:else}<div class="v" use:changed={pastSumShown?.totalProductSales}>{peso(pastSumShown?.totalProductSales ?? 0)}</div>{/if}
-    </div>
+    </a>
 </div>
 
 <div class="layout">
@@ -390,7 +390,7 @@
                 {#if today.shift && today.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button
                         class="primary"
                         onclick={() => clockIn(bid)}>Clock in</button
-                    >{:else}<a href="#/relief">Request relief duty</a>{/if}
+                    >{:else}<a class="btn" href="#/relief">Request relief duty</a>{/if}
             </div>
         {:else}
             <State

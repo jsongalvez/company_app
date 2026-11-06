@@ -66,7 +66,7 @@ test("Today's product sales open the day's list, where a walk-in sale can be cha
     await add.getByRole("button", "Record sale").tap();
     await expect(add).toHaveCount(0);
 
-    await screen.getByRole("link", "Product sales").tap();
+    await screen.getByRole("link", { name: /^Product sales/ }).tap();
     await expect(screen.getByRole("heading", "Product sales")).toBeVisible();
     const sale = screen.getByRole("row").filter({ hasText: "Role test oil" }).last();
     await sale.getByRole("button", "Change sale").tap();

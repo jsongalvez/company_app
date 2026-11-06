@@ -105,12 +105,21 @@ h3 {
     letter-spacing: 0.04em;
 }
 
+/* Links read as the text around them, marked by a quiet underline (feedback 7df5db8c: blue link text looked out of place). */
 a {
-    color: var(--accent);
-    text-decoration: none;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 3px;
 }
 a:hover {
-    text-decoration: underline;
+    text-decoration-color: currentColor;
+}
+a.btn,
+a.brand,
+a.user,
+.stats > a {
+    text-decoration: none;
 }
 
 :focus-visible {
@@ -441,7 +450,9 @@ table.grid tfoot td {
     overflow: hidden;
 }
 /* Each cell draws its right line 1px past its edge; the box clips the last column's. */
-.stats > div {
+.stats > div,
+.stats > a {
+    display: block;
     padding: 6px 10px;
     border-right: 1px solid var(--line);
     margin-right: -1px;
@@ -455,6 +466,13 @@ table.grid tfoot td {
 .stats .v {
     font-size: 16px;
     font-weight: 600;
+}
+/* A tile that opens a page: the whole tile is the link, with an arrow by its label. */
+.stats > a:hover {
+    background: var(--row-hover);
+}
+.stats > a .k::after {
+    content: " ›";
 }
 
 /* ---------- Segmented switch (square, joined) ---------- */

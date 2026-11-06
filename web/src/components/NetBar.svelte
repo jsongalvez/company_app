@@ -14,6 +14,11 @@
     }
 </script>
 
+{#if update.coming && !update.ready && !offline && !w.length && !f.length}
+    <div class="dock">
+        <div class="netbar" role="status"><span>A newer version is downloading…</span></div>
+    </div>
+{/if}
 {#if update.ready && !offline && !w.length && !f.length}
     <div class="dock">
         <div class="netbar" role="status">

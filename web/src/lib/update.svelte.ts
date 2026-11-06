@@ -6,7 +6,8 @@
 import { RECONNECTED } from "./net.svelte";
 import { BUILD } from "./version";
 
-export const update = $state({ ready: false });
+/** coming: the server has a newer build that the phone is still downloading; ready: Update would open it. */
+export const update = $state({ coming: false, ready: false });
 
 const mine = () => BUILD.exec([...document.scripts].map((s) => s.src).join(" "))?.[0];
 
@@ -18,6 +19,7 @@ export async function checkForUpdate(): Promise<void> {
         if (!res.ok) return;
         const now = BUILD.exec(await res.text())?.[0];
         if (!now || now === have) return;
+        update.coming = true;
         if (((await reloadOpens()) ?? now) === now) update.ready = true;
         // Not saved yet: the service worker saves it and says so (see watchForUpdates), and the offer follows.
         else navigator.serviceWorker.controller?.postMessage("save");
@@ -43,6 +45,7 @@ export function watchForUpdates() {
     setInterval(() => void checkForUpdate(), 15 * 60_000);
     // The service worker says when it has saved a build, so the offer shows as soon as Update would open it.
     navigator.serviceWorker?.addEventListener("message", (e: MessageEvent) => {
+        if (typeof e.data?.coming === "string" && e.data.coming !== mine()) update.coming = true;
         if (typeof e.data?.saved === "string" && e.data.saved !== mine()) void checkForUpdate();
     });
 }
