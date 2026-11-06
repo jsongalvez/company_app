@@ -321,18 +321,21 @@
                 {/each}
             {/if}
         {/each}
-        <InstallApp />
         <div class="navfoot faint">
-            <button class="ghost sm" onclick={() => (feedbackOpen = true)}>Send feedback</button>
-            <button class="ghost sm" onclick={() => signOut()}>Sign out</button>
+            <InstallApp />
+            <button class="ghost sm menu-only" onclick={() => (feedbackOpen = true)}>Send feedback</button>
+            <button class="ghost sm menu-only" onclick={() => signOut()}>Sign out</button>
         </div>
     </nav>
 
     <Feedback bind:open={feedbackOpen} />
 
     <main>
-        {#if !bid && ["/today", "/inventory", "/finance", "/reports", "/remittance"].includes(section)}
+        {#if !bid && section !== "/relief"}
             <div class="notice">You aren't assigned to a branch yet. Ask a manager to assign you, or request <a href="#/relief">relief duty</a>.</div>
+        {/if}
+        {#if !bid && ["/today", "/inventory", "/finance", "/reports", "/remittance"].includes(section)}
+            <!-- these pages show one branch, and there is none -->
         {:else if section === "/today"}
             <Today />
         {:else if section === "/clients" && route.current.parts[1]}
@@ -526,6 +529,13 @@
         font-weight: 600;
     }
     .navfoot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 10px;
+        margin-top: auto;
+    }
+    .menu-only {
         display: none;
     }
     main {
@@ -617,11 +627,8 @@
         nav a {
             padding: 10px 14px;
         }
-        .navfoot {
-            display: flex;
-            gap: 8px;
-            padding: 12px 10px;
-            margin-top: auto;
+        .menu-only {
+            display: inline-flex;
         }
         main {
             padding: 8px;

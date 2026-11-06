@@ -35,9 +35,14 @@ function write(v: Saved) {
 }
 
 let busy = false;
+let allowed = false;
+/** Whether the signed-in person may read the list at all; someone in no branch may not. */
+export function allowDirectory(yes: boolean) {
+    allowed = yes;
+}
 /** Fetch the list again if it's old (or always, with force). Quiet on failure. */
 export async function refreshDirectory(force = false) {
-    if (busy || !tokenUser() || !navigator.onLine) return;
+    if (busy || !allowed || !tokenUser() || !navigator.onLine) return;
     if (!force && Date.now() - current().at < REFRESH_MS) return;
     busy = true;
     try {

@@ -2,7 +2,7 @@ import { api, ok, setToken, getToken, setUnauthorizedHandler, getViewAs, setView
 import { forgetSnapshot } from "./snapshot";
 import { key } from "./keys";
 import { wrote, clearCache, peek, restoreCache, seed } from "./cache.svelte";
-import { refreshDirectory, resetDirectory } from "./clientdir.svelte";
+import { allowDirectory, refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { SENT } from "./outbox.svelte";
 import { allows, reads, type Place } from "./grants";
@@ -125,6 +125,7 @@ export function takeStart(s: S["StartResponse"], withToday: boolean) {
     }
     takeDay(s, withToday);
     app.unread = s.unreadCount;
+    allowDirectory(canRead("WORK_ANYWHERE", {}));
     void refreshDirectory();
 }
 
