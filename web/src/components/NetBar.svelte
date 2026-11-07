@@ -12,32 +12,15 @@
     function drop(id: string, what: string) {
         if (confirm(`Throw away "${what}"? It won't be sent.`)) discard(id);
     }
-
-    // Kit pages keep their dock above this bar: it publishes its height while shown.
-    let bar: HTMLElement | undefined = $state();
-    $effect(() => {
-        const root = document.documentElement.style;
-        if (!bar) {
-            root.removeProperty("--netbar-h");
-            return;
-        }
-        const el = bar;
-        const watch = new ResizeObserver(() => root.setProperty("--netbar-h", `${el.offsetHeight}px`));
-        watch.observe(el);
-        return () => {
-            watch.disconnect();
-            root.removeProperty("--netbar-h");
-        };
-    });
 </script>
 
 {#if update.coming && !update.ready && !offline && !w.length && !f.length}
-    <div class="dock" bind:this={bar}>
+    <div class="dock">
         <div class="netbar" role="status"><span>A newer version is downloading…</span></div>
     </div>
 {/if}
 {#if update.ready && !offline && !w.length && !f.length}
-    <div class="dock" bind:this={bar}>
+    <div class="dock">
         <div class="netbar" role="status">
             <span>A newer version of the app is ready.</span>
             <button class="sm primary" onclick={() => location.reload()}>Update</button>
@@ -45,7 +28,7 @@
     </div>
 {/if}
 {#if offline || w.length || f.length}
-    <div class="dock" bind:this={bar}>
+    <div class="dock">
         <div class="netbar" class:bad={offline || f.length > 0} role="status">
             <span>
                 {#if !net.online}No connection.{:else if net.trouble}Weak connection.{/if}

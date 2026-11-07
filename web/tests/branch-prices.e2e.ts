@@ -27,10 +27,8 @@ test("a branch sets the price and commission of one product and sells at them", 
         await expect(screen.getByRole("row").filter({ hasText: name })).toBeVisible();
     }
 
-    // The clock is on Today's duty card.
-    await app.open("/#/today");
-    await clockInHere(screen, browser);
     await app.open("/#/inventory");
+    await clockInHere(screen, browser);
     for (const name of [changed, untouched]) {
         await screen.getByRole("button", "Add product").tap();
         const add = screen.getByRole("dialog", "Add product to this branch");

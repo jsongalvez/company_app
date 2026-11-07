@@ -10,7 +10,7 @@
 <style>
     .k-dock {
         position: sticky;
-        bottom: var(--netbar-h, 0);
+        bottom: 0;
         z-index: 2;
         display: flex;
         gap: var(--s2);
