@@ -1,6 +1,6 @@
 # Rebuild plan
 
-Status: Phase 1, units 1-3 done (guards; tokens and contrast; the kit with Today in layout B). Today uses layout B (Day sheet). Sizes stay as drawn: body 15 px, rows 16 px, tap targets 44 px.
+Status: Phase 1, units 1-3 done (guards; tokens and contrast; the kit with Today in layout B). Today uses layout B (Day sheet). Sizes stay as drawn: body 15 px, rows 16 px, tap targets 44 px. Next: the policy table, then the data layer, as revised in [Revisions](#revisions). Where to start: [Handoff](#handoff).
 The repo is public: this file quotes no one.
 
 ## Goal
@@ -130,11 +130,35 @@ Each unit ends with a failing-then-passing test, `tools/push.sh`, GitHub runs ch
 1. Guards first: design lint (`web/tests/unit/design-lint.test.ts`, raw-value counts that only shrink) and the phone check (`web/tests/phone.e2e.ts`, every role on every menu page, with old pages on `web/tests/phone-legacy.json`).
 2. Tokens and the contrast checks.
 3. The component kit, built with its first page: Today in layout B, with the new top bar and menu, on today's data code. Today leaves the legacy list. A kit no page uses yet has nothing for the phone check to test.
-4. Store and outbox v2 with the bridge, and the day document endpoint. Today moves onto them; its browser tests are the safety net.
-5. Policy table, interpreters, generated tests; V13 facts migration; delete the view and capability code.
+4. Policy table, interpreters, generated tests; V13 facts migration; delete the view and capability code. (Was unit 5; see Revisions 1.)
+5. The data layer as revised (Revisions 2): read and change sets from the database replace `writes.ts`; the today-screen document gains times and past days. Today's browser tests are the safety net.
 6. Then pages by use: New session and Session, Clients, Expenses & pay, Remittances, Stock and Products, Relief, Alerts, Profile and My shifts, Branches and Users, Reports and Change history, Problem reports.
 7. Delete the bridge and the old data layers; squash migrations; reset prod after a fresh dump.
 
 Today comes before the store and the policy so the new look reaches the phone first, and so the store is shaped by a real screen's needs. Today's data wiring changes once more in unit 4; its view does not.
 
 Done when: every page is on the kit with an empty lint allow list; role names live only in the policy table; the old data-layer files are gone; every page passes the phone check for every persona; the full browser suite is green on GitHub; prod runs it with `/health` UP.
+
+## Revisions
+
+Nov 7, after unit 3. Before each unit, four questions are put to this plan: reduce the problem to what it cannot do without and rebuild from there; what would a principal architect rewrite before starting; which single test breaks the design on day one (written into the repo before the unit is built); which higher-level abstraction makes the problem disappear.
+
+1. **The policy table comes before the data layer.** Roles changing is the stated need, and the table deletes the most code: the capability view and tables, `Reach`, `grants.ts`, the gates each page and route keeps. Every read checks access, so the data-layer work below has fewer tables to reason about once those are gone.
+2. **The data layer keeps the cache and the outbox and drops the hand-kept invalidation.** Both work. `calls.e2e.ts` pins exact rereads ("saving an expense re-reads only the expenses and the day's totals"), and the TLA+ model checks the queue, so a store and outbox v2 would rewrite working parts. The part that breaks is `web/src/lib/writes.ts`: 30 hand-kept rows of what each save makes stale. A forgotten row is a stale screen (lesson 2). Instead, each answer names the tables its request read (`X-Reads`) and changed (`X-Changed`). The cache marks stale every entry whose reads meet a change and rereads the entries on screen. `writes.ts`, its `wrote()` calls and the planned bridge are deleted.
+   - Premise, checked on Postgres 18.6 with the verify copy: `pg_stat_xact_user_tables` reports a transaction's scans and row changes. A count over the `daily_sales_summary` view showed the base table it scanned. A second transaction on the same connection still showed the first one's counts, because they last until the backend flushes them. So the tracker diffs a snapshot from a transaction's first statement against one taken before commit, and fails closed: with no snapshot, the answer reads every table.
+   - Some tables are touched by requests for their own bookkeeping, such as sign-in tokens, telemetry, trace spans and the audit log. Each one goes on a list with its reason, or every answer would make every entry stale. Which tables belong there is inferred, not yet checked.
+   - Rejected: one global data version. It is simpler, but after any save it would reread every screen and break the pinned rereads.
+3. **Tests that break each design on day one.** Write them first, as a ratchet where the code is not there yet:
+   - Policy: a route or screen deciding access without the table. Checks: every registered route declares an `Action` the table names (a test over Javalin's route list, with an explicit public list). Role names outside `Policy.kt` and the migration that creates roles may only go down, to zero at the end of the unit. The ratchet must define its matches exactly: role names also appear as plain words and column names.
+   - Data: (a) a read that changes a tracked table, so each answer would make its own entry stale and loop. Check: call every GET route as each persona on seed data and expect an empty `X-Changed`. (b) A write that changes what a screen shows, but whose change set misses that screen's reads. Check: for each scripted write, read every GET route before and after on seed data, and expect every changed answer to have reads that meet the write's changes.
+4. **The day document already exists.** `GET /api/branches/{id}/today-screen` is today's day document, shared by Today's three loaders. In the data unit it gains clock-in and done times and a date for past days; there is no new endpoint.
+
+## Handoff
+
+Nov 7, end of unit 3. For a fresh agent; read `AGENTS.md`, then this file.
+
+- Pushed, all green on GitHub and live on prod: `12b123a4` guards, `557fcf39` tokens and contrast, `1be94be1` kit and Today B, `b3bca10a` and `bba6846d` fixes from its CI run, `ad194345` sign-in setups wait out the server's limit. bba6846d live checked with `app-shipcheck`; ad194345 in the deploy gate's hands at the time of writing.
+- Next step: unit 4, the policy table. First write the Revisions 3 policy checks, then read the access code they count (`V12__mission_staff.sql`, `authorization/Access.kt` with `Act` and `Reach`, `web/src/lib/grants.ts`, `route-access.txt`) and build the table.
+- Commands: `tools/verify/verify.sh up | down | doctor | web | shot | before-after`; `cd web && tests/unit/run.sh` (`WRITE_DESIGN_BASELINE=1` lowers the design baseline); `npm run e2e -- tests/X.e2e.ts --grep "..."` against the verify copy; `npx svelte-check --threshold warning`; `npm run lint`; `tools/push.sh origin master`; `gh run list --commit SHA`; `app-shipcheck SHA`.
+- Gotchas: the server takes 10 sign-ins a minute from one address, and every local browser run spends about 61 s in `roles.setup` waiting that out. `before-after` needs the web change committed. Kit classes are `k-*`, and `app.css` element rules still reach bare elements. Tests find Clock in/out in the "Duty" region and waiting rows with `hereNow()`. The connection bar publishes `--netbar-h`, and the dock sits above it.
+- Dead ends: comparing item tops for the one-row rule (centred items of mixed height read as wrapped; compare overlap instead). `getByRole("option")` on a closed select; read `dialog[open] option` instead.
