@@ -24,7 +24,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the relief k6 principal's seeded shape (#413): no role, no GLOBAL rows, exactly
+ * Pins the relief k6 principal's seeded shape (#413): one role (Practitioner, for relief to work under),
  * one BRANCH-scoped EDIT_BRANCH_DATA grant at the fixture branch, and deliberately NO
  * home assignment — the requestReliefAccess gate excludes assigned users while
  * grant/deny authority requires one, so this seat is what makes the relief flows
@@ -60,18 +60,18 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
                     .single()
             val userId = user[AppUserTable.id]
 
-            assertNoRole(userId)
+            assertOnlyPractitioner(userId)
             assertBranchCapabilityShape(userId)
             assertNoAssignment(userId)
             assertNotNull(UserRepository.findByUsername(reliefUsername))
         }
     }
 
-    private fun assertNoRole(userId: UUID) {
+    private fun assertOnlyPractitioner(userId: UUID) {
         assertEquals(
-            0,
+            1,
             UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-            "Relief principal must hold no role (roles derive GLOBAL capability bundles)",
+            "Relief works under the person's roles: the seat holds one, Practitioner",
         )
     }
 

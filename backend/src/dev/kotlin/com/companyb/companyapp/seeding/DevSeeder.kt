@@ -199,6 +199,15 @@ object DevSeeder {
         // assignment), plus base rates since this path also ensures the branch.
         val userId = ensureUser(credentials)
         ensureFixtureBranch()
+        // Relief works under the person's roles, so the relief seat is a Practitioner.
+        UserRoleTable.insertIgnore {
+            it[UserRoleTable.userId] = userId
+            it[UserRoleTable.roleId] =
+                RoleTable
+                    .selectAll()
+                    .where { RoleTable.name eq "PRACTITIONER" }
+                    .single()[RoleTable.id]
+        }
         for (code in RELIEF_USER_CAPABILITIES) {
             ensureCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
         }

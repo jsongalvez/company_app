@@ -5,7 +5,7 @@ import { doneSessionForNewClient } from "./support";
 
 const today = businessDate();
 
-test("send a remittance for today, then undo it", { session: "owner" }, async ({ app, screen, browser }) => {
+test("send a remittance for today, then undo it", { session: "role-manager" }, async ({ app, screen, browser }) => {
     const client = await doneSessionForNewClient(app, screen, browser);
     // A slow list of the range's sessions: "Add all" must wait for it, not add nothing.
     await browser.route(/\/remittance-sessions/, async (route) => {
@@ -34,7 +34,7 @@ test("send a remittance for today, then undo it", { session: "owner" }, async ({
 
 // Feedback ec49b5dd: "Remittance ix needs work, i don't understand what to do." The draft is two numbered
 // checklists, days then sessions; ticked means included. 364b18b3: its kind can't change once items are in.
-test("a draft remittance is two checklists, and its kind stays once something is in", { session: "owner" }, async ({ app, screen, browser }) => {
+test("a draft remittance is two checklists, and its kind stays once something is in", { session: "role-manager" }, async ({ app, screen, browser }) => {
     const client = await doneSessionForNewClient(app, screen, browser);
     await app.open("/#/remittance");
     await screen.getByRole("button", "New remittance").tap();
