@@ -22,7 +22,8 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 30px;
+        width: var(--tap);
+        min-height: var(--tap);
         padding: 0;
     }
 </style>

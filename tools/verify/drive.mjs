@@ -41,7 +41,8 @@ try {
     // Like a real shift: clock in at the current branch (the scratch DB's owner starts off duty, and
     // the day's sessions answer 403 until then). VERIFY_CLOCKIN=0 skips it.
     if (process.env.VERIFY_CLOCKIN !== "0") {
-      const bar = page.getByRole("banner");
+      // Today's duty card holds the clock; builds before it kept the clock in the top bar (before-after shoots those).
+      const bar = page.getByRole("region", { name: "Duty" }).or(page.getByRole("banner"));
       await bar.getByRole("button", { name: /Clock (in|out)/ }).first().waitFor();
       const clockIn = bar.getByRole("button", { name: "Clock in" });
       if ((await clockIn.count()) > 0) await clockIn.first().click();

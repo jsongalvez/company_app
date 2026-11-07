@@ -7,28 +7,34 @@
     import { MediaQuery } from "svelte/reactivity";
     import { api, ok, BASE_STATUS, type S } from "../api/client";
     import { app, can, canRead, branchName } from "../lib/app.svelte";
-    import { today, refreshDay, clockIn, selectBranch, onDutyAt, markMember } from "../lib/today.svelte";
-    import { Query, seed } from "../lib/cache.svelte";
+    import { today, refreshDay, clockIn, clockOut, selectBranch, onDutyAt, markMember } from "../lib/today.svelte";
+    import { Query, seed, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { askReason } from "../lib/ask.svelte";
-    import { go, route, viewSetting } from "../lib/router.svelte";
-    import { peso, time, label, sum, day, clientName, operationalDate, addDays } from "../lib/format";
-    import { allowedTargets, statusClass, type Status } from "../lib/rules";
+    import { go, route } from "../lib/router.svelte";
+    import { peso, time, label, sum, day, shortDay, clientName, operationalDate, addDays } from "../lib/format";
+    import { allowedTargets, type Status } from "../lib/rules";
     import { discard, heldMarks, outbox, pendingSales, pendingSessions, retry, sessionsSeen, type Standing } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
-    import PageHead from "../components/PageHead.svelte";
+    import { changed } from "../lib/changed";
+    import type { Booking } from "../lib/bookings";
     import State from "../components/State.svelte";
     import NewSession from "../components/NewSession.svelte";
     import BookVisit from "../components/BookVisit.svelte";
     import Bookings from "../components/Bookings.svelte";
-    import { wrote, fetchCached } from "../lib/cache.svelte";
-    import { changed } from "../lib/changed";
-    import type { Booking } from "../lib/bookings";
     import ProductSale from "../components/ProductSale.svelte";
+    import Page from "../ui/Page.svelte";
+    import Button from "../ui/Button.svelte";
+    import Section from "../ui/Section.svelte";
+    import Rows from "../ui/Rows.svelte";
+    import Row from "../ui/Row.svelte";
+    import Notice from "../ui/Notice.svelte";
+    import Dock from "../ui/Dock.svelte";
+    import Mark from "../ui/Mark.svelte";
 
     const bid = $derived(app.branchId);
-    // Staff enter yesterday's sessions and sales the next day: ◀ opens an earlier day to add to.
+    // Staff enter yesterday's sessions and sales the next day: ‹ opens an earlier day to add to.
     const date = $derived(route.current.query.get("date") ?? operationalDate());
     const isToday = $derived(date === operationalDate());
     function setDate(d: string) {
@@ -54,7 +60,7 @@
         pastList.load(sl.key, sl.fn);
         pastSum.load(ml.key, ml.fn);
     });
-    /** Start reading a day as the finger goes down on ◀ or ▶, ahead of the tap. */
+    /** Start reading a day as the finger goes down on ‹ or ›, ahead of the tap. */
     function prefetch(d: string) {
         if (d === operationalDate()) return;
         for (const l of pastReads(bid, d)) fetchCached(l.key, l.fn as () => Promise<unknown>).catch(() => {});
@@ -89,10 +95,13 @@
     const roster = new Query<Roster>();
     /** The roster with a just-confirmed mark shown before the server has answered. */
     const rosterShown = $derived(roster.data?.map((m) => (today.marking?.userId === m.userId ? { ...m, present: today.marking.present } : m)));
+    const presentNames = $derived((rosterShown ?? []).filter((m) => m.present).map((m) => m.displayName));
     const booked = new Query<Booking[]>();
     const earlierWaiting = new Query<string[]>();
-    /** The on-duty list is for the branch's own staff; others get a note instead. */
+    /** The on-duty list is for the branch's own staff. */
     const member = $derived(app.branches.some((b) => b.branchId === bid && !!b.assignmentId));
+    /** Members and relief staff of this branch clock in here. */
+    const staffHere = $derived(app.branches.some((b) => b.branchId === bid));
     $effect(() => {
         const l = load.dashboard(bid);
         dash.load(l.key, l.fn);
@@ -109,13 +118,9 @@
     const edit = $derived(can("WORK_DAY"));
     const correct = $derived(can("CHANGE_CLOSED_DAY", { branch: bid }));
 
-    type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
     const phone = new MediaQuery("max-width: 1000px");
     const rosterOpen = $derived(!phone.current || unfolded.roster);
     const bookedOpen = $derived(!phone.current || unfolded.booked);
-    const showVs = viewSetting("show", "all", ["all", "PENDING", "COMPLETED", "other", "void"]);
-    let filter = $state<F>(showVs.read as F);
-    $effect(() => showVs.keep(filter));
     // A mark made with no signal shows at once, flagged as not sent yet.
     $effect(() => {
         if (dash.data) sessionsSeen(new Set(dash.data.sessions.map((s) => s.id)));
@@ -142,6 +147,7 @@
             }));
         return [...fromServer, ...pending];
     });
+    type Shown = (typeof sessions)[number];
 
     type Local = { state: Exclude<Standing, "sent">; item: string; failed?: string } | null;
     /** The server picks a held session's type when it lands, so the row has none yet. */
@@ -172,25 +178,26 @@
             local: null,
         };
     }
-    const shown = $derived(
-        sessions.filter((s) =>
-            filter === "all"
-                ? true
-                : filter === "void"
-                  ? s.isVoided
-                  : filter === "other"
-                    ? !s.isVoided && (s.sessionStatus === "NO_SHOW" || s.sessionStatus === "CANCELLED")
-                    : !s.isVoided && s.sessionStatus === filter,
-        ),
-    );
     const live = $derived(sessions.filter((s) => !s.isVoided));
     const completed = $derived(live.filter((s) => s.sessionStatus === "COMPLETED"));
-    const counts = $derived({
-        all: sessions.length,
-        PENDING: live.filter((s) => s.sessionStatus === "PENDING").length,
-        COMPLETED: completed.length,
-        other: live.filter((s) => s.sessionStatus === "NO_SHOW" || s.sessionStatus === "CANCELLED").length,
-        void: sessions.length - live.length,
+    const waiting = $derived(live.filter((s) => s.sessionStatus === "PENDING"));
+    /** Everything no longer waiting, newest first. */
+    const logged = $derived(
+        sessions.filter((s) => s.isVoided || s.sessionStatus !== "PENDING").sort((a, b) => (b.bookedAt ?? "").localeCompare(a.bookedAt ?? "")),
+    );
+    const income = $derived(sum(completed.map((s) => s.finalPrice)));
+    const tally = $derived.by(() => {
+        const n = (st: Status) => live.filter((s) => s.sessionStatus === st).length;
+        const voided = sessions.length - live.length;
+        return [
+            `${completed.length} done`,
+            `${waiting.length} waiting`,
+            n("NO_SHOW") && `${n("NO_SHOW")} no-show`,
+            n("CANCELLED") && `${n("CANCELLED")} cancelled`,
+            voided && `${voided} voided`,
+        ]
+            .filter(Boolean)
+            .join(" · ");
     });
 
     /** After a save or a mark: the lists changed. The day's own status (open, past, remitted) did not. */
@@ -209,7 +216,7 @@
         booked.refresh();
     }
 
-    /** The Refresh button and key: everything on screen, including the day's status. */
+    /** The R key: everything on screen, including the day's status. */
     function refresh() {
         reloadLists();
         void refreshDay();
@@ -253,6 +260,13 @@
         await markMember(m.userId, present, bid);
     }
 
+    let clockBusy = $state(false);
+    async function clock(change: () => Promise<boolean>) {
+        clockBusy = true;
+        await change();
+        clockBusy = false;
+    }
+
     const needClockIn = $derived(!!dash.error && /clocked in/i.test(dash.error));
 
     let newOpen = $state(false);
@@ -283,6 +297,21 @@
     /** Anyone in the branch marks an earlier day's sessions, with a reason, until it is remitted. */
     const canMark = $derived(edit && (isToday || !remitted || correct));
 
+    function tone(s: Shown): "ok" | "warn" | "bad" | "plain" {
+        return s.isVoided ? "bad" : s.sessionStatus === "COMPLETED" ? "ok" : s.sessionStatus === "NO_SHOW" ? "warn" : "plain";
+    }
+    function meta(s: Shown, inLog: boolean): string {
+        if (s.local?.state === "failed") return s.local.failed ?? "";
+        if (s.local?.state === "waiting") return "Sends when back online";
+        const who = s.practitioners?.length
+            ? s.practitioners.map((p) => p.displayName).join(", ")
+            : s.requestedPractitionerName
+              ? `Req: ${s.requestedPractitionerName}`
+              : "";
+        const price = `${peso(s.finalPrice)}${s.finalPrice !== s.basePrice ? "*" : ""}`;
+        return [s.sessionType ? label(s.sessionType) : "", who, inLog ? price : s.bookedAt ? `since ${time(s.bookedAt)}` : ""].filter(Boolean).join(" · ");
+    }
+
     // Keyboard: N = new session, R = refresh (when not typing).
     function onKey(e: KeyboardEvent) {
         const t = e.target as HTMLElement;
@@ -296,254 +325,208 @@
 
 <svelte:window onkeydown={onKey} />
 
-<PageHead title="Sessions">
-    <span class="daynav">
-        <button onpointerdown={() => prefetch(addDays(date, -1))} onclick={() => setDate(addDays(date, -1))} aria-label="Previous day">◀</button>
-        <input type="date" value={date} max={operationalDate()} onchange={(e) => setDate(e.currentTarget.value || operationalDate())} />
-        <button onpointerdown={() => prefetch(addDays(date, 1))} onclick={() => setDate(addDays(date, 1))} disabled={isToday} aria-label="Next day">▶</button>
-        {#if !isToday}<button onclick={() => setDate(operationalDate())}>Today</button>{/if}
-    </span>
-    <button onclick={refresh} title="Refresh (R)">Refresh</button>
-    {#if edit && isToday}<button onclick={() => (bookOpen = true)} title="Book a client for a later day">Book a visit</button>{/if}
-    {#if edit && saleDay && (isToday || canAdd)}<button onclick={() => (saleOpen = true)}>Product sale</button>{/if}
-    {#if canAdd}
-        <button class="primary" onclick={openNew} title="New session (N)">New session</button>
-    {/if}
-</PageHead>
-
-{#if remitted}
-    <div class="notice warn mb">{day(date)} is remitted. Changes need coordinator rights and a reason.</div>
-{:else if isToday && today.day && today.day.status !== "OPEN"}
-    <div class="notice warn mb">
-        This day is {label(today.day.status)}. Edits need coordinator rights{today.day.status === "REMITTED" ? " and a reason" : ""}.
-    </div>
-{/if}
-{#if isToday && earlierWaiting.data?.length}
-    <div class="notice warn mb" role="status">
-        Still waiting on
-        {#each earlierWaiting.data as d (d)}
-            <button class="ghost" onpointerdown={() => prefetch(d)} onclick={() => setDate(d)}>{day(d)} ›</button>
-        {/each}
-    </div>
-{/if}
-{#if !edit && canRead("SEE_DAY")}
-    <div class="notice mb">View only. Clock in here (or get relief access) to make changes.</div>
-{/if}
-
-<div class="stats mb">
-    <div>
-        <div class="k">Sessions</div>
-        <div class="v">{live.length}</div>
-    </div>
-    <div>
-        <div class="k">Done</div>
-        <div class="v">{completed.length}</div>
-    </div>
-    <div>
-        <div class="k">Waiting</div>
-        <div class="v">{counts.PENDING}</div>
-    </div>
-    <div>
-        <div class="k">Session income</div>
-        <div class="v" use:changed={(isToday ? dash.data : pastList.data) && sum(completed.map((s) => s.finalPrice))}>
-            {peso(sum(completed.map((s) => s.finalPrice)))}
-        </div>
-    </div>
-    <div>
-        <div class="k">Product commission</div>
-        <div class="v" use:changed={ownCommission}>{peso(ownCommission ?? 0)}</div>
-    </div>
-    <!-- Each sale is changed or deleted on Expenses & pay, which lists the day's sales. -->
-    <a href={`#/finance?date=${date}`}>
-        <div class="k">Product sales</div>
-        {#if isToday}<div class="v" use:changed={dash.data?.commission.productSalesCount}>
-                {(dash.data?.commission.productSalesCount ?? 0) + pendingSales(today.day?.branchDayId)}
-            </div>
-        {:else}<div class="v" use:changed={pastSumShown?.totalProductSales}>{peso(pastSumShown?.totalProductSales ?? 0)}</div>{/if}
-    </a>
-</div>
-
-<div class="layout">
-    <section class="col grow">
-        <div class="row wrap">
-            <div class="seg" role="group" aria-label="Filter sessions">
-                {#each [["all", "All"], ["PENDING", "Waiting"], ["COMPLETED", "Done"], ["other", "No-show"], ["void", "Voided"]] as [k, t] (k)}
-                    <button class:on={filter === k} aria-pressed={filter === k} onclick={() => (filter = k as F)}
-                        >{t} <span class="faint">{counts[k as F]}</span></button
-                    >
+{#snippet sessionRow(s: Shown, inLog: boolean)}
+    <Row
+        time={inLog ? time(s.bookedAt) : undefined}
+        name={s.clientName ?? "(details erased)"}
+        meta={meta(s, inLog)}
+        href={s.local ? undefined : `#/sessions/${s.id}`}
+        struck={s.isVoided}
+        dim={switching}
+    >
+        {#snippet marks()}
+            {#if s.isWalkIn}<Mark>Walk-in</Mark>{/if}
+            {#if s.local?.state === "failed"}<Mark tone="bad">Couldn't save</Mark>
+            {:else if inLog}<Mark tone={tone(s)}>{s.isVoided ? "Voided" : label(s.sessionStatus)}</Mark>{/if}
+            {#if s.held && s.local?.state !== "failed"}<Mark tone="warn" title="Waiting on this phone for signal">Not sent</Mark>{/if}
+        {/snippet}
+        {#snippet end()}
+            {#if s.local?.state === "failed"}
+                <Button kind="primary" onclick={() => retry(s.local!.item)}>Retry</Button>
+                <Button kind="quiet" onclick={() => confirm("Throw this session away? It won't be saved.") && discard(s.local!.item)}>Throw away</Button>
+            {:else if s.local?.state === "sending"}
+                <span class="faint">Saving…</span>
+            {:else if !s.local && !s.isVoided && canMark}
+                {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false).filter((to) => (inLog ? to === "PENDING" : to === "COMPLETED")) as to (to)}
+                    <Button kind={inLog ? "quiet" : "plain"} onclick={() => mark(s, to)}>{to === "COMPLETED" ? "Done" : "Undo"}</Button>
                 {/each}
+            {/if}
+        {/snippet}
+    </Row>
+{/snippet}
+
+<Page title="Sessions">
+    <div class="dateline" data-one-row>
+        <Button kind="quiet" aria-label="Previous day" onpointerdown={() => prefetch(addDays(date, -1))} onclick={() => setDate(addDays(date, -1))}>‹</Button>
+        <b class="when"
+            >{shortDay(date)}{#if isToday}&nbsp;· Today{/if}</b
+        >
+        {#if !isToday}<Button kind="quiet" onclick={() => setDate(operationalDate())}>Today</Button>{/if}
+        <Button kind="quiet" aria-label="Next day" disabled={isToday} onpointerdown={() => prefetch(addDays(date, 1))} onclick={() => setDate(addDays(date, 1))}
+            >›</Button
+        >
+    </div>
+
+    {#if remitted}
+        <div class="inset"><Notice tone="warn">{day(date)} is remitted. Changes need coordinator rights and a reason.</Notice></div>
+    {:else if isToday && today.day && today.day.status !== "OPEN"}
+        <div class="inset">
+            <Notice tone="warn"
+                >This day is {label(today.day.status)}. Edits need coordinator rights{today.day.status === "REMITTED" ? " and a reason" : ""}.</Notice
+            >
+        </div>
+    {/if}
+    {#if !edit && canRead("SEE_DAY")}
+        <div class="inset"><Notice>View only. Clock in here (or get relief access) to make changes.</Notice></div>
+    {/if}
+
+    <div class="inset sheet">
+        <div class="head">
+            <div class="k">Session income</div>
+            <div class="big" use:changed={(isToday ? dash.data : pastList.data) && income}>{peso(income)}</div>
+            <div class="tally">{tally}</div>
+        </div>
+        <div class="cells">
+            <!-- Each sale is changed or deleted on Expenses & pay, which lists the day's sales. -->
+            <a href={`#/finance?date=${date}`}>
+                <span class="k">Product sales&nbsp;›</span>
+                {#if isToday}<span class="v" use:changed={dash.data?.commission.productSalesCount}
+                        >{(dash.data?.commission.productSalesCount ?? 0) + pendingSales(today.day?.branchDayId)}</span
+                    >
+                {:else}<span class="v" use:changed={pastSumShown?.totalProductSales}>{peso(pastSumShown?.totalProductSales ?? 0)}</span>{/if}
+            </a>
+            <div>
+                <span class="k">Product commission</span>
+                <span class="v" use:changed={ownCommission}>{peso(ownCommission ?? 0)}</span>
             </div>
         </div>
+    </div>
 
-        {#if isToday && edit && !needClockIn && !onDutyAt(bid)}
-            <div class="notice row mb">
-                <span class="grow">Clock in at {branchName(bid)} to add new sessions.</span>
-                {#if !today.shift && app.branches.some((b) => b.branchId === bid)}<button class="primary" onclick={() => clockIn(bid)}>Clock in</button>{/if}
-            </div>
-        {/if}
-        {#if isToday && needClockIn}
-            <div class="notice row">
-                {#if today.shift && today.shift.branchId !== bid}
-                    <span class="grow">You're clocked in at {today.shift.branchName}. Clock out there before clocking in here.</span>
-                    <button onclick={() => selectBranch(today.shift!.branchId)}>Go to {today.shift.branchName}</button>
-                {:else}<span class="grow">Clock in at {branchName(bid)} to see and log today's sessions.</span>{/if}
-                {#if today.shift && today.shift.branchId !== bid}{:else if app.branches.some((b) => b.branchId === bid)}<button
-                        class="primary"
-                        onclick={() => clockIn(bid)}>Clock in</button
-                    >{:else}<a class="btn" href="#/relief">Request relief duty</a>{/if}
-            </div>
-        {:else}
-            <State
-                q={isToday
-                    ? dash
-                    : {
-                          loading: pastList.loading && !switching && late,
-                          waiting: pastList.waiting && !heldRows,
-                          error: pastList.error,
-                          refresh: () => pastList.refresh(),
-                      }}
-                empty={!!(isToday ? dash.data : pastList.data) && shown.length === 0}
-                emptyText={sessions.length ? "No sessions match this filter." : isToday ? "No sessions yet today." : `No sessions on ${day(date)}.`}
-            />
-        {/if}
-
-        {#if shown.length}
-            <div class="table-wrap" class:dim={switching}>
-                <table class="grid stack">
-                    <thead>
-                        <tr>
-                            <th>Booked</th>
-                            <th>Client</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Practitioners</th>
-                            <th>Illnesses</th>
-                            <th class="num">Price</th>
-                            <th>Next visit</th>
-                            {#if canMark}<th></th>{/if}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each shown as s (s.id)}
-                            <tr class:click={!s.local} class:struck={s.isVoided} onclick={() => !s.local && go(`/sessions/${s.id}`)}>
-                                <td class="hide-sm">{time(s.bookedAt)}</td>
-                                <td class="ellipsis name lead">
-                                    {s.clientName ?? "(details erased)"}
-                                    {#if s.isWalkIn}<span class="mark plain">Walk-in</span>{/if}
-                                </td>
-                                <td class="muted hide-sm">{label(s.sessionType)}</td>
-                                <td>
-                                    {#if s.local?.state === "failed"}
-                                        <span class="refused" onclick={(e) => e.stopPropagation()} role="presentation">
-                                            <span class="mark bad">Couldn't save</span>
-                                            <span class="err">{s.local.failed}</span>
-                                            <button class="sm primary" onclick={() => retry(s.local!.item)}>Retry</button>
-                                            <button
-                                                class="sm ghost"
-                                                onclick={() => confirm("Throw this session away? It won't be saved.") && discard(s.local!.item)}
-                                                >Throw away</button
-                                            >
-                                        </span>
-                                    {:else if s.isVoided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(s.sessionStatus)}"
-                                            >{label(s.sessionStatus)}</span
-                                        >{#if s.held}<span class="mark warn" title="Waiting on this phone for signal">Not sent</span>{/if}{/if}
-                                </td>
-                                <td class="ellipsis pr">
-                                    {#if s.practitioners?.length}
-                                        {s.practitioners.map((p) => p.displayName).join(", ")}
-                                    {:else if s.requestedPractitionerName}
-                                        <span class="faint">Req: {s.requestedPractitionerName}</span>
-                                    {/if}
-                                </td>
-                                <td class="ellipsis cc muted hide-sm">{s.concerns?.map((c) => c.label).join(", ") ?? ""}</td>
-                                <td class="num">
-                                    {peso(s.finalPrice)}
-                                    {#if s.finalPrice !== s.basePrice}<span class="faint" title="List price {peso(s.basePrice)}">*</span>{/if}
-                                </td>
-                                <td class="muted hide-sm">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
-                                {#if canMark}
-                                    <td class="acts full" onclick={(e) => e.stopPropagation()}>
-                                        {#if s.local?.state === "sending"}<span class="faint">Saving…</span>
-                                        {:else if s.local}{#if s.local.state === "waiting"}<span class="faint">Sends when back online</span>{/if}
-                                        {:else if !s.isVoided}
-                                            {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false) as to (to)}
-                                                <button class="sm" class:primary={to === "COMPLETED"} onclick={() => mark(s, to)}
-                                                    >{to === "COMPLETED" ? "Done" : to === "PENDING" ? "Undo" : label(to)}</button
-                                                >
-                                            {/each}
-                                        {/if}
-                                    </td>
-                                {/if}
-                            </tr>
-                        {/each}
-                    </tbody>
-                    {#if filter === "all" && live.length > 1}
-                        <tfoot>
-                            <tr>
-                                <td colspan="6">{live.length} sessions, {completed.length} done</td>
-                                <td class="num">{peso(sum(completed.map((s) => s.finalPrice)))}</td>
-                                <td colspan={canMark ? 2 : 1}></td>
-                            </tr>
-                        </tfoot>
-                    {/if}
-                </table>
-            </div>
-        {/if}
-    </section>
-
-    {#if isToday}<aside class="panel roster">
-            {#if member}
-                <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-                <header class:foldbar={phone.current} onclick={() => phone.current && (unfolded.roster = !unfolded.roster)}>
-                    <h2>
-                        {#if phone.current}<button class="fold" aria-expanded={rosterOpen}>Who's clocked in</button>{:else}Who's clocked in{/if}
-                    </h2>
-                    <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
-                        >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
-                    >
-                </header>
-                {#if rosterOpen}<State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />{/if}
-                {#if rosterOpen && roster.data?.length}
-                    <table class="grid">
-                        <tbody>
-                            {#each rosterShown ?? [] as m, i (m.assignmentId)}
-                                <tr>
-                                    <td class="faint num slot">{i + 1}</td>
-                                    <td class="ellipsis who" title={m.displayName}
-                                        >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
-                                    >
-                                    <td class="right nowrap">
-                                        {#if !edit}
-                                            {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
-                                        {:else}
-                                            <button
-                                                class="sm clockbtn"
-                                                class:ok={m.present}
-                                                onclick={() => setPresent(m, !m.present)}
-                                                aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}"
-                                                >{m.present ? "Clock out" : "Clock in"}</button
-                                            >
-                                        {/if}
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
+    {#if isToday && (staffHere || today.shift)}
+        <section class="inset duty" aria-label="Duty">
+            <div class="who">
+                {#if today.shift?.branchId === bid}
+                    <span class="dot on" aria-hidden="true"></span>On duty{#if today.shift.isRelief}&nbsp;(relief){/if}
+                {:else if today.shift}
+                    <span class="dot" aria-hidden="true"></span>On duty at {today.shift.branchName}
+                {:else}
+                    <span class="dot" aria-hidden="true"></span>Not clocked in
                 {/if}
+                {#if member && roster.data}<span class="names">{presentNames.length ? presentNames.join(" · ") : "Nobody in yet"}</span>{/if}
+            </div>
+            {#if today.shift}
+                <Button onclick={() => clock(clockOut)} disabled={clockBusy}>Clock out</Button>
+            {:else if staffHere && today.shiftKnown}
+                <Button kind="primary" onclick={() => clock(() => clockIn(bid))} disabled={clockBusy}>Clock in</Button>
             {/if}
-            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <header class:bk-head={member} class:foldbar={phone.current} onclick={() => phone.current && (unfolded.booked = !unfolded.booked)}>
-                <h2>
-                    {#if phone.current}<button class="fold" aria-expanded={bookedOpen}>Booked visits</button>{:else}Booked visits{/if}
-                </h2>
-                <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
-            </header>
-            {#if bookedOpen}<State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />{/if}
-            {#if bookedOpen && booked.data?.length}
+        </section>
+    {/if}
+    {#if isToday && needClockIn}
+        <div class="inset">
+            <Notice tone="warn">
+                {#if today.shift && today.shift.branchId !== bid}You're clocked in at {today.shift.branchName}. Clock out there before clocking in here.
+                {:else}Clock in at {branchName(bid)} to see and log today's sessions.{/if}
+                {#snippet end()}
+                    {#if today.shift && today.shift.branchId !== bid}
+                        <Button onclick={() => selectBranch(today.shift!.branchId)}>Go to {today.shift.branchName}</Button>
+                    {:else if !staffHere}<Button href="#/relief">Request relief duty</Button>{/if}
+                {/snippet}
+            </Notice>
+        </div>
+    {/if}
+
+    {#if isToday && member}
+        <Section
+            title="Who's clocked in"
+            aside="{presentNames.length} of {rosterShown?.length ?? 0} in"
+            fold={phone.current ? { open: rosterOpen, toggle: () => (unfolded.roster = !unfolded.roster) } : undefined}
+        >
+            <div class="inset">
+                <State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />
+            </div>
+            {#if roster.data?.length}
+                <Rows label="Who's clocked in">
+                    {#each rosterShown ?? [] as m (m.assignmentId)}
+                        <Row name={m.userId === app.me?.id ? `${m.displayName} (you)` : m.displayName}>
+                            {#snippet end()}
+                                {#if !edit}
+                                    {#if m.present}<Mark tone="ok">Clocked in</Mark>{:else}<span class="faint">Not in</span>{/if}
+                                {:else}
+                                    <Button onclick={() => setPresent(m, !m.present)} aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}"
+                                        >{m.present ? "Clock out" : "Clock in"}</Button
+                                    >
+                                {/if}
+                            {/snippet}
+                        </Row>
+                    {/each}
+                </Rows>
+            {/if}
+        </Section>
+    {/if}
+
+    {#if isToday && earlierWaiting.data?.length}
+        <div class="inset stack" role="status">
+            {#each earlierWaiting.data as d (d)}
+                <Notice tone="warn" onpointerdown={() => prefetch(d)} onclick={() => setDate(d)}>Still waiting on {shortDay(d)}</Notice>
+            {/each}
+        </div>
+    {/if}
+
+    {#if waiting.length}
+        <Section title={isToday ? "Here now" : "Still waiting"} count={waiting.length}>
+            <Rows label={isToday ? "Here now" : "Still waiting"}>
+                {#each waiting as s (s.id)}{@render sessionRow(s, false)}{/each}
+            </Rows>
+        </Section>
+    {/if}
+
+    {#if isToday}
+        <Section
+            title="Booked visits"
+            count={booked.data?.length ?? 0}
+            fold={phone.current ? { open: bookedOpen, toggle: () => (unfolded.booked = !unfolded.booked) } : undefined}
+        >
+            <div class="inset">
+                <State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />
+            </div>
+            {#if booked.data?.length}
                 <Bookings list={booked.data} {edit} onstart={onDutyAt(bid) ? startFromBooking : undefined} onchanged={reloadBookings} />
             {/if}
-        </aside>{/if}
-</div>
+        </Section>
+    {/if}
+
+    {#if !(isToday && needClockIn) && (logged.length || !waiting.length)}
+        <Section title={isToday ? "Today's log" : "Log"}>
+            <div class="inset">
+                <State
+                    q={isToday
+                        ? dash
+                        : {
+                              loading: pastList.loading && !switching && late,
+                              waiting: pastList.waiting && !heldRows,
+                              error: pastList.error,
+                              refresh: () => pastList.refresh(),
+                          }}
+                    empty={!!(isToday ? dash.data : pastList.data) && sessions.length === 0}
+                    emptyText={isToday ? "No sessions yet today." : `No sessions on ${day(date)}.`}
+                />
+            </div>
+            {#if logged.length}
+                <Rows label={isToday ? "Today's log" : "Log"}>
+                    {#each logged as s (s.id)}{@render sessionRow(s, true)}{/each}
+                </Rows>
+            {/if}
+        </Section>
+    {/if}
+
+    {#if edit}
+        <Dock>
+            <Button kind="primary" big disabled={!canAdd} onclick={openNew} title="New session (N)">New session</Button>
+            <Button big disabled={!(saleDay && (isToday || canAdd))} onclick={() => (saleOpen = true)} aria-label="Product sale">Sale</Button>
+            {#if isToday}<Button big onclick={() => (bookOpen = true)} aria-label="Book a visit" title="Book a client for a later day">Book</Button>{/if}
+        </Dock>
+    {/if}
+</Page>
 
 <NewSession
     bind:open={newOpen}
@@ -557,94 +540,104 @@
 <ProductSale bind:open={saleOpen} onsaved={reloadLists} day={isToday ? null : { id: saleDay ?? "", date }} />
 
 <style>
-    .refused {
-        display: inline-flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.25rem 0.5rem;
-        max-width: 100%;
-    }
-    .mb {
-        margin-bottom: 10px;
-    }
-    .dim {
-        opacity: 0.6;
-    }
-    .layout {
+    .dateline {
         display: flex;
-        gap: 12px;
-        align-items: flex-start;
+        align-items: center;
+        gap: var(--s1);
+        min-height: var(--bar);
+        padding: 0 var(--s2);
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
     }
-    .roster {
-        width: 300px;
-        flex: none;
+    .when {
+        flex: 1;
+        text-align: center;
+        font-weight: 600;
     }
-    /* the name takes what the status and button leave, and is cut with "…" */
-    .roster .clockbtn {
-        width: 80px;
-        justify-content: center;
+    .inset {
+        margin: 0 var(--s4);
     }
-    .roster td.who {
-        max-width: 0;
-        width: 100%;
+    .stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s2);
     }
-    .roster table.grid td {
-        border-bottom-color: var(--line);
+    .sheet {
+        background: var(--panel);
+        border: 1px solid var(--line);
     }
-    .slot {
-        width: 24px;
+    .head {
+        padding: var(--s4) var(--s4) var(--s3);
+        border-bottom: 1px solid var(--line);
     }
-    .name {
-        max-width: 240px;
+    .k {
+        font-size: var(--t-meta);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-2);
     }
-    .pr {
-        max-width: 200px;
+    .big {
+        font-size: var(--t-big);
+        font-weight: 600;
+        line-height: var(--lh-tight);
+        margin-top: var(--s1);
     }
-    .cc {
-        max-width: 180px;
+    .tally {
+        margin-top: var(--s1);
+        color: var(--text-2);
     }
-    .acts {
-        text-align: right;
+    .cells {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
     }
-    .acts button {
-        margin-left: 4px;
+    .cells > * {
+        display: flex;
+        flex-direction: column;
+        min-height: var(--tap);
+        padding: var(--s3) var(--s4);
+        color: inherit;
+        text-decoration: none;
     }
-    @media (max-width: 1000px) {
-        .layout {
-            flex-direction: column-reverse;
-            align-items: stretch;
-        }
-        .roster {
-            width: auto;
-        }
+    .cells > * + * {
+        border-left: 1px solid var(--line);
     }
-    /* The whole title is the tap target; the arrow says whether it is open. */
-    .foldbar {
-        cursor: pointer;
+    .v {
+        font-size: var(--t-title);
+        font-weight: 600;
     }
-    .fold {
-        all: unset;
-        cursor: pointer;
+    .duty {
+        display: flex;
+        align-items: center;
+        gap: var(--s2);
+        min-height: var(--row);
+        padding: var(--s2) var(--s2) var(--s2) var(--s4);
+        background: var(--panel);
+        border: 1px solid var(--line);
+    }
+    .who {
+        flex: 1;
+        min-width: 0;
+    }
+    .names {
         display: block;
-        min-height: 32px;
-        line-height: 32px;
+        font-size: var(--t-meta);
+        color: var(--text-2);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    .fold::before {
-        content: "▸" / "";
+    .dot {
         display: inline-block;
-        width: 1.2em;
+        width: var(--dot);
+        height: var(--dot);
+        margin-right: var(--s2);
+        background: var(--line-strong);
     }
-    .fold[aria-expanded="true"]::before {
-        content: "▾" / "";
+    .dot.on {
+        background: var(--ok);
     }
-    .fold:focus-visible {
-        outline: 2px solid var(--accent);
-    }
-    .bk-head {
-        border-top: 1px solid var(--line);
-    }
-    .note {
-        margin: 0;
-        padding: 8px 10px;
+    .faint {
+        font-size: var(--t-meta);
+        color: var(--text-3);
     }
 </style>

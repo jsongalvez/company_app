@@ -82,10 +82,11 @@ export function phoneProblems(floors: Floors): string[] {
             out.push(`tap target ${Math.round(r.width)}x${Math.round(r.height)}, under ${floors.tap}px: ${name(el)}`);
     }
 
+    // Items on one line overlap in height however they are aligned; one that starts below another's bottom is on a new line.
     for (const bar of document.querySelectorAll("[data-one-row]")) {
         if (!shown(bar)) continue;
-        const tops = [...bar.children].filter(shown).map((c) => Math.round(c.getBoundingClientRect().top));
-        if (tops.length && Math.max(...tops) - Math.min(...tops) > 4) out.push(`bar wraps to a second row: ${name(bar)}`);
+        const boxes = [...bar.children].filter(shown).map((c) => c.getBoundingClientRect());
+        if (boxes.some((a) => boxes.some((b) => b.top >= a.bottom - 1))) out.push(`bar wraps to a second row: ${name(bar)}`);
     }
     return out;
 }

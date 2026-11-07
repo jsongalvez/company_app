@@ -39,8 +39,8 @@ test("a practitioner adds a session and a sale to yesterday from Today", { sessi
 
     const salesTile = () =>
         browser.evaluate(() => {
-            const k = [...document.querySelectorAll(".stats .k")].find((e) => e.textContent === "Product sales");
-            return Number((k?.nextElementSibling?.textContent ?? "").replace(/[^0-9.]/g, ""));
+            const tile = [...document.querySelectorAll("a")].find((a) => a.textContent?.trim().startsWith("Product sales"));
+            return Number((tile?.textContent ?? "").split("›")[1]?.replace(/[^0-9.]/g, "") ?? "");
         });
     const before = await salesTile();
     await screen.getByRole("button", "Product sale").tap();

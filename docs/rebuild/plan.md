@@ -1,6 +1,6 @@
 # Rebuild plan
 
-Status: Phase 1, units 1 and 2 done (guards; tokens and contrast). Today uses layout B (Day sheet). Sizes stay as drawn: body 15 px, rows 16 px, tap targets 44 px.
+Status: Phase 1, units 1-3 done (guards; tokens and contrast; the kit with Today in layout B). Today uses layout B (Day sheet). Sizes stay as drawn: body 15 px, rows 16 px, tap targets 44 px.
 The repo is public: this file quotes no one.
 
 ## Goal
@@ -111,6 +111,17 @@ Prototype: `.audit/rebuild/today-proto/index.html` (throwaway, made-up data). Sh
 
 All three move Clock in/out from the top bar onto Today, move theme and full screen into the menu, and drop the Refresh button and the five filter tabs.
 Picked: B. The sizes stay as drawn; every button, row buttons included, gets the 44 px tap height.
+
+Built (unit 3), where the drawing met real data and behaviour:
+
+- The top bar keeps the client search row and, off Today, Home: both exist today and the drawing left them out. Open question for the user.
+- "On duty since 8:02 AM" and the log's done times need times the API does not send yet; unit 4's day document adds them. Until then the log is ordered by arrival.
+- The log holds sessions only; clock-ins and sales join it with the day document.
+- Booked visits keeps its name: the list holds upcoming visits on any day, not only today's.
+- The sales cell keeps "Product commission": the number is commission on product sales only.
+- Rows offer Done (waiting) and Undo (logged). No-show and Cancel live on the session page, as do illnesses.
+- The Refresh button is gone; R refreshes on a keyboard, and opening Today reads it again.
+- Who's clocked in folds under the duty card; its per-person buttons stay out of the card, so the card's own Clock in/out is the only one there.
 
 ## Order of work (after the pick)
 

@@ -4,9 +4,9 @@ type Screen = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["
 type App = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["app"];
 type Browser = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["browser"];
 
-/** Clock in at the current branch unless already on duty (accepting the "are you sure"). Waits for the top bar to know the shift first. */
+/** On Today: clock in at the current branch unless already on duty (accepting the "are you sure"). Waits for the duty card to know the shift first. */
 export async function clockInHere(screen: Screen, browser: Browser): Promise<void> {
-    const bar = screen.getByRole("banner");
+    const bar = screen.getByRole("region", "Duty");
     await expect(bar.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
     const clockIn = bar.getByRole("button", "Clock in");
     if ((await clockIn.count()) > 0) {
@@ -18,9 +18,9 @@ export async function clockInHere(screen: Screen, browser: Browser): Promise<voi
     await expect(bar.getByRole("button", /Clock out/).first()).toBeVisible();
 }
 
-/** Clock out of the current branch if on duty (accepting the "are you sure"). */
+/** On Today: clock out of the current branch if on duty (accepting the "are you sure"). */
 export async function clockOutHere(screen: Screen, browser: Browser): Promise<void> {
-    const bar = screen.getByRole("banner");
+    const bar = screen.getByRole("region", "Duty");
     await expect(bar.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
     const clockOut = bar.getByRole("button", /Clock out/);
     if ((await clockOut.count()) > 0) {

@@ -48,9 +48,10 @@ test("the phone check names small text, faint text, small targets, zooming input
                     Object.assign(el.style, css);
                     if (oneRow) {
                         el.dataset.oneRow = "";
-                        for (const t of ["a", "b"]) {
+                        // A button-tall item beside a line of text, as in a real bar.
+                        for (const [i, t] of ["a", "b"].entries()) {
                             const child = document.createElement("span");
-                            Object.assign(child.style, { display: "inline-block", width: "80px" });
+                            Object.assign(child.style, { display: "inline-block", width: "80px", height: i === 0 ? "44px" : "auto" });
                             child.textContent = t;
                             el.append(child);
                         }
@@ -84,7 +85,7 @@ test("the phone check names small text, faint text, small targets, zooming input
         ["p", {}, "Fine", false],
         ["input", { fontSize: "16px", height: "44px", width: "200px" }, null, false],
         ["button", { height: "44px", minWidth: "44px", fontSize: "15px" }, "Go", false],
-        ["div", { display: "flex", gap: "8px" }, null, true],
+        ["div", { display: "flex", gap: "8px", alignItems: "center" }, null, true],
     ];
     await draw(good);
     expect(await browser.evaluate(phoneProblems, { ...FLOORS })).toEqual([]);

@@ -5,7 +5,6 @@
     "components/BookVisit.svelte": 1,
     "components/ClientPicker.svelte": 2,
     "components/Dialog.svelte": 4,
-    "components/FullIcon.svelte": 1,
     "components/InstallApp.svelte": 2,
     "components/NetBar.svelte": 10,
     "components/NewSession.svelte": 6,
@@ -13,9 +12,8 @@
     "components/PeopleChecklist.svelte": 1,
     "components/PersonPicker.svelte": 2,
     "components/RangePicker.svelte": 9,
-    "components/Shell.svelte": 37,
+    "components/Shell.svelte": 27,
     "components/State.svelte": 1,
-    "components/ThemeIcon.svelte": 1,
     "components/Toast.svelte": 5,
     "pages/Audit.svelte": 5,
     "pages/Branches.svelte": 3,
@@ -32,6 +30,5 @@
     "pages/RemittanceDetail.svelte": 8,
     "pages/Reports.svelte": 2,
     "pages/SessionDetail.svelte": 9,
-    "pages/Today.svelte": 13,
     "pages/Users.svelte": 2
 }

@@ -42,7 +42,8 @@ await page.getByLabel("Password").fill(pass);
 await page.getByRole("button", { name: "Sign in" }).click();
 await page.waitForFunction(() => location.hash !== "");
 if (process.env.VERIFY_CLOCKIN !== "0") {
-    const bar = page.getByRole("banner");
+    // Today's duty card holds the clock; builds before it kept the clock in the top bar (before-after shoots those).
+    const bar = page.getByRole("region", { name: "Duty" }).or(page.getByRole("banner"));
     await bar
         .getByRole("button", { name: /Clock (in|out)/ })
         .first()
