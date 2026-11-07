@@ -1,6 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-import { doneSessionForNewClient, hereNow } from "./support";
+import { doneSessionForNewClient } from "./support";
 
 // No signal: a front-desk save waits on the phone, then goes out by itself once the server answers.
 test("a save made offline is sent when the signal is back", { session: "owner" }, async ({ app, screen, browser }) => {
@@ -30,7 +30,7 @@ test("an offline mark shows at once and sends later", { session: "owner" }, asyn
     const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
-    await expect(hereNow(screen, name)).toBeVisible();
+    await expect(row.getByText("Waiting")).toBeVisible();
     await browser.route(down, (route) => route.abort());
     await row.getByRole("button", "Done").tap();
     await expect(row.getByText("Not sent")).toBeVisible({ timeout: 20_000 });
@@ -45,7 +45,7 @@ test("a mark that clashes with someone else's change lands in couldn't send", { 
     const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
-    await expect(hereNow(screen, name)).toBeVisible();
+    await expect(row.getByText("Waiting")).toBeVisible();
     const token = await browser.evaluate(() => localStorage.getItem("token"));
     const branchId = await browser.evaluate(() => localStorage.getItem("branchId"));
     await browser.route(down, (route) => route.abort());
