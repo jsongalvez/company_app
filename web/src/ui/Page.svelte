@@ -31,5 +31,6 @@
         max-width: var(--page-max);
         min-height: 100%;
         margin: 0 auto;
+        padding-bottom: var(--netbar-h, 0);
     }
 </style>

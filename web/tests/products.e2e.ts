@@ -25,8 +25,10 @@ test("make a product, stock it, restock it and sell some", { session: "owner" },
     await expect(screen.getByRole("row").filter({ hasText: product })).toBeVisible();
 
     // Stock page: carry it at this branch, restock 10.
-    await app.open("/#/inventory");
+    // The clock is on Today's duty card.
+    await app.open("/#/today");
     await clockInHere(screen, browser);
+    await app.open("/#/inventory");
     await screen.getByRole("button", "Add product").tap();
     const add = screen.getByRole("dialog", "Add product to this branch");
     await add.getByLabel(/^Product/).selectOption({ label: `${product} · 250.00` });
