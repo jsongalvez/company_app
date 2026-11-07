@@ -1,15 +1,13 @@
 package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.branch.BranchType
-import java.util.UUID
 
 /** A job title that decides what someone may do. Stored by name in `role.name`; a person may hold several. */
 enum class Role { SUPERUSER, OWNER, MANAGER, COORDINATOR, PRACTITIONER, ACCOUNTANT, ONBOARDING }
 
 /** How someone stands at a branch, or at one day of it. */
 enum class Standing {
-    /** Works there: a home-branch assignment, or a role in [STAFF_WITHOUT_ASSIGNMENT] for the branch's type. */
+    /** Works there: a home-branch assignment, or a role that is staff at every branch of the type. */
     MEMBER,
 
     /** Added to a mission or tour by an Owner or Manager; works it under the role picked then. */
@@ -50,14 +48,6 @@ private val PAYS_ANYWHERE = setOf(Role.SUPERUSER, Role.OWNER)
 
 private val HOME = setOf(Standing.MEMBER, Standing.HELPER)
 private val ON_THE_DAY = setOf(Standing.MEMBER, Standing.HELPER, Standing.RELIEF)
-
-/** Roles that are staff at every branch of these types with no assignment. */
-val STAFF_WITHOUT_ASSIGNMENT: Map<Role, Set<BranchType>> =
-    mapOf(
-        Role.SUPERUSER to BranchType.entries.toSet(),
-        Role.OWNER to setOf(BranchType.PROVINCIAL_TOUR, BranchType.MEDICAL_MISSION),
-        Role.MANAGER to setOf(BranchType.PROVINCIAL_TOUR, BranchType.MEDICAL_MISSION),
-    )
 
 /**
  * Every action the server gates, and the rules that allow it: the one table of who may do what.
@@ -124,58 +114,4 @@ enum class Act(
 
     /** The act a GET of this act's routes asks for. */
     val whenReading: Act = whenReading ?: this
-}
-
-/** How someone stands at one place, and the roles that count there. */
-data class Footing(
-    val standing: Standing,
-    val roles: Set<Role>,
-)
-
-/** What the database holds about one active person that decides their access. Inactive people have none. */
-data class Facts(
-    val roles: Set<Role>,
-    /** Branch id to how the person stands there. */
-    val branches: Map<UUID, List<Footing>>,
-    /** Relief day id to its branch id. */
-    val reliefDays: Map<UUID, UUID>,
-) {
-    fun footingsAt(place: Place): List<Footing> {
-        val branch = place.branchId ?: return emptyList()
-        val atBranch = branches[branch].orEmpty()
-        val day = (place as? Place.Day)?.dayId ?: return atBranch
-        return if (reliefDays[day] == branch) atBranch + Footing(Standing.RELIEF, roles) else atBranch
-    }
-
-    fun allFootings(): List<Footing> =
-        branches.values.flatten() + reliefDays.values.map { Footing(Standing.RELIEF, roles) }
-
-    companion object {
-        val NONE = Facts(emptySet(), emptyMap(), emptyMap())
-    }
-}
-
-object Policy {
-    fun allows(
-        facts: Facts,
-        act: Act,
-        place: Place,
-    ): Boolean = act.rules.any { matches(it, facts, place) }
-
-    private fun matches(
-        rule: Rule,
-        facts: Facts,
-        place: Place,
-    ): Boolean =
-        when (rule) {
-            is Rule.Everywhere -> facts.roles.any { it in rule.roles }
-            is Rule.Here -> facts.footingsAt(place).any { counts(rule.roles, rule.standings, it) }
-            is Rule.Somewhere -> facts.allFootings().any { counts(rule.roles, rule.standings, it) }
-        }
-
-    private fun counts(
-        roles: Set<Role>,
-        standings: Set<Standing>,
-        footing: Footing,
-    ): Boolean = footing.standing in standings && footing.roles.any { it in roles }
 }
