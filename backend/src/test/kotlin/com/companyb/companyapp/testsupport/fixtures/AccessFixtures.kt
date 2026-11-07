@@ -55,7 +55,10 @@ object AccessFixtures {
         }
     }
 
-    /** Makes [userId] relief on [dayId] through the relief writer, as a [role] (relief works under the person's roles). */
+    /**
+     * Makes [userId] relief on [dayId] through the relief writer, as a [role]
+     * (relief works under the person's roles).
+     */
     fun relief(
         userId: UUID,
         dayId: UUID,
@@ -77,7 +80,10 @@ object AccessFixtures {
         }
     }
 
-    /** Adds [userId] to the mission or tour [branchId] as a helper under [role], as an Owner or Manager would. Returns the helper id. */
+    /**
+     * Adds [userId] to the mission or tour [branchId] as a helper under [role],
+     * as an Owner or Manager would. Returns the helper id.
+     */
     fun helper(
         userId: UUID,
         branchId: UUID,

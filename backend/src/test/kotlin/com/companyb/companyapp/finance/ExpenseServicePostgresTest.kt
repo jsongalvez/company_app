@@ -156,7 +156,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create rejects same UUID for another branch day`() {
         val otherBranchId = TestFixtures.uuid()
-        val otherSourceId = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Expense Branch")
         val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
         AccessFixtures.allow(callerId, Act.WORK_HOME_BRANCH, Place.Branch(otherBranchId))
@@ -1330,9 +1329,5 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 expectedVersion = 1,
             )
         }
-    }
-
-    private fun grantEditBranchData(userId: UUID) {
-        AccessFixtures.allow(userId, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
     }
 }

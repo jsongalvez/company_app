@@ -21,5 +21,9 @@ lines 13 small.kt;                                              expect fail "new
 lines 10 small.kt; lines 12 big.kt;                             expect fail "listed file back under cap keeps a stale line"
 : > allow.txt;                                                  expect ok   "line deleted"
 printf '20 gone.kt\n' > allow.txt;                              expect fail "listed file not tracked"
+printf '# header\n15 big.kt\n' > allow.txt; lines 14 big.kt;       expect ok   "--fix lowers a shrunk count" --fix
+grep -qx '14 big.kt' allow.txt && grep -qx '# header' allow.txt || { failn=$((failn+1)); echo "FAIL: --fix did not lower the count and keep the header"; cat allow.txt; }
+lines 12 big.kt;                                                expect ok   "--fix drops a file back under the cap" --fix
+grep -q 'big.kt' allow.txt && { failn=$((failn+1)); echo "FAIL: --fix kept a stale line"; cat allow.txt; }
 echo "check-file-size-test: $pass passed, $failn failed"
 [ $failn -eq 0 ]
