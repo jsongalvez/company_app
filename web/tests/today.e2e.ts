@@ -11,12 +11,12 @@ test("clocking out takes today's list off the screen and off the phone", { sessi
     const name = await doneSessionForNewClient(app, screen, browser);
     const off = await browser.onDialog("accept");
     await screen
-        .getByRole("region", "Duty")
+        .getByRole("banner")
         .getByRole("button", /Clock out/)
         .first()
         .tap();
     await off();
-    await expect(screen.getByRole("region", "Duty").getByRole("button", "Clock in").first()).toBeVisible();
+    await expect(screen.getByRole("banner").getByRole("button", "Clock in").first()).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 
     // Nothing of today's list is kept on the phone, so a reload has nothing to flash.
@@ -31,7 +31,7 @@ test("clocking out takes today's list off the screen and off the phone", { sessi
         )
         .not.toContain(name);
     await app.open("/#/today");
-    await expect(screen.getByRole("region", "Duty").getByRole("button", "Clock in").first()).toBeVisible();
+    await expect(screen.getByRole("banner").getByRole("button", "Clock in").first()).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 });
 
@@ -45,16 +45,32 @@ test("a client's page lists their past sessions", { session: "owner" }, async ({
 });
 
 // Feedback d75eeba4: a reload went back to "All" instead of the picked tab.
-// All view state lives in the address: the day picked with ‹ is still on screen after a reload.
-test("the day picked on Today survives a reload", { session: "owner" }, async ({ app, screen, browser }) => {
-    await app.open("/#/today");
-    await screen.getByRole("button", "Previous day").tap();
-    await expect(screen.getByRole("button", "Today")).toBeVisible();
+test("the picked Today tab survives a reload", { session: "owner" }, async ({ app, screen, browser }) => {
+    await doneSessionForNewClient(app, screen, browser);
+    await screen.getByRole("button", /^Done/).first().tap();
+    const pressed = () => browser.evaluate(() => document.querySelector('[aria-label="Filter sessions"] [aria-pressed="true"]')?.textContent?.trim() ?? "");
+    await expect.poll(pressed).toMatch(/^Done/);
     const hash = await browser.evaluate(() => location.hash);
-    expect(hash).toMatch(/date=\d{4}-\d{2}-\d{2}/);
+    expect(hash).toContain("show=COMPLETED");
     await browser.reload();
-    await expect(screen.getByRole("button", "Today")).toBeVisible();
-    expect(await browser.evaluate(() => location.hash)).toBe(hash);
+    await expect.poll(pressed).toMatch(/^Done/);
+});
+
+// Feedback 64e93653: the filter stacked each count under its label, so the row
+// was two lines tall on a phone.
+test("the Today filter stays one compact row on a phone", { session: "owner" }, async ({ app, screen, browser }) => {
+    await browser.setViewport({ width: 392, height: 718 });
+    await app.open("/#/today");
+    const refresh = await screen.getByRole("button", "Refresh").boundingBox();
+    const filters = await screen.getByRole("group", "Filter sessions").boundingBox();
+    expect(refresh).not.toBeNull();
+    expect(filters).not.toBeNull();
+    expect(filters!.height).toBeLessThanOrEqual(refresh!.height + 2);
+    const tops = await browser.evaluate(() =>
+        [...document.querySelectorAll('[aria-label="Filter sessions"] > button')].map((b) => Math.round(b.getBoundingClientRect().top)),
+    );
+    expect(tops).toHaveLength(5);
+    expect(new Set(tops).size).toBe(1);
 });
 
 // Feedback 4f48204e: typing in the top search showed no suggestions.
@@ -70,7 +86,7 @@ test("the top search suggests clients while typing", { session: "owner" }, async
 test("clocking in or out asks first, so a misclick does nothing", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
     await clockInHere(screen, browser);
-    const bar = screen.getByRole("region", "Duty");
+    const bar = screen.getByRole("banner");
     const asked: string[] = [];
     const off = await browser.onDialog(async (d) => {
         asked.push(d.message);
@@ -108,7 +124,7 @@ test("clocking in or out asks first, so a misclick does nothing", { session: "ow
 });
 
 // Feedback b39f4a9e: clocking in from the top left Today locked until a reload.
-test("clocking in from the duty card unlocks Today without a reload", { session: "owner" }, async ({ app, screen, browser }) => {
+test("clocking in from the top bar unlocks Today without a reload", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
     await clockOutHere(screen, browser);
     await clockInHere(screen, browser);
@@ -128,7 +144,7 @@ test("clocking yourself in from Who's clocked in unlocks Today without a reload"
     await off();
     await expect(
         screen
-            .getByRole("region", "Duty")
+            .getByRole("banner")
             .getByRole("button", /Clock out/)
             .first(),
     ).toBeVisible();

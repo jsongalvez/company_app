@@ -3,7 +3,6 @@
 # own build of the web app. Never touches another instance (e.g. the dev server on :18080).
 #   verify.sh up       build web, create DB, start backend, wait until usable
 #   verify.sh doctor   read-only: is OUR instance up, right commit, port ours, login works
-#   verify.sh web      rebuild the web from the working tree into the running copy (no backend restart)
 #   verify.sh shot <route> [name]   drive a page signed in, save desktop + 375px phone screenshots
 #   verify.sh down     stop what `up` started, drop its DB, keep the evidence
 #   verify.sh all <route>...        up, doctor, shot each route, down (down also runs on failure)
@@ -199,7 +198,6 @@ down() {
 case "${1:-}" in
   up) up ;;
   doctor) doctor ;;
-  web) pick_node && build_web && echo "web: rebuilt into $RUN/dist ($(cat "$RUN/web-tree"))" ;;
   shot) shift; shot "$@" ;;
   down) down ;;
   film) shift; film "$@" ;;

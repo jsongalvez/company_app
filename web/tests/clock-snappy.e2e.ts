@@ -45,19 +45,19 @@ async function slowApi(browser: Browser) {
 
 // Feedback (Oct 29): "way too sluggish... It used to be instant." The clock button waited on ~5
 // round trips. It now changes the moment the person confirms; the server catches up behind it.
-test("clock in and out from the duty card show at once on a slow connection", { session: "owner" }, async ({ app, screen, browser }) => {
+test("clock in and out from the top bar show at once on a slow connection", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
     await clockOutHere(screen, browser);
     await slowApi(browser);
-    const bar = screen.getByRole("region", "Duty");
+    const bar = screen.getByRole("banner");
     const off = await browser.onDialog("accept");
 
-    let took = await timeAfterConfirm(browser, 'section[aria-label="Duty"]', "Clock out");
+    let took = await timeAfterConfirm(browser, "header.top", "Clock out");
     await bar.getByRole("button", "Clock in").first().tap();
     expect(await took()).toBeLessThan(100);
     await expect(screen.getByRole("status").filter({ hasText: "Clocked in" })).toBeVisible({ timeout: 10_000 });
 
-    took = await timeAfterConfirm(browser, 'section[aria-label="Duty"]', "Clock in");
+    took = await timeAfterConfirm(browser, "header.top", "Clock in");
     await bar
         .getByRole("button", /Clock out/)
         .first()
@@ -76,12 +76,12 @@ test("your own roster row and the count change at once on a slow connection", { 
     // On Today the owner's own roster row is the one clocked in ("1 of 2 in").
     await screen.getByRole("button", /^Clock out (?!of )\S/).tap();
     expect(await took()).toBeLessThan(100);
-    await expect(screen.getByRole("region", "Duty").getByRole("button", "Clock in")).toBeVisible({ timeout: 300 });
+    await expect(screen.getByRole("banner").getByRole("button", "Clock in")).toBeVisible({ timeout: 300 });
     await off();
     await expect(screen.getByText("0 of 2 in")).toBeVisible({ timeout: 10_000 });
 });
 
-test("a refused clock-out puts the row and the duty card back", { session: "owner" }, async ({ app, screen, browser }) => {
+test("a refused clock-out puts the row and top bar back", { session: "owner" }, async ({ app, screen, browser }) => {
     await app.open("/#/today");
     await clockInHere(screen, browser);
     await expect(screen.getByText("1 of 2 in")).toBeVisible();
@@ -91,7 +91,7 @@ test("a refused clock-out puts the row and the duty card back", { session: "owne
     await screen.getByRole("button", /^Clock out (?!of )\S/).tap();
     await expect(screen.getByRole("status").filter({ hasText: "Already clocked out" })).toBeVisible();
     await expect(screen.getByText("1 of 2 in")).toBeVisible();
-    await expect(screen.getByRole("region", "Duty").getByRole("button", /Clock out/)).toBeVisible();
+    await expect(screen.getByRole("banner").getByRole("button", /Clock out/)).toBeVisible();
     await off();
 });
 
@@ -107,7 +107,7 @@ test("a clock-in is one request: the answer carries the new shift, rights, day a
         await route.fallback();
     });
     const off = await browser.onDialog("accept");
-    await screen.getByRole("region", "Duty").getByRole("button", "Clock in").first().tap();
+    await screen.getByRole("banner").getByRole("button", "Clock in").first().tap();
     await expect(screen.getByRole("status").filter({ hasText: "Clocked in" })).toBeVisible();
     await expect(screen.getByText("1 of 2 in")).toBeVisible();
     await new Promise((r) => setTimeout(r, 2000));

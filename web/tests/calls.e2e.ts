@@ -13,8 +13,7 @@ test("saving and marking a session do not re-read the branch day", { session: "o
     await addDoneSessionForNewClient(screen);
     expect(reads.day).toBe(0);
 
-    // R refreshes everything on Today, the day's status included.
-    await browser.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "r" })));
+    await screen.getByRole("button", "Refresh").tap();
     await expect.poll(() => reads.day).toBe(1);
 });
 
@@ -97,7 +96,7 @@ test("signing in opens the app with one request", async ({ app, screen, browser 
     await screen.getByRole("button", "Sign in").tap();
     await expect(
         screen
-            .getByRole("region", "Duty")
+            .getByRole("banner")
             .getByRole("button", /Clock (in|out)/)
             .first(),
     ).toBeVisible();
@@ -109,7 +108,7 @@ test("opening the app again asks once for everything", { session: "owner" }, asy
     await app.open("/#/today");
     await expect(
         screen
-            .getByRole("region", "Duty")
+            .getByRole("banner")
             .getByRole("button", /Clock (in|out)/)
             .first(),
     ).toBeVisible();
@@ -117,7 +116,7 @@ test("opening the app again asks once for everything", { session: "owner" }, asy
     await browser.reload();
     await expect(
         screen
-            .getByRole("region", "Duty")
+            .getByRole("banner")
             .getByRole("button", /Clock (in|out)/)
             .first(),
     ).toBeVisible();
@@ -130,7 +129,7 @@ test("opening Finance asks for its lists at once", { session: "owner" }, async (
     await app.open("/#/today");
     await expect(
         screen
-            .getByRole("region", "Duty")
+            .getByRole("banner")
             .getByRole("button", /Clock (in|out)/)
             .first(),
     ).toBeVisible();
@@ -234,8 +233,6 @@ test("saving a session with illnesses is one write", { session: "owner" }, async
     await dialog.getByRole("button", "Add session").tap();
     const row = screen.getByRole("row").filter({ hasText: `${first} Tester` });
     await expect(row).toBeVisible();
-    // Today's rows leave illnesses out; the session's own page lists them.
-    await row.getByRole("link").tap();
-    await expect(screen.getByText(`Wrist ${first}`, { exact: false })).toBeVisible();
+    await expect(row.getByText(`Wrist ${first}`, { exact: false })).toBeVisible();
     expect(writes).toEqual(["POST /api/sessions"]);
 });

@@ -28,9 +28,9 @@ export async function signIn(app: App, screen: Screen, username: string, passwor
     return waited;
 }
 
-/** On Today: clock in at the current branch unless already on duty (accepting the "are you sure"). Waits for the duty card to know the shift first. */
+/** Clock in at the current branch unless already on duty (accepting the "are you sure"). Waits for the top bar to know the shift first. */
 export async function clockInHere(screen: Screen, browser: Browser): Promise<void> {
-    const bar = screen.getByRole("region", "Duty");
+    const bar = screen.getByRole("banner");
     await expect(bar.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
     const clockIn = bar.getByRole("button", "Clock in");
     if ((await clockIn.count()) > 0) {
@@ -42,9 +42,9 @@ export async function clockInHere(screen: Screen, browser: Browser): Promise<voi
     await expect(bar.getByRole("button", /Clock out/).first()).toBeVisible();
 }
 
-/** On Today: clock out of the current branch if on duty (accepting the "are you sure"). */
+/** Clock out of the current branch if on duty (accepting the "are you sure"). */
 export async function clockOutHere(screen: Screen, browser: Browser): Promise<void> {
-    const bar = screen.getByRole("region", "Duty");
+    const bar = screen.getByRole("banner");
     await expect(bar.getByRole("button", /Clock (in|out)/).first()).toBeVisible();
     const clockOut = bar.getByRole("button", /Clock out/);
     if ((await clockOut.count()) > 0) {

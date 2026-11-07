@@ -1,6 +1,6 @@
 <script lang="ts">
     import { app, can, canRead, signOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
-    import { today, selectBranch } from "../lib/today.svelte";
+    import { today, selectBranch, clockIn, clockOut } from "../lib/today.svelte";
     import { route, go } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import FullIcon from "./FullIcon.svelte";
@@ -14,9 +14,6 @@
     import { day, label, operationalDate, monthStart, clientName } from "../lib/format";
     import { searchLocal } from "../lib/clientdir.svelte";
     import Today from "../pages/Today.svelte";
-    import Page from "../ui/Page.svelte";
-    import Notice from "../ui/Notice.svelte";
-    import Button from "../ui/Button.svelte";
 
     /** `page`: the screen's code, and `reads`: what it shows first. The menu opening fetches both (reads only if never saved); a touch refetches the reads. */
     type Item = { path: string; text: string; show: boolean; page?: PageName; reads?: () => Loader<unknown>[] };
@@ -165,6 +162,22 @@
         return { mine, rest };
     });
 
+    const here = $derived(app.branches.find((b) => b.branchId === bid));
+    const clockedHere = $derived(today.shift?.branchId === bid);
+    const clockedElsewhere = $derived(!!today.shift && today.shift.branchId !== bid);
+    let clockBusy = $state(false);
+
+    async function doClockIn() {
+        clockBusy = true;
+        await clockIn(bid);
+        clockBusy = false;
+    }
+    async function doClockOut() {
+        clockBusy = true;
+        await clockOut();
+        clockBusy = false;
+    }
+
     let q = $state("");
     let qFocus = $state(false);
     // Suggestions come from the client list kept on the phone, so they show at once, offline too.
@@ -264,6 +277,16 @@
 
         <span class="spacer"></span>
 
+        {#if clockedHere}
+            <button class="clock ok" onclick={doClockOut} disabled={clockBusy} title="On duty here{today.shift?.isRelief ? ' (relief)' : ''}">Clock out</button>
+        {:else if clockedElsewhere}
+            <button class="clock" onclick={doClockOut} disabled={clockBusy} title="Clock out of {today.shift?.branchName}"
+                >Clock out<span class="hide-sm">&nbsp;of {today.shift?.branchName}</span></button
+            >
+        {:else if bid && here && today.shiftKnown}
+            <button class="primary" onclick={doClockIn} disabled={clockBusy}>Clock in</button>
+        {/if}
+
         <a
             class="btn"
             class:active={section === "/notifications"}
@@ -273,12 +296,11 @@
             onclick={toggleAlerts}
             onmouseenter={() => warm(load.notifications())}
         >
-            <svg class="bell" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4" /></svg>{#if app.unread}<b
-                    class="count">{app.unread}</b
-                >{/if}
+            Alerts{#if app.unread}<b class="count">{app.unread}</b>{/if}
         </a>
         <button class="hide-sm" onclick={() => (feedbackOpen = true)}>Feedback</button>
-        <span class="break" aria-hidden="true"></span>
+        <ThemeIcon />
+        <FullIcon />
         <a class="user muted ellipsis" href="#/profile" title="My profile ({app.me?.username})">{app.me?.displayName}</a>
         <button class="ghost" onclick={() => signOut()}>Sign out</button>
     </header>
@@ -300,8 +322,6 @@
             {/if}
         {/each}
         <div class="navfoot faint">
-            <ThemeIcon />
-            <FullIcon />
             <InstallApp />
             <button class="ghost sm menu-only" onclick={() => (feedbackOpen = true)}>Send feedback</button>
             <button class="ghost sm menu-only" onclick={() => signOut()}>Sign out</button>
@@ -311,61 +331,51 @@
     <Feedback bind:open={feedbackOpen} />
 
     <main>
+        {#if !bid && section !== "/relief"}
+            <div class="notice">You aren't assigned to a branch yet. Ask a manager to assign you, or request <a href="#/relief">relief duty</a>.</div>
+        {/if}
         {#if !bid && ["/today", "/inventory", "/finance", "/reports", "/remittance"].includes(section)}
             <!-- these pages show one branch, and there is none -->
-            <Page title="Sessions">
-                <div class="nobranch">
-                    <Notice tone="warn"
-                        >You aren't assigned to a branch yet. Ask a manager to assign you.{#snippet end()}<Button href="#/relief">Request relief duty</Button
-                            >{/snippet}</Notice
-                    >
-                </div>
-            </Page>
+        {:else if section === "/today"}
+            <Today />
+        {:else if section === "/clients" && route.current.parts[1]}
+            <Lazy name="ClientDetail" id={route.current.parts[1]} />
+        {:else if section === "/clients"}
+            <Lazy name="Clients" />
+        {:else if section === "/sessions" && route.current.parts[1]}
+            <Lazy name="SessionDetail" id={route.current.parts[1]} />
+        {:else if section === "/inventory"}
+            <Lazy name="Inventory" />
+        {:else if section === "/finance"}
+            <Lazy name="Finance" />
+        {:else if section === "/pay"}
+            <Lazy name="Payouts" />
+        {:else if section === "/reports"}
+            <Lazy name="Reports" />
+        {:else if section === "/remittance" && route.current.parts[1]}
+            <Lazy name="RemittanceDetail" id={route.current.parts[1]} />
+        {:else if section === "/remittance"}
+            <Lazy name="Remittances" />
+        {:else if section === "/relief"}
+            <Lazy name="Relief" />
+        {:else if section === "/notifications"}
+            <Lazy name="Notifications" />
+        {:else if section === "/users"}
+            <Lazy name="Users" />
+        {:else if section === "/branches"}
+            <Lazy name="Branches" />
+        {:else if section === "/catalog"}
+            <Lazy name="Catalog" />
+        {:else if section === "/feedback"}
+            <Lazy name="FeedbackList" />
+        {:else if section === "/profile"}
+            <Lazy name="Profile" />
+        {:else if section === "/my-history"}
+            <Lazy name="MyHistory" />
+        {:else if section === "/audit"}
+            <Lazy name="Audit" />
         {:else}
-            {#if !bid && section !== "/relief"}
-                <div class="notice">You aren't assigned to a branch yet. Ask a manager to assign you, or request <a href="#/relief">relief duty</a>.</div>
-            {/if}
-            {#if section === "/today"}
-                <Today />
-            {:else if section === "/clients" && route.current.parts[1]}
-                <Lazy name="ClientDetail" id={route.current.parts[1]} />
-            {:else if section === "/clients"}
-                <Lazy name="Clients" />
-            {:else if section === "/sessions" && route.current.parts[1]}
-                <Lazy name="SessionDetail" id={route.current.parts[1]} />
-            {:else if section === "/inventory"}
-                <Lazy name="Inventory" />
-            {:else if section === "/finance"}
-                <Lazy name="Finance" />
-            {:else if section === "/pay"}
-                <Lazy name="Payouts" />
-            {:else if section === "/reports"}
-                <Lazy name="Reports" />
-            {:else if section === "/remittance" && route.current.parts[1]}
-                <Lazy name="RemittanceDetail" id={route.current.parts[1]} />
-            {:else if section === "/remittance"}
-                <Lazy name="Remittances" />
-            {:else if section === "/relief"}
-                <Lazy name="Relief" />
-            {:else if section === "/notifications"}
-                <Lazy name="Notifications" />
-            {:else if section === "/users"}
-                <Lazy name="Users" />
-            {:else if section === "/branches"}
-                <Lazy name="Branches" />
-            {:else if section === "/catalog"}
-                <Lazy name="Catalog" />
-            {:else if section === "/feedback"}
-                <Lazy name="FeedbackList" />
-            {:else if section === "/profile"}
-                <Lazy name="Profile" />
-            {:else if section === "/my-history"}
-                <Lazy name="MyHistory" />
-            {:else if section === "/audit"}
-                <Lazy name="Audit" />
-            {:else}
-                <div class="notice">Page not found. <a href="#/today">Go to Sessions</a></div>
-            {/if}
+            <div class="notice">Page not found. <a href="#/today">Go to Sessions</a></div>
         {/if}
     </main>
 </div>
@@ -378,11 +388,11 @@
     .shell {
         display: grid;
         grid-template-columns: 168px 1fr;
-        grid-template-rows: var(--bar) 1fr;
+        grid-template-rows: 40px 1fr;
         height: 100%;
     }
     .shell.viewing {
-        grid-template-rows: auto var(--bar) 1fr;
+        grid-template-rows: auto 40px 1fr;
     }
     .viewas {
         grid-column: 1 / -1;
@@ -406,44 +416,11 @@
         grid-column: 1 / -1;
         display: flex;
         align-items: center;
-        gap: var(--s2);
-        padding: 0 var(--s2);
+        gap: 8px;
+        padding: 0 10px;
         background: var(--panel);
         border-bottom: 1px solid var(--line-strong);
         min-width: 0;
-    }
-    /* Everything in the top bar is a full-size target on every screen. */
-    .top > button,
-    .top > .btn,
-    .search input,
-    .search button,
-    .branch {
-        min-height: var(--tap);
-    }
-    .menu,
-    .top > a.btn {
-        min-width: var(--tap);
-        justify-content: center;
-    }
-    .top > a.btn:not(.active) {
-        border-color: transparent;
-        background: transparent;
-    }
-    .search input {
-        font-size: var(--t-input);
-    }
-    .branch {
-        font-size: var(--t-title);
-        font-weight: 600;
-        border-color: transparent;
-        background: transparent;
-    }
-    .bell {
-        width: var(--icon);
-        height: var(--icon);
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.8;
     }
     .brand {
         font-weight: 700;
@@ -496,6 +473,9 @@
     .search button {
         margin-left: -1px;
     }
+    .branch {
+        max-width: 200px;
+    }
     .day {
         display: inline-flex;
         gap: 6px;
@@ -506,11 +486,11 @@
         max-width: 140px;
     }
     .count {
-        background: var(--badge);
-        color: var(--badge-text);
-        padding: 0 var(--s1);
-        font-size: var(--t-meta);
-        line-height: var(--lh-tight);
+        background: var(--bad);
+        color: #fff;
+        padding: 0 4px;
+        font-size: 11px;
+        line-height: 16px;
     }
     .menu {
         display: none;
@@ -563,16 +543,6 @@
         padding: 12px;
         min-width: 0;
     }
-    .break {
-        display: none;
-    }
-    .nobranch {
-        margin: var(--s3) var(--s4) 0;
-    }
-    /* A page on the kit lays out its own edges. */
-    main:has(> :global(.k-page)) {
-        padding: 0;
-    }
 
     /* Tablet: drop secondary top-bar items. */
     @media (max-width: 1100px) {
@@ -603,8 +573,8 @@
         }
         .top {
             flex-wrap: wrap;
-            padding: var(--s1) var(--s2);
-            gap: var(--s1);
+            padding: 6px 8px;
+            gap: 6px;
         }
         .menu {
             display: inline-flex;
@@ -629,17 +599,15 @@
             flex: none;
             order: 9;
         }
-        /* Search starts the second row; the first keeps the menu, the branch and Alerts. */
-        .break {
-            display: block;
-            order: 8;
-            flex-basis: 100%;
-            height: 0;
-        }
         .day,
         .top > button:not(.menu):not(.primary),
         .top > .spacer {
             display: none;
+        }
+        .top > button.primary,
+        .top > button.clock:not(.menu),
+        .top > :global(button.full) {
+            display: inline-flex;
         }
         nav {
             display: none;
@@ -664,9 +632,6 @@
         }
         main {
             padding: 8px;
-        }
-        main:has(> :global(.k-page)) {
-            padding: 0;
         }
     }
 </style>
