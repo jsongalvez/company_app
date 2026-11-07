@@ -63,11 +63,25 @@ for (const r of roles) {
             await nav.getByRole("link", "Stock").tap();
             await screen.getByRole("button", "Product sale").tap();
             const sale = screen.getByRole("dialog", "Product sale");
-            await sale.getByLabel(/^Product/).selectOption({ label: "Role test oil · 100.00 · 50 left" });
+            // Other tests sell this product too, so the stock is read, not assumed.
+            const oilOption = () =>
+                browser.evaluate(
+                    () =>
+                        [...document.querySelectorAll("dialog[open] option")].map((o) => o.textContent ?? "").find((t) => t.startsWith("Role test oil")) ?? "",
+                );
+            await expect.poll(oilOption).toMatch(/^Role test oil · 100\.00 · \d+ left$/);
+            const oil = await oilOption();
+            const left = Number(/(\d+) left$/.exec(oil)?.[1]);
+            await sale.getByLabel(/^Product/).selectOption({ label: oil });
             await sale.getByLabel(/^Quantity/).fill("1");
             await sale.getByRole("button", "Record sale").tap();
             await expect(sale).toBeHidden();
-            await expect(screen.getByRole("row").filter({ hasText: "Role test oil" }).getByText("49", { exact: true })).toBeVisible();
+            await expect(
+                screen
+                    .getByRole("row")
+                    .filter({ hasText: "Role test oil" })
+                    .getByText(String(left - 1), { exact: true }),
+            ).toBeVisible();
 
             // Finance: the session is listed, and an expense goes in.
             await nav.getByRole("link", "Expenses & pay").tap();
