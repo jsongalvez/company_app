@@ -3,6 +3,8 @@ package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.commerce.ProductSaleRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -18,6 +20,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -50,7 +53,6 @@ class PastDayAddAuthzTest : BasePostgresTest() {
     private val existingSession = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val yesterday = TestFixtures.today.minusDays(1)
     private lateinit var yesterdayId: UUID
     private lateinit var remittedId: UUID
@@ -63,9 +65,7 @@ class PastDayAddAuthzTest : BasePostgresTest() {
         yesterdayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, yesterday)
         remittedId = BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today.minusDays(2))
         SessionClientFixtures.insertTestSession(existingSession, clientId, yesterdayId)
-        for (code in listOf(CapabilityCodes.VIEW_BRANCH_DATA, CapabilityCodes.EDIT_BRANCH_DATA)) {
-            IdentityFixtures.grantCapability(staff, code, CapabilityContextType.BRANCH, branchId, sourceId)
-        }
+        AccessFixtures.allow(staff, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
         SessionBaseRateService.setRate(staff, TestFixtures.uuid(), branchId, SessionType.REGULAR, BigDecimal("2500.00"))
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)

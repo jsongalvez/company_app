@@ -1,6 +1,7 @@
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.branchday.BranchDayRepository
 import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.InventoryMovementTable
@@ -11,6 +12,7 @@ import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -56,11 +58,10 @@ import kotlin.test.fail
  */
 class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "sale-movement-lock-caller")
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
     }
 
     @Test

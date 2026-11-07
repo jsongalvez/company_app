@@ -3,6 +3,8 @@ package com.companyb.companyapp.audit
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditValues
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.audit.AuditAction
@@ -16,6 +18,7 @@ import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -56,22 +59,9 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "audit-coverage-caller")
         IdentityFixtures.insertTestUser(practitionerId, "audit-coverage-practitioner")
         BranchWorkforceFixtures.insertTestBranch(branchId)
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
-        IdentityFixtures.grantVoidSession(callerId, TestFixtures.uuid())
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = com.companyb.companyapp.contracts.authorization.CapabilityCodes.VOID_SESSION,
-            contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
+        AccessFixtures.allow(callerId, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+        AccessFixtures.allow(callerId, Act.VOID, Place.Branch(branchId))
         transaction {
             UserBranchAssignmentRepository.createInTransaction(
                 UserBranchAssignmentCreateParams(

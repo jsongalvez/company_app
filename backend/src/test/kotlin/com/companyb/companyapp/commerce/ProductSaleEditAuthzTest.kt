@@ -21,6 +21,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -85,13 +86,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         )
         IdentityFixtures.insertTestUser(relief, "relief")
         assignRole(relief, "PRACTITIONER")
-        IdentityFixtures.grantCapability(
-            relief,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH_DAY,
-            todayId,
-            TestFixtures.uuid(),
-        )
+        AccessFixtures.relief(relief, todayId)
         val category = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestCategory(category)
         CommerceFinanceFixtures.insertTestProduct(

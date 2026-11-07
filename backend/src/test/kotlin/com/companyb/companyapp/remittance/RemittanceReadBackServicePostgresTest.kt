@@ -2,6 +2,8 @@
 
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.contracts.audit.AuditAction
@@ -22,6 +24,7 @@ import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -49,7 +52,6 @@ import kotlin.test.assertTrue
 
 class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
@@ -69,7 +71,7 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
 
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Remittance Branch ${TestFixtures.uuid()}")
 
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
+        AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
     }
 
     // ──────────────────────────────────────────────

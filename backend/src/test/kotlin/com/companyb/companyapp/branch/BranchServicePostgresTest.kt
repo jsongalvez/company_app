@@ -1,9 +1,11 @@
 package com.companyb.companyapp.branch
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -20,7 +22,6 @@ import kotlin.test.assertTrue
 
 class BranchServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val clinicId = TestFixtures.uuid()
     private val provincialTourId = TestFixtures.uuid()
     private val medicalMissionId = TestFixtures.uuid()
@@ -32,7 +33,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create persists all branch types and writes audit row`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.MANAGE_USERS)
 
         val clinic = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         val tour = BranchService.create(callerId, provincialTourId, "Cebu Tour", BranchType.PROVINCIAL_TOUR)
@@ -55,7 +56,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing branch without extra audit`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.MANAGE_USERS)
 
         val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         // #418 — branch creation seeds five default base rates as a side effect.
@@ -84,7 +85,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id and list return persisted branches`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.MANAGE_USERS)
 
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
@@ -120,7 +121,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_USERS is allowed at service layer`() {
         val newBranchId = TestFixtures.uuid()
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.MANAGE_USERS)
         BranchService.create(callerId, newBranchId, "Find Branch", BranchType.CLINIC)
         // #418 — branch creation seeds five default base rates as a side effect.
 

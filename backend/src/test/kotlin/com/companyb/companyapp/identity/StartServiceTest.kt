@@ -1,10 +1,13 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.session.dashboard.TodayScreenService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.AttendanceService
@@ -38,13 +41,7 @@ class StartServiceTest : BasePostgresTest() {
         }
         // Staff work at their branch: the day is read for them (a global grant does not count here).
         listOf(onDuty, offDuty).forEach {
-            IdentityFixtures.grantCapability(
-                it,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH,
-                branchA,
-                boss,
-            )
+            AccessFixtures.allow(it, Act.WORK_HOME_BRANCH, Place.Branch(branchA))
         }
         AttendanceService.clockIn(TestFixtures.uuid(), branchA, onDuty)
     }

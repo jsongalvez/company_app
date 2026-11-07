@@ -25,6 +25,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -70,7 +71,6 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     private val bobUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var tomorrow: LocalDate
     private lateinit var yesterday: LocalDate
@@ -306,13 +306,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `invitee with an active grant for the day conflicts`() {
-        IdentityFixtures.grantCapability(
-            userId = invitee,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = tomorrowDayId,
-            sourceId = sourceId,
-        )
+        AccessFixtures.relief(invitee, tomorrowDayId)
         testServer.client.let { client ->
             val response =
                 client.post(
@@ -662,13 +656,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `candidates exclude self, live invitees and granted users`() {
-        IdentityFixtures.grantCapability(
-            userId = otherInvitee,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = tomorrowDayId,
-            sourceId = sourceId,
-        )
+        AccessFixtures.relief(otherInvitee, tomorrowDayId)
         testServer.client.let { client ->
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
 

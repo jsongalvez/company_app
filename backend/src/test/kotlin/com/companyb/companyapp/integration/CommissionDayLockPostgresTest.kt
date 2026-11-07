@@ -1,6 +1,8 @@
 package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionTable
@@ -12,6 +14,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -37,7 +40,6 @@ import kotlin.test.assertTrue
 class CommissionDayLockPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
@@ -88,7 +90,7 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `create on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val inclusionId = TestFixtures.uuid()
         val inclusion =

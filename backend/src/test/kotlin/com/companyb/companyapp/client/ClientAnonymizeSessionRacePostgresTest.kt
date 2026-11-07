@@ -1,6 +1,8 @@
 package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.client.Gender
@@ -15,6 +17,7 @@ import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -59,20 +62,8 @@ class ClientAnonymizeSessionRacePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(practitionerId, "anon-race-practitioner")
         IdentityFixtures.insertTestUser(contenderPractitionerId, "anon-race-contender")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Anon Race Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        AccessFixtures.allow(callerId, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+        AccessFixtures.allow(callerId, Act.SEE_BRANCH, Place.Branch(branchId))
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, callerId)
         BranchWorkforceFixtures.insertTestAssignment(
             userId = practitionerId,

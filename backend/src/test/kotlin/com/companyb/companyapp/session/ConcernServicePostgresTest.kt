@@ -1,5 +1,7 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -11,6 +13,7 @@ import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -39,7 +42,6 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     private val sessionId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val rateId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val systemConcernId = TestFixtures.uuid()
     private val promotedSessionId = TestFixtures.uuid()
     private val promotedClientId = TestFixtures.uuid()
@@ -49,7 +51,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId)
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestClient(promotedClientId)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
         SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
         createSession(callerId, sessionId)
         createSession(callerId, promotedSessionId, clientId = promotedClientId)
@@ -131,7 +133,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val remittedSessionId = TestFixtures.uuid()
         val remittedClientId = SessionClientFixtures.insertTestClient()
         SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         SessionConcernService.addToSession(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
 
@@ -288,7 +290,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val remittedSessionId = TestFixtures.uuid()
         val remittedClientId = SessionClientFixtures.insertTestClient()
         SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         SessionConcernService.addToSession(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
 

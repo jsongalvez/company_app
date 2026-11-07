@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.contracts.workforce.CreateAssignmentRequest
 import com.companyb.companyapp.contracts.workforce.SwapSlotsRequest
@@ -15,6 +16,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
@@ -55,7 +57,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         listOf(managerUser, noGrantUser, userAId, userBId).forEach { id ->
             IdentityFixtures.insertTestUser(id, id.toString().take(6))
         }
-        IdentityFixtures.grantManageUsers(managerUser, managerUser)
+        AccessFixtures.allow(managerUser, Act.MANAGE_USERS)
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch 134")
         assignmentAId =
             BranchWorkforceFixtures.insertTestAssignment(

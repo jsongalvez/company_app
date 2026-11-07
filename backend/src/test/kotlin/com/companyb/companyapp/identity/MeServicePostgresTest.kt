@@ -1,10 +1,12 @@
 package com.companyb.companyapp.identity
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import java.util.UUID
 import kotlin.test.Test
@@ -14,7 +16,6 @@ import kotlin.test.assertTrue
 
 class MeServicePostgresTest : BasePostgresTest() {
     private val userId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val inactiveUserId = TestFixtures.uuid()
 
     override fun initTestData() {
@@ -63,16 +64,21 @@ class MeServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getCapabilities returns capabilities for user with grants`() {
-        IdentityFixtures.grantEditBranchData(userId, sourceId)
-        IdentityFixtures.grantManageProducts(userId, sourceId)
+    fun `getCapabilities returns a practitioner member's capabilities`() {
+        AccessFixtures.allow(userId, Act.WORK_ANYWHERE)
 
         val capabilities = MeService.getCapabilities(userId)
 
-        val codes = capabilities.map { it.capabilityCode }.toSet()
-        assertEquals(2, capabilities.size)
-        assertTrue(CapabilityCodes.EDIT_BRANCH_DATA in codes)
-        assertTrue(CapabilityCodes.MANAGE_PRODUCTS in codes)
+        assertEquals(
+            setOf(
+                CapabilityCodes.MANAGE_CATALOG,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityCodes.VOID_SESSION,
+                CapabilityCodes.VIEW_COMMISSION,
+            ),
+            capabilities.map { it.capabilityCode }.toSet(),
+        )
     }
 
     @Test
@@ -83,7 +89,7 @@ class MeServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getCapabilities excludes inactive users`() {
-        IdentityFixtures.grantEditBranchData(inactiveUserId, sourceId)
+        AccessFixtures.allow(inactiveUserId, Act.WORK_ANYWHERE)
 
         val capabilities = MeService.getCapabilities(inactiveUserId)
         assertTrue(capabilities.isEmpty())

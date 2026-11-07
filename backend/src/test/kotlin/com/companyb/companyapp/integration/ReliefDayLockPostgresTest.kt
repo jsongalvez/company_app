@@ -1,6 +1,9 @@
 package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
@@ -13,6 +16,7 @@ import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.relief.ReliefAccessRepository
@@ -43,7 +47,6 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     private val requesterId = TestFixtures.uuid()
     private val inviteeId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -152,7 +155,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, sourceId)
+        AccessFixtures.allow(memberId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 
@@ -176,7 +179,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, sourceId)
+        AccessFixtures.allow(memberId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val result = ReliefAccessService.denyAccess(requestId, memberId, "Coordinator correction")
 
@@ -197,7 +200,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `request on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(requesterId, branchId, sourceId)
+        AccessFixtures.hold(requesterId, Role.SUPERUSER)
 
         val requestId = TestFixtures.uuid()
         val result =

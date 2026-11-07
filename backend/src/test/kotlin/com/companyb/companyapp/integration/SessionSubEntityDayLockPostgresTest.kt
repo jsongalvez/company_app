@@ -1,6 +1,8 @@
 package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
@@ -16,6 +18,7 @@ import com.companyb.companyapp.session.SessionPractitionerService
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -42,7 +45,6 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val systemConcernId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
@@ -103,7 +105,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `practitioner add on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val result =
             SessionPractitionerService.addPractitioner(
@@ -132,7 +134,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `concern add on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         SessionConcernService.addToSession(callerId, sessionId, systemConcernId, "Coordinator correction")
 

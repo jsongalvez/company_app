@@ -1,6 +1,8 @@
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -12,6 +14,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -43,13 +46,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(outsider, "price-outsider")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Price Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
-        IdentityFixtures.grantCapability(
-            userId = member,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        AccessFixtures.allow(member, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
         CommerceFinanceFixtures.insertTestProduct(otherProductId, categoryId = categoryId)

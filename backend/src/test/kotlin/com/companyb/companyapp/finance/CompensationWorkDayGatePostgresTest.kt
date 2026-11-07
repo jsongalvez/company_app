@@ -1,10 +1,13 @@
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
@@ -26,7 +29,6 @@ import kotlin.test.assertNull
 class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var payingBranchDayId: UUID
@@ -37,7 +39,7 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Compensation Branch")
         BranchWorkforceFixtures.createBranchDayForToday(branchId)
         payingBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.PAY)
     }
 
     @Test
@@ -47,7 +49,7 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val compId = TestFixtures.uuid()
 
         val comp =
@@ -107,7 +109,7 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         assertFailsWith<ValidationException> {
             CompensationService.create(
@@ -129,7 +131,7 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val compId = TestFixtures.uuid()
 
         val comp =
@@ -165,7 +167,7 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val compId = TestFixtures.uuid()
         val created =
             CompensationService.create(
@@ -197,7 +199,7 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val compId = TestFixtures.uuid()
         val created =
             CompensationService.create(

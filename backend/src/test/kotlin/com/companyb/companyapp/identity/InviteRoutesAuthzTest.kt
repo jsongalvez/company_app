@@ -1,6 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -12,6 +13,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
@@ -55,7 +57,7 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
     fun `manager mints over http, the invitee accepts unauthenticated, then logs in`() {
         val caller = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(caller, "http-manager")
-        IdentityFixtures.grantManageUsers(caller, TestFixtures.uuid())
+        AccessFixtures.allow(caller, Act.MANAGE_USERS)
         // The server-side mint authors its audit rows as the caller — they FK app_user.
 
         val mintResponse =

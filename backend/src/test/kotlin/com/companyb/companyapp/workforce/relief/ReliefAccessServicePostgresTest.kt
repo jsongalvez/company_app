@@ -1,6 +1,8 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -17,6 +19,7 @@ import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.AttendanceTable
@@ -424,7 +427,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
-        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, TestFixtures.uuid())
+        AccessFixtures.allow(memberId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 

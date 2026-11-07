@@ -1,5 +1,7 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientService
@@ -27,6 +29,7 @@ import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -66,7 +69,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
     private val rateId = TestFixtures.uuid()
     private val secondSessionRateId = TestFixtures.uuid()
     private val subsequentRateId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val walkInSessionId = TestFixtures.uuid()
     private val practitionerId = TestFixtures.uuid()
     private val practitionerSessionId = TestFixtures.uuid()
@@ -79,8 +81,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         SessionClientFixtures.insertTestClient(clientId)
 
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
-        IdentityFixtures.grantVoidSession(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
 
         SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
         SessionClientFixtures.insertTestBaseRate(
@@ -266,7 +267,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `an earlier day's session can go back to waiting while the client waits today`() {
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val yesterday = BranchDayService.resolveOrCreate(branchId, TestFixtures.today.minusDays(1))
         val earlierId = TestFixtures.uuid()
         SessionClientFixtures.insertTestSession(
@@ -350,7 +351,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `coordinator create on REMITTED today without reason is rejected with no row written`() {
         BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val blockedId = TestFixtures.uuid()
 
         assertFailsWith<ValidationException> {
@@ -363,7 +364,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `coordinator create on REMITTED today with reason succeeds and flags audit`() {
         BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val result = createSession(callerId, sessionId, reason = "Late walk-in after remittance")
 
@@ -721,14 +722,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `a branch member applies every booked correction edge and audit status before and after`() {
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
-        IdentityFixtures.grantCapability(
-            callerId,
-            CapabilityCodes.VOID_SESSION,
-            CapabilityContextType.BRANCH,
-            branchId,
-            sourceId,
-        )
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
+        AccessFixtures.allow(callerId, Act.VOID, Place.Branch(branchId))
 
         val edges =
             listOf(
@@ -761,7 +756,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `reopening session conflicts when client already has a pending session`() {
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val day = BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
         val sharedClientId = SessionClientFixtures.insertTestClient()
         val pendingSessionId = TestFixtures.uuid()
@@ -781,7 +776,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `completed status cannot be corrected through status endpoint`() {
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val completedSessionId = insertSessionWithStatus(SessionStatus.COMPLETED)
 
         assertFailsWith<ValidationException> {
@@ -794,7 +789,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         createSession(callerId, sessionId)
         SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, 1)
         ClientService.anonymize(callerId, clientId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         assertFailsWith<ConflictException> {
             SessionService.updateStatus(callerId, sessionId, SessionStatus.PENDING, 2)
@@ -907,13 +902,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
             SessionService.updateStatus(callerId, pastSessionId, SessionStatus.CANCELLED, 1)
         }
 
-        IdentityFixtures.grantCapability(
-            callerId,
-            CapabilityCodes.VOID_SESSION,
-            CapabilityContextType.BRANCH,
-            branchId,
-            sourceId,
-        )
+        AccessFixtures.allow(callerId, Act.VOID, Place.Branch(branchId))
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, pastSessionId, SessionStatus.CANCELLED, 1)
         }
@@ -939,7 +928,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
             SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.PENDING, 1)
         }
 
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.PENDING, 1)
@@ -1185,7 +1174,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val remittedDayId = insertRemittedDay()
         val remittedSessionId = TestFixtures.uuid()
         insertSessionOnDay(remittedSessionId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.COMPLETED, 1)
@@ -1197,7 +1186,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val remittedDayId = insertRemittedDay()
         val remittedSessionId = TestFixtures.uuid()
         insertSessionOnDay(remittedSessionId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val updated =
             SessionService.updateStatus(
@@ -1219,7 +1208,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val remittedDayId = insertRemittedDay()
         val remittedSessionId = TestFixtures.uuid()
         insertSessionOnDay(remittedSessionId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
 
         val voidId = TestFixtures.uuid()
         val result = SessionService.voidSession(callerId, remittedSessionId, voidId, "Customer request")

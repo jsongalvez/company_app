@@ -1,4 +1,6 @@
 package com.companyb.companyapp.notification
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
@@ -13,6 +15,7 @@ import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -70,7 +73,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         SessionClientFixtures.insertTestClient(clientId)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
         allTestUsers.forEach { userId ->
         }
         SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
@@ -90,7 +93,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler creates notifications for coordinator with assignment`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -130,7 +133,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler skips if all notifications already exist`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -192,7 +195,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler does not notify coordinator without active assignment`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
 
@@ -202,7 +205,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler does not notify coordinator assigned to different branch`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, otherBranchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -212,21 +215,8 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `scheduler scopes capability to matching assignment branch`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
-        insertUserBranchAssignment(coordinatorId, branchId)
-        insertUserBranchAssignment(coordinatorId, otherBranchId)
-
-        val coordinatorsByBranch =
-            NextAppointmentRepository.findActiveCoordinatorsForBranches(listOf(branchId, otherBranchId))
-
-        assertEquals(listOf(coordinatorId), coordinatorsByBranch[branchId])
-        assertEquals(null, coordinatorsByBranch[otherBranchId])
-    }
-
-    @Test
     fun `scheduler does not notify manager without coordinator capability`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, branchId)
         val managerId = unassignedCoordinatorId
         insertUserBranchAssignment(managerId, branchId)
@@ -239,7 +229,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler does not include voided sessions`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -251,7 +241,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler only includes COMPLETED sessions`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val completedSessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -269,7 +259,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     @Test
     fun `scheduler only matches exact target date`() {
-        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        grantReceiveNextAppointmentAlerts(coordinatorId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -365,17 +355,8 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         }
     }
 
-    private fun grantReceiveNextAppointmentAlerts(
-        userId: UUID,
-        branchId: UUID,
-    ) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+    private fun grantReceiveNextAppointmentAlerts(userId: UUID) {
+        AccessFixtures.hold(userId, Role.COORDINATOR)
     }
 
     private fun insertUserBranchAssignment(

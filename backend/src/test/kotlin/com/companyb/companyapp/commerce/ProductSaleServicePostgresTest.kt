@@ -1,5 +1,7 @@
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.InventoryMovementTable
@@ -13,6 +15,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -42,7 +45,6 @@ import kotlin.test.assertTrue
 @Suppress("LargeClass") // #597
 class ProductSaleServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
@@ -61,7 +63,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
         ensureInventoryCard(branchId, productId, 20)
     }
 
@@ -94,7 +96,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val saleId = TestFixtures.uuid()
 
         val sale =
@@ -132,7 +134,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val clockBase = TestFixtures.realNow().atOffset(ZoneOffset.UTC)
         transaction {
             AttendanceTable.insert {
@@ -394,7 +396,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell without EDIT_BRANCH_DATA is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
+        AccessFixtures.revokeAll(callerId)
 
         val sale =
             ProductSaleService.sell(

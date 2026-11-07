@@ -1,5 +1,6 @@
 package com.companyb.companyapp.finance
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -7,6 +8,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
@@ -30,7 +32,6 @@ import kotlin.test.assertTrue
 class CompensationServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var workBranchDayId: UUID
@@ -42,7 +43,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Compensation Branch")
         workBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         payingBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.PAY)
     }
 
     @Test
@@ -214,7 +215,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
+        AccessFixtures.revokeAll(callerId)
 
         val compId = TestFixtures.uuid()
         val comp =
@@ -437,7 +438,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             note = null,
         )
 
-        IdentityFixtures.revokeAllCapabilities(callerId)
+        AccessFixtures.revokeAll(callerId)
 
         val updated =
             CompensationService.update(

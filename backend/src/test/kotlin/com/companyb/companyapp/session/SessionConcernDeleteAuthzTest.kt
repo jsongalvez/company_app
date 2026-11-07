@@ -1,6 +1,8 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -16,6 +18,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -53,7 +56,6 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
     private val concernId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -78,29 +80,11 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
         insertSessionConcern(sessionId, concernId)
 
         // editorUser: BRANCH grant at the session's branch.
-        IdentityFixtures.grantCapability(
-            userId = editorUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        AccessFixtures.allow(editorUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
         // reliefUser: BRANCH_DAY grant for the session's exact day (the #157 relief form).
-        IdentityFixtures.grantCapability(
-            userId = reliefUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = branchDayId,
-            sourceId = sourceId,
-        )
+        AccessFixtures.relief(reliefUser, branchDayId)
         // wrongBranchUser: BRANCH grant at a different branch.
-        IdentityFixtures.grantCapability(
-            userId = wrongBranchUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = otherBranchId,
-            sourceId = sourceId,
-        )
+        AccessFixtures.allow(wrongBranchUser, Act.WORK_HOME_BRANCH, Place.Branch(otherBranchId))
         // noGrantUser: deliberately no grant.
     }
 

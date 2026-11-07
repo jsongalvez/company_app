@@ -1,10 +1,12 @@
 package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.AttendanceRepository
@@ -75,7 +77,7 @@ class AttendanceMarkLockOrderPostgresTest : BasePostgresTest() {
                 slot = 2,
                 assignedBy = managerId,
             )
-        IdentityFixtures.grantManageUsers(managerId, managerId)
+        AccessFixtures.allow(managerId, Act.MANAGE_USERS)
     }
 
     @Test

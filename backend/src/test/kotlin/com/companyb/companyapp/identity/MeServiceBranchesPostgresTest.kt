@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.AttendanceRepository
@@ -97,13 +98,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         val today = BranchDayService.resolveOrCreate(reliefBranch, TestFixtures.today)
         val tomorrow = BranchDayService.resolveOrCreate(branchB, TestFixtures.today.plusDays(1))
         for (day in listOf(today, tomorrow)) {
-            IdentityFixtures.grantCapability(
-                userId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH_DAY,
-                day.id,
-                TestFixtures.uuid(),
-            )
+            AccessFixtures.relief(userId, day.id)
         }
 
         val branches = MeService.getBranches(userId)

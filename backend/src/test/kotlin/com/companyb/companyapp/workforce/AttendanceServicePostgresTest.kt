@@ -3,6 +3,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commission.CommissionService
@@ -12,6 +13,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.AttendanceRepository
@@ -42,7 +44,6 @@ import kotlin.time.measureTimedValue
 class AttendanceServicePostgresTest : BasePostgresTest() {
     private val userId = TestFixtures.uuid()
     private val otherUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
 
@@ -178,7 +179,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockIn sets isRelief false when branch assignment exists`() {
-        IdentityFixtures.grantManageUsers(userId, sourceId)
+        AccessFixtures.allow(userId, Act.MANAGE_USERS)
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(userId, assignmentId, branchId, userId, 1)
 

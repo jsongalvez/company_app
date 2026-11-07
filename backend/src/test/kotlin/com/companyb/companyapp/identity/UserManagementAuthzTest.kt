@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
@@ -18,6 +19,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -60,7 +62,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         listOf(managerUser, noGrantUser, targetUser).forEach { id ->
             IdentityFixtures.insertTestUser(id, id.toString().take(6))
         }
-        IdentityFixtures.grantManageUsers(managerUser, managerUser)
+        AccessFixtures.allow(managerUser, Act.MANAGE_USERS)
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch")
         val targetUserId = this@UserManagementAuthzTest.targetUser
         val assignmentId = TestFixtures.uuid()

@@ -19,6 +19,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -80,13 +81,7 @@ class BranchMemberEditAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(relief, "relief")
         assignRole(relief, "PRACTITIONER")
         for (day in listOf(todayId, yesterdayId)) {
-            IdentityFixtures.grantCapability(
-                relief,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH_DAY,
-                day,
-                TestFixtures.uuid(),
-            )
+            AccessFixtures.relief(relief, day)
         }
     }
 

@@ -1,6 +1,8 @@
 package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.branchday.DayStatus
@@ -15,6 +17,7 @@ import com.companyb.companyapp.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
@@ -42,7 +45,6 @@ import kotlin.test.assertTrue
  */
 class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private val rangeStart = LocalDate.of(2026, 7, 1)
@@ -53,7 +55,7 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "remittance-agg-lock")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Agg Lock Branch ${TestFixtures.uuid()}")
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
+        AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
     }
 
     @Test

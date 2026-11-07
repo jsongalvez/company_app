@@ -2,7 +2,6 @@ package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import io.javalin.http.Context
@@ -32,47 +31,6 @@ enum class Reach {
 
     /** A BRANCH grant at the place's branch, a GLOBAL grant, or a BRANCH_DAY grant for the place's day. */
     HOME_OR_EVERYWHERE_OR_DAY,
-}
-
-/**
- * Every action the server gates, with the capability it needs and the grants that count. This is
- * the one place to read who may do what; `AccessTableTest` pins the outcome per role and day.
- * Day state (closed and remitted days) is checked on top by `BranchDayService`, using
- * [CHANGE_CLOSED_DAY]. A read (GET) of an edit route also passes on [whenReading]: whoever may see
- * the place may read what its members read there.
- */
-enum class Act(
-    val code: String,
-    val reach: Reach,
-    whenReading: Act? = null,
-) {
-    SEE_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE),
-    SEE_EVERY_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.EVERYWHERE),
-    SEE_DAY(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE_OR_DAY),
-    SEE_ANYWHERE(CapabilityCodes.VIEW_BRANCH_DATA, Reach.ANYWHERE),
-    WORK_DAY(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME_OR_DAY, SEE_DAY),
-    WORK_HOME_BRANCH(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME, SEE_BRANCH),
-    WORK_ANYWHERE(CapabilityCodes.EDIT_BRANCH_DATA, Reach.ANYWHERE, SEE_ANYWHERE),
-    VOID(CapabilityCodes.VOID_SESSION, Reach.HOME_OR_DAY),
-
-    /** What members earned in commission: only the branch's members and its relief for the day. */
-    SEE_COMMISSION(CapabilityCodes.VIEW_COMMISSION, Reach.HOME_OR_DAY),
-    CHANGE_CLOSED_DAY(CapabilityCodes.EDIT_PAST_DAY, Reach.HOME),
-    PAY(CapabilityCodes.ASSIGN_COMPENSATION, Reach.HOME_OR_EVERYWHERE),
-
-    // The user: "Accountants see remittance lists (view only, any branch)"; so does anyone who sees every branch.
-    SUBMIT_REMITTANCE(CapabilityCodes.SUBMIT_REMITTANCE, Reach.HOME, SEE_EVERY_BRANCH),
-    MANAGE_STOCK(CapabilityCodes.MANAGE_PRODUCTS, Reach.HOME),
-    MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, Reach.EVERYWHERE),
-    MANAGE_USERS(CapabilityCodes.MANAGE_USERS, Reach.EVERYWHERE),
-
-    /** "Erase personal details": Coordinator and up, member or not. */
-    ERASE_CLIENT(CapabilityCodes.ERASE_CLIENT, Reach.EVERYWHERE),
-    ASSIGN_DELEGATE(CapabilityCodes.ASSIGN_DELEGATE, Reach.EVERYWHERE),
-    ;
-
-    /** The act a GET of this act's routes asks for. */
-    val whenReading: Act = whenReading ?: this
 }
 
 /** Where an action happens. */
@@ -113,7 +71,7 @@ sealed interface Place {
 object Access {
     /**
      * The grant rows that count for [reach] at [place], or null when a grant of the code anywhere counts.
-     * The web mirrors this (`web/src/lib/grants.ts`); `WebAccessTableTest` renders its outcomes for the web's test.
+     * The web's copy of the old grant rules (`web/src/lib/grants.ts`) still reads it, through `WebAccessTableTest`.
      */
     fun contextsFor(
         reach: Reach,

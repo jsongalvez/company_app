@@ -5,6 +5,8 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -23,6 +25,7 @@ import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
@@ -44,7 +47,6 @@ import kotlin.test.assertTrue
 
 class ExpenseServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
@@ -53,7 +55,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "expense-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Expense Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        grantEditBranchData(callerId)
+        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
     }
 
     @Test
@@ -157,13 +159,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val otherSourceId = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Expense Branch")
         val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = otherBranchId,
-            sourceId = otherSourceId,
-        )
+        AccessFixtures.allow(callerId, Act.WORK_HOME_BRANCH, Place.Branch(otherBranchId))
         val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
@@ -191,7 +187,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     fun `create rejects same UUID for another creator`() {
         val otherCallerId = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(otherCallerId, "expense-other-caller")
-        grantEditBranchData(otherCallerId)
+        AccessFixtures.allow(otherCallerId, Act.WORK_ANYWHERE)
         val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
@@ -266,7 +262,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without EDIT_BRANCH_DATA is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
+        AccessFixtures.revokeAll(callerId)
 
         val expense =
             ExpenseService.create(
@@ -577,7 +573,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 notes = "Test",
             )
 
-        IdentityFixtures.revokeAllCapabilities(callerId)
+        AccessFixtures.revokeAll(callerId)
 
         val deleted =
             ExpenseService.softDelete(
@@ -869,7 +865,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val expenseId = TestFixtures.uuid()
         val createdRemitted =
             ExpenseService.create(
@@ -903,7 +899,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val expenseId = TestFixtures.uuid()
         val createdRemittedWithReason =
             ExpenseService.create(
@@ -984,7 +980,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val auditsBefore = callerAuditCount()
 
         assertFailsWith<ValidationException> {
@@ -1007,7 +1003,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
         val expenseId = TestFixtures.uuid()
 
         val expense =
@@ -1337,12 +1333,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantEditBranchData(userId: UUID) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        AccessFixtures.allow(userId, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
     }
 }

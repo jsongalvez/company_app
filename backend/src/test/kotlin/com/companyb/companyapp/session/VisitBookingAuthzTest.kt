@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -13,6 +14,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -34,13 +36,7 @@ class VisitBookingAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(viewer, "booking-viewer")
         IdentityFixtures.insertTestUser(outsider, "booking-outsider")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Booking Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = viewer,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = TestFixtures.uuid(),
-        )
+        AccessFixtures.allow(viewer, Act.SEE_EVERY_BRANCH)
     }
 
     companion object {

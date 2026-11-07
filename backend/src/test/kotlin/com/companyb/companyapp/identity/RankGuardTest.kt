@@ -14,6 +14,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -72,13 +73,7 @@ class RankGuardTest : BasePostgresTest() {
             )
         }
         val elsewhereToday = BranchWorkforceFixtures.createBranchDayForDate(elsewhere, TestFixtures.today)
-        IdentityFixtures.grantCapability(
-            relief,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH_DAY,
-            elsewhereToday,
-            TestFixtures.uuid(),
-        )
+        AccessFixtures.relief(relief, elsewhereToday)
     }
 
     @Test

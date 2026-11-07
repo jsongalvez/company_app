@@ -21,6 +21,7 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
@@ -44,7 +45,6 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     private val targetUser = TestFixtures.uuid()
     private val missionBranch = TestFixtures.uuid()
     private val clinicBranch = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -54,7 +54,7 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         }
         assignRole(targetUser, "MANAGER")
         assignRole(ownerUser, "OWNER")
-        IdentityFixtures.grantAssignDelegate(managerUser, sourceId)
+        AccessFixtures.allow(managerUser, Act.ASSIGN_DELEGATE)
         insertBranch(missionBranch, BranchType.MEDICAL_MISSION)
         insertBranch(clinicBranch, BranchType.CLINIC)
     }

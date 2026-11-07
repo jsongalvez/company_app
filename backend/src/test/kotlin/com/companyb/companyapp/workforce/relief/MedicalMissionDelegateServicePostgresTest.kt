@@ -1,5 +1,6 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
@@ -17,6 +18,7 @@ import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -69,7 +71,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                     RoleTable.selectAll().where { RoleTable.name eq "MANAGER" }.single()[RoleTable.id]
             }
         }
-        IdentityFixtures.grantAssignDelegate(callerId, sourceId)
+        AccessFixtures.allow(callerId, Act.ASSIGN_DELEGATE)
         insertBranch()
     }
 
