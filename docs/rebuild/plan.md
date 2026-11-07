@@ -120,7 +120,7 @@ Built (unit 3), where the drawing met real data and behaviour:
 - Booked visits keeps its name: the list holds upcoming visits on any day, not only today's.
 - The sales cell keeps "Product commission": the number is commission on product sales only.
 - Rows offer Done (waiting) and Undo (logged). No-show and Cancel live on the session page, as do illnesses.
-- The Refresh button is gone; R refreshes on a keyboard, and opening Today reads it again.
+- The Refresh button is gone; R refreshes on a keyboard, and opening Today again reads anything older than 15 s (`FRESH_MS`).
 - Who's clocked in folds under the duty card; its per-person buttons stay out of the card, so the card's own Clock in/out is the only one there.
 
 ## Order of work (after the pick)

@@ -1,6 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-import { doneSessionForNewClient } from "./support";
+import { doneSessionForNewClient, hereNow } from "./support";
 
 // Found by the TLA+ model in tools/tla/outbox (see its README). Each test is one counterexample TLC printed.
 const down = /\/(api\/|health)/;
@@ -14,18 +14,18 @@ test("marking Done then Undo with no signal sends nothing and refuses nothing", 
     const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
-    await expect(row.getByText("Waiting")).toBeVisible();
+    await expect(hereNow(screen, name)).toBeVisible();
     await browser.route(down, (route) => route.abort());
     await row.getByRole("button", "Done").tap();
     await expect(row.getByText("Not sent")).toBeVisible({ timeout: 20_000 });
     await row.getByRole("button", "Undo").tap();
-    await expect(row.getByText("Waiting")).toBeVisible();
+    await expect(hereNow(screen, name)).toBeVisible();
     await browser.unroute(down);
     // Everything waiting has been sent or refused.
     await expect.poll(async () => (await saved(browser)).filter((i) => !i.failed).length, { timeout: 40_000 }).toBe(0);
     expect((await saved(browser)).filter((i) => i.failed)).toEqual([]);
     await expect(screen.getByText(refused, { exact: false })).not.toBeVisible();
-    await expect(row.getByText("Waiting")).toBeVisible();
+    await expect(hereNow(screen, name)).toBeVisible();
 });
 
 // The send loop walks the saves that were waiting when it started. A mark replaced while an earlier
@@ -34,7 +34,7 @@ test("undoing a Done that is already on its way keeps the last choice", { sessio
     const name = await doneSessionForNewClient(app, screen, browser);
     const row = screen.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", "Undo").tap();
-    await expect(row.getByText("Waiting")).toBeVisible();
+    await expect(hereNow(screen, name)).toBeVisible();
     await browser.route(down, (route) => route.abort());
     await row.getByRole("button", "Done").tap();
     await expect(row.getByText("Not sent")).toBeVisible({ timeout: 20_000 });
@@ -57,7 +57,7 @@ test("undoing a Done that is already on its way keeps the last choice", { sessio
     await expect.poll(async () => (await saved(browser)).filter((i) => !i.failed).length, { timeout: 40_000 }).toBe(0);
     expect((await saved(browser)).filter((i) => i.failed)).toEqual([]);
     await app.open("/#/today");
-    await expect(row.getByText("Waiting")).toBeVisible({ timeout: 15_000 });
+    await expect(hereNow(screen, name)).toBeVisible({ timeout: 15_000 });
 });
 
 // A session made with no signal and sent when the signal returned used to drop off #/today if the list

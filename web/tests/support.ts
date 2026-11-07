@@ -31,6 +31,11 @@ export async function clockOutHere(screen: Screen, browser: Browser): Promise<vo
     }
 }
 
+/** A session row in Today's Here now list: the client is waiting. */
+export function hereNow(screen: Screen, text: string) {
+    return screen.getByRole("table", "Here now").getByRole("row").filter({ hasText: text });
+}
+
 /** Clock in at the current branch, add a session for a brand-new client, mark it done. Returns the client's name. */
 export async function doneSessionForNewClient(app: App, screen: Screen, browser: Browser): Promise<string> {
     await app.open("/#/today");
