@@ -4,6 +4,30 @@ type Screen = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["
 type App = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["app"];
 type Browser = Parameters<Parameters<typeof import("@e2e-dev/web").test>[1]>[0]["browser"];
 
+/**
+ * Signs in through the form. The server takes 10 sign-ins a minute from one address (identity/RateLimiter.kt), so a
+ * run started soon after another is told "Too many tries": wait the minute out and try once more. Returns true when
+ * it waited, as the server's minute then starts again at this sign-in.
+ */
+export async function signIn(app: App, screen: Screen, username: string, password: string): Promise<boolean> {
+    const signedIn = screen.getByRole("navigation", "Main");
+    const refused = screen.getByText(/^Too many tries/);
+    let waited = false;
+    for (;;) {
+        await app.clearState();
+        await app.open("/");
+        await screen.getByLabel("Username").fill(username);
+        await screen.getByLabel("Password").fill(password);
+        await screen.getByRole("button", "Sign in").tap();
+        await expect.poll(async () => (await signedIn.isVisible()) || (await refused.isVisible()), { timeout: 10_000 }).toBe(true);
+        if (waited || !(await refused.isVisible())) break;
+        await new Promise((done) => setTimeout(done, 61_000));
+        waited = true;
+    }
+    await expect(signedIn).toBeVisible();
+    return waited;
+}
+
 /** On Today: clock in at the current branch unless already on duty (accepting the "are you sure"). Waits for the duty card to know the shift first. */
 export async function clockInHere(screen: Screen, browser: Browser): Promise<void> {
     const bar = screen.getByRole("region", "Duty");
