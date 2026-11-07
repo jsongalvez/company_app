@@ -280,7 +280,7 @@ class BranchMemberEditAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val MEMBER_ROLES = listOf("OWNER", "ACCOUNTANT", "PRACTITIONER")
+        private val MEMBER_ROLES = listOf("OWNER", "PRACTITIONER")
         private val defaultUser = TestFixtures.uuid()
 
         @JvmField

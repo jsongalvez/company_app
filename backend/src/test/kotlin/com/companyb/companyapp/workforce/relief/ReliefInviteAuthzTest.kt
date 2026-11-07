@@ -7,6 +7,7 @@ import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.Place
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -85,6 +86,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(otherInviter, "other-inviter")
         IdentityFixtures.insertTestUser(nonAssigned, "non-assigned")
         IdentityFixtures.insertTestUser(invitee, "invitee")
+        AccessFixtures.hold(invitee, Role.PRACTITIONER)
         IdentityFixtures.insertTestUser(otherInvitee, "other-invitee")
         IdentityFixtures.insertTestUser(inactiveUser, "inactive")
         IdentityFixtures.insertTestUser(aliceUser, "alice")

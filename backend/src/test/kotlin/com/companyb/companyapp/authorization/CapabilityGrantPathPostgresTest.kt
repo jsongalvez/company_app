@@ -244,18 +244,6 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `any-context and branch-window helpers respect the union`() {
-        assertTrue(CapabilityService.hasCapabilityAnyContext(ownerUser, CapabilityCodes.MANAGE_USERS))
-        assertTrue(CapabilityService.hasCapabilityAnyContext(ownerUser, CapabilityCodes.VIEW_BRANCH_DATA))
-        assertTrue(CapabilityService.hasCapabilityAnyContext(accountantUser, CapabilityCodes.VIEW_BRANCH_DATA))
-        assertFalse(CapabilityService.hasCapabilityAnyContext(noRoleUser, CapabilityCodes.VIEW_BRANCH_DATA))
-        assertTrue(
-            CapabilityService.findBranchWindow(ownerUser).isEmpty(),
-            "derived GLOBAL grants contribute nothing to the BRANCH read window",
-        )
-    }
-
-    @Test
     fun `hasCapability stays fast with the union view`() {
         val (_, duration) =
             measureTimedValue {

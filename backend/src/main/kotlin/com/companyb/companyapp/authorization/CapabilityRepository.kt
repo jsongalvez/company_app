@@ -31,7 +31,8 @@ internal object CapabilityRepository {
         capabilityCode: String,
         contextType: CapabilityContextType,
         contextId: UUID,
-    ): Boolean = holdsIn(userId, capabilityCode, listOf(contextType to contextId))
+    ): Boolean =
+        grantsOf(userId).any { it.code == capabilityCode && it.contextType == contextType && it.contextId == contextId }
 
     /** One row of [ActiveUserCapabilitiesView], with its code. */
     private data class Grant(
@@ -103,46 +104,4 @@ internal object CapabilityRepository {
                     sourceType = it.sourceType,
                 )
             }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }
-
-    /**
-     * Distinct branch context ids where [userId] holds any active grant — the
-     * audit read window (D6, union pattern). GLOBAL grants contribute
-     * nothing here; [ActiveUserCapabilitiesView] already excludes inactive
-     * users and out-of-window grants.
-     */
-    fun findBranchWindow(userId: UUID): List<UUID> =
-        contextsOf(userId, CapabilityContextType.BRANCH)
-            .also { logger.info { "[BRANCH-WINDOW] $userId window=${it.size} branches" } }
-
-    /** The branch days [userId] holds any grant for (relief), past, present or future. */
-    fun findDayWindow(userId: UUID): List<UUID> = contextsOf(userId, CapabilityContextType.BRANCH_DAY)
-
-    private fun contextsOf(
-        userId: UUID,
-        type: CapabilityContextType,
-    ): List<UUID> = grantsOf(userId).filter { it.contextType == type }.map { it.contextId }.distinct()
-
-    /** "Holds [capabilityCode] in any of [contexts]". The view applies the grant window. */
-    fun holdsIn(
-        userId: UUID,
-        capabilityCode: String,
-        contexts: List<Pair<CapabilityContextType, UUID>>,
-    ): Boolean {
-        if (contexts.isEmpty()) return false
-        return grantsOf(userId)
-            .any { it.code == capabilityCode && (it.contextType to it.contextId) in contexts }
-            .also { granted -> logger.debug { "[HOLDS-IN] $capabilityCode $contexts granted=$granted" } }
-    }
-
-    /**
-     * True when [userId] holds [capabilityCode] at any context (any
-     * contextType/contextId) — the "any EDIT_BRANCH_DATA holder" policy.
-     */
-    fun hasCapabilityAnyContext(
-        userId: UUID,
-        capabilityCode: String,
-    ): Boolean =
-        grantsOf(userId).any { it.code == capabilityCode }.also { granted ->
-            logger.debug { "[HAS-CAPABILITY-ANY] $capabilityCode granted=$granted" }
-        }
 }

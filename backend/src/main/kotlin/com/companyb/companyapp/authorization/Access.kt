@@ -94,10 +94,21 @@ object Access {
         userId: UUID,
         act: Act,
         place: Place = Place.Everywhere,
-    ): Boolean {
-        val contexts =
-            contextsFor(act.reach, place) ?: return CapabilityRepository.hasCapabilityAnyContext(userId, act.code)
-        return CapabilityRepository.holdsIn(userId, act.code, contexts)
+    ): Boolean = Policy.allows(FactsRepository.factsOf(userId), act, place)
+
+    /** Branches where [userId] may see the branch through standing there, not by seeing every branch. */
+    fun branchesStoodAt(userId: UUID): List<UUID> {
+        val facts = FactsRepository.factsOf(userId)
+        return facts.branches.keys.filter { Policy.allows(facts, Act.SEE_BRANCH, Place.Branch(it)) }
+    }
+
+    /** Days [userId] may see as that day's relief. */
+    fun reliefDays(userId: UUID): List<UUID> {
+        val facts = FactsRepository.factsOf(userId)
+        return facts.reliefDays
+            .filter { (day, branch) -> Policy.allows(facts, Act.SEE_DAY, Place.Day(day, branch)) }
+            .keys
+            .toList()
     }
 
     fun require(

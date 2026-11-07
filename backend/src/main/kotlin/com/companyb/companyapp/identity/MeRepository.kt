@@ -1,6 +1,6 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -134,7 +134,7 @@ internal object MeRepository {
 
         // Relief granted today has a member's rights there, so the branch is theirs to pick
         // before they clock in.
-        val grantedDayIds = CapabilityService.findDayWindow(userId)
+        val grantedDayIds = Access.reliefDays(userId)
         val reliefTodayBranchIds =
             if (grantedDayIds.isEmpty()) {
                 emptySet()

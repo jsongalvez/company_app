@@ -36,8 +36,6 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
             inRequest {
                 assertTrue(edits(branchId))
                 assertFalse(edits(otherBranch))
-                assertTrue(CapabilityRepository.hasCapabilityAnyContext(user, CapabilityCodes.EDIT_BRANCH_DATA))
-                CapabilityRepository.findBranchWindow(user)
                 RequestQueryTally.snapshot().queries
             }
         assertEquals(1, queries)
@@ -76,11 +74,6 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
             CapabilityRepository.VIEW_READS,
             "Update CapabilityRepository.VIEW_READS to the view's tables",
         )
-    }
-
-    @Test
-    fun `the branch window names each branch once`() {
-        assertEquals(listOf(branchId), CapabilityRepository.findBranchWindow(user))
     }
 
     @Test

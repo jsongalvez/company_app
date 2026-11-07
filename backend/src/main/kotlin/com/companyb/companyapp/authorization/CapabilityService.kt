@@ -25,15 +25,4 @@ object CapabilityService {
 
     fun getCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         CapabilityRepository.findCapabilitiesForUser(userId)
-
-    /** Distinct branch ids where [userId] holds any active grant (audit read window). */
-    fun findBranchWindow(userId: UUID): List<UUID> = CapabilityRepository.findBranchWindow(userId)
-
-    fun findDayWindow(userId: UUID): List<UUID> = CapabilityRepository.findDayWindow(userId)
-
-    /** True when [userId] holds [capabilityCode] at any context. */
-    fun hasCapabilityAnyContext(
-        userId: UUID,
-        capabilityCode: String,
-    ): Boolean = CapabilityRepository.hasCapabilityAnyContext(userId, capabilityCode)
 }

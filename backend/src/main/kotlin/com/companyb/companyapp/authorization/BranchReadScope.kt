@@ -10,7 +10,7 @@ import java.util.UUID
  * pattern so reports/export routes share it).
  *
  * Read window = the caller's branches with any active grant (union
- * pattern, sourced from [CapabilityService.findBranchWindow]); `null` = all
+ * pattern, sourced from [Access.branchesStoodAt]); `null` = all
  * branches — the caller holds a GLOBAL `VIEW_BRANCH_DATA` grant (the
  * Accountant "read-only across all branches" shape, V2 seed; SUPERUSER/OWNER
  * derive it via ADR-0023 — derived and direct GLOBAL rows are
@@ -24,7 +24,7 @@ object BranchReadScope {
      */
     fun windowBranchIds(callerId: UUID): List<UUID>? {
         if (hasGlobalView(callerId)) return null
-        return CapabilityService.findBranchWindow(callerId)
+        return Access.branchesStoodAt(callerId)
     }
 
     /** True when [branchId] falls inside the caller's read window. */

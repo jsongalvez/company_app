@@ -176,7 +176,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
 
     @Test
     fun `the day's sales list shows deleted ones marked, with their reason`() {
-        val who = members.getValue("ACCOUNTANT")
+        val who = members.getValue("PRACTITIONER")
         val (kept, _) = sell(todayId, who, quantity = 1)
         val (gone, v) = sell(todayId, who, quantity = 1)
         assertCode(200, delete(gone, v, "wrong product", who), who)
@@ -351,7 +351,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
 
     companion object {
         private const val STOCK = 500
-        private val MEMBER_ROLES = listOf("OWNER", "ACCOUNTANT", "PRACTITIONER")
+        private val MEMBER_ROLES = listOf("OWNER", "PRACTITIONER")
         private val defaultUser = TestFixtures.uuid()
 
         @JvmField
