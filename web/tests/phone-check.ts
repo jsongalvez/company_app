@@ -28,6 +28,47 @@ export function phoneProblems(floors: Floors): string[] {
     for (let n = walk.nextNode(); n; n = walk.nextNode()) if (n.parentElement && n.textContent?.trim()) texts.add(n.parentElement);
     for (const el of texts) if (shown(el) && px(el) < floors.text) out.push(`text ${px(el)}px, under ${floors.text}px: ${name(el)}`);
 
+    // WCAG contrast of each text against the colour behind it: 4.5:1, or 3:1 for large text. A canvas pixel turns any
+    // CSS colour into sRGB. Disabled controls are exempt; opacity is not counted; a background image gives no verdict.
+    const pen = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+    const rgba = (colour: string): number[] => {
+        pen.clearRect(0, 0, 1, 1);
+        pen.fillStyle = colour;
+        pen.fillRect(0, 0, 1, 1);
+        const [r, g, b, a] = pen.getImageData(0, 0, 1, 1).data;
+        return [r, g, b, a / 255];
+    };
+    const over = (top: number[], under: number[]) => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3])).concat(1);
+    const backs = new Map<Element, number[] | null>();
+    const behind = (el: Element | null): number[] | null => {
+        if (!el) return [255, 255, 255, 1];
+        if (!backs.has(el)) {
+            const s = getComputedStyle(el);
+            const own = rgba(s.backgroundColor);
+            if (s.backgroundImage !== "none") backs.set(el, null);
+            else if (own[3] >= 1) backs.set(el, own);
+            else {
+                const below = behind(el.parentElement);
+                backs.set(el, below && over(own, below));
+            }
+        }
+        return backs.get(el) ?? null;
+    };
+    const lum = (c: number[]) => {
+        const [r, g, b] = c.slice(0, 3).map((v) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    for (const el of texts) {
+        if (!shown(el) || el.closest(":disabled, [aria-disabled=true], svg")) continue;
+        const back = behind(el);
+        if (!back) continue;
+        const s = getComputedStyle(el);
+        const [hi, lo] = [lum(over(rgba(s.color), back)), lum(back)].sort((a, b) => b - a);
+        const ratio = (hi + 0.05) / (lo + 0.05);
+        const need = px(el) >= 24 || (px(el) >= 18.66 && Number(s.fontWeight) >= 700) ? 3 : 4.5;
+        if (ratio < need) out.push(`text contrast ${ratio.toFixed(2)} to 1, under ${need} to 1: ${name(el)}`);
+    }
+
     for (const el of document.querySelectorAll("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea"))
         if (shown(el) && px(el) < floors.input) out.push(`input text ${px(el)}px, under ${floors.input}px (the phone zooms in): ${name(el)}`);
 

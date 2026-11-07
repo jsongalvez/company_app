@@ -468,7 +468,7 @@
     }
     .hints button:hover,
     .hints button:focus {
-        background: var(--hover, var(--line));
+        background: var(--line);
     }
     .search button {
         margin-left: -1px;

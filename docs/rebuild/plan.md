@@ -1,6 +1,6 @@
 # Rebuild plan
 
-Status: Phase 1. Today uses layout B (Day sheet). Sizes stay as drawn: body 15 px, rows 16 px, tap targets 44 px.
+Status: Phase 1, units 1 and 2 done (guards; tokens and contrast). Today uses layout B (Day sheet). Sizes stay as drawn: body 15 px, rows 16 px, tap targets 44 px.
 The repo is public: this file quotes no one.
 
 ## Goal
@@ -69,7 +69,7 @@ Default chosen: the table lives in code, reviewed and tested, not editable in th
 
 ### 5. Design system
 
-- Tokens in one file: colour (light and dark), space (4, 8, 12, 16, 24, 32), type (13, 15, 17, 20, 28), line, focus. Square corners and no motion stay.
+- Tokens in one file, `web/src/ui/tokens.css`: colour (light and dark), space (4, 8, 12, 16, 24, 32), type (13, 15, 16, 17, 20, 30), line, focus. Square corners and no motion stay.
 - Phone base text 15 px (today 13 px). Touch targets 44 px. Inputs 16 px so Android doesn't zoom.
 - About ten components in `web/src/ui/`: Page, TopBar, Button (primary, plain, quiet, danger), Row, Section, Stat, Notice, Sheet (bottom sheet on phones), Field, Segmented, Badge.
 - One accent per screen. Links read as text. Status words carry meaning with a small coloured mark, never colour alone.
@@ -90,8 +90,8 @@ Each check stays in the repo and runs in CI. Baselines come from the current app
 | Store | Optimistic, offline, refused, clash, calm: the carried browser tests | browser test |
 | API | Request rounds per flow (sign-in 1, open 1, save 1, clock 1) | browser test (`calls.e2e`) |
 | API | Statement budget per route | integration test |
-| Design | No raw colour or size outside the token file | lint (`tools/quality`) |
-| Design | Contrast of every token pair used for text, light and dark (4.5:1 text, 3:1 large and UI) | script |
+| Design | No raw colour or size outside the token file; every `var()` names a property that is set | lint (`web/tests/unit/design-lint.test.ts`) |
+| Design | Contrast of the token pairs used for text, light and dark, and of each phone page's rendered text (4.5:1 text, 3:1 large text and the focus ring) | unit test (`contrast.test.ts`), browser test (`phone.e2e.ts`) |
 | Design | Every page x persona at 392x718: no sideways scroll, one-row bars, 44 px targets, 16 px inputs | browser test |
 | Design | Phone screenshot set of every page, kept as a CI artifact | script |
 | Design | Word list on screen | `copy.test.ts` (kept) |
@@ -117,8 +117,8 @@ Picked: B. The sizes stay as drawn; every button, row buttons included, gets the
 Each unit ends with a failing-then-passing test, `tools/push.sh`, GitHub runs checked by head SHA, `app-shipcheck`, and before/after phone shots.
 
 1. Guards first: design lint (`web/tests/unit/design-lint.test.ts`, raw-value counts that only shrink) and the phone check (`web/tests/phone.e2e.ts`, every role on every menu page, with old pages on `web/tests/phone-legacy.json`).
-2. Tokens, the contrast check, and the component kit.
-3. Today in layout B, with the new top bar and menu, on the kit and today's data code. Today leaves the legacy list.
+2. Tokens and the contrast checks.
+3. The component kit, built with its first page: Today in layout B, with the new top bar and menu, on today's data code. Today leaves the legacy list. A kit no page uses yet has nothing for the phone check to test.
 4. Store and outbox v2 with the bridge, and the day document endpoint. Today moves onto them; its browser tests are the safety net.
 5. Policy table, interpreters, generated tests; V13 facts migration; delete the view and capability code.
 6. Then pages by use: New session and Session, Clients, Expenses & pay, Remittances, Stock and Products, Relief, Alerts, Profile and My shifts, Branches and Users, Reports and Change history, Problem reports.

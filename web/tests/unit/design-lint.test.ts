@@ -1,6 +1,7 @@
 // Static check on web styles: colours and sizes come from web/src/ui/tokens.css, never as raw values.
 // Older files keep a count of raw values in design-lint.baseline.json that may only go down.
 // WRITE_DESIGN_BASELINE=1 tests/unit/run.sh rewrites the counts after a file sheds raw values.
+// A var() of a name nothing defines falls back without a word, so every var() must name a defined property.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -17,10 +18,10 @@ const LENGTH = /(?<![\w.])(-?\d*\.?\d+)(px|rem|em|pt)\b/g;
 
 export type Finding = { file: string; line: number; text: string };
 
-function files(dir: string): string[] {
+function files(dir: string, kind = /\.(svelte|css)$/): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
         const p = join(dir, e.name);
-        return e.isDirectory() ? files(p) : /\.(svelte|css)$/.test(p) ? [p] : [];
+        return e.isDirectory() ? files(p, kind) : kind.test(p) ? [p] : [];
     });
 }
 
@@ -50,6 +51,15 @@ export function rawValues(file: string, src: string): Finding[] {
     return found;
 }
 
+/** Custom property names a file reads with var(), and those it sets: in CSS, as a Svelte style:--name, or with setProperty. */
+export function customProps(src: string): { used: Set<string>; set: Set<string> } {
+    const names = (...res: RegExp[]) => new Set(res.flatMap((re) => [...src.matchAll(re)].map((m) => m[1])));
+    return {
+        used: names(/var\(\s*--([\w-]+)/g),
+        set: names(/(?<![\w-])--([\w-]+)\s*:/g, /style:--([\w-]+)/g, /setProperty\(\s*["'`]--([\w-]+)/g),
+    };
+}
+
 function scan(): Map<string, Finding[]> {
     const byFile = new Map<string, Finding[]>();
     for (const p of files(SRC)) {
@@ -71,7 +81,7 @@ test("no file writes more raw colours or sizes than its baseline, and the baseli
     const found = scan();
     const counts = Object.fromEntries([...found].sort(([a], [b]) => a.localeCompare(b)).map(([f, v]) => [f, v.length]));
     if (process.env.WRITE_DESIGN_BASELINE === "1") {
-        writeFileSync(BASELINE, JSON.stringify(counts, null, 2) + "\n");
+        writeFileSync(BASELINE, JSON.stringify(counts, null, 4) + "\n");
         return;
     }
     const baseline: Record<string, number> = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};
@@ -89,4 +99,29 @@ test("no file writes more raw colours or sizes than its baseline, and the baseli
         if (now < allowed) errors.push(`${file}: ${now} raw values left, baseline says ${allowed}. Lower it: WRITE_DESIGN_BASELINE=1 tests/unit/run.sh`);
     }
     assert.equal(errors.length, 0, "\n" + errors.join("\n"));
+});
+
+test("customProps reads var() uses and the three ways a page sets a property", () => {
+    const got = customProps(
+        `<div style:--w={w}></div>\n<style>.a { --gap: 4px; color: var(--text); margin: var( --gap ); }</style>\n<script>el.style.setProperty("--h", h);</script>`,
+    );
+    assert.deepEqual(
+        [[...got.used].sort(), [...got.set].sort()],
+        [
+            ["gap", "text"],
+            ["gap", "h", "w"],
+        ],
+    );
+});
+
+test("every var() in web/src names a custom property that web/src sets", () => {
+    const where = new Map<string, string[]>();
+    const set = new Set<string>();
+    for (const p of files(SRC, /\.(svelte|css|ts)$/)) {
+        const props = customProps(readFileSync(p, "utf8"));
+        for (const n of props.used) where.set(n, [...(where.get(n) ?? []), relative(SRC, p)]);
+        for (const n of props.set) set.add(n);
+    }
+    const unset = [...where].filter(([n]) => !set.has(n)).map(([n, in_]) => `--${n} in ${in_.join(", ")}`);
+    assert.deepEqual(unset, [], `Set nowhere, so these read as nothing. Use a token from web/src/${TOKENS} or add one there.`);
 });

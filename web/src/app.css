@@ -1,54 +1,7 @@
 /* CompanyApp design rules: rectangles only, no motion, dense, readable.
    Every color comes from a token so day/night stays consistent. */
 
-:root,
-[data-theme="light"] {
-    --bg: #f4f4f2;
-    --panel: #ffffff;
-    --panel-2: #f9f9f7;
-    --line: #d9d9d4;
-    --line-strong: #b8b8b0;
-    --text: #1b1b19;
-    --text-2: #5c5c56;
-    --text-3: #8a8a82;
-    --accent: #1f5fbf;
-    --accent-text: #ffffff;
-    --accent-soft: #e3ecfa;
-    --ok: #1d7a3a;
-    --ok-soft: #e2f2e7;
-    --warn: #8a5a00;
-    --warn-soft: #fbf0d9;
-    --bad: #b3261e;
-    --bad-soft: #f9e3e1;
-    --row-hover: #f0f3f8;
-    --row-sel: #e3ecfa;
-    --focus: #1f5fbf;
-    color-scheme: light;
-}
-
-[data-theme="dark"] {
-    --bg: #121313;
-    --panel: #1a1b1c;
-    --panel-2: #202122;
-    --line: #2e3031;
-    --line-strong: #44474a;
-    --text: #e6e6e3;
-    --text-2: #a3a39e;
-    --text-3: #74746f;
-    --accent: #5b9bf0;
-    --accent-text: #0c1420;
-    --accent-soft: #1c2a3d;
-    --ok: #5cc27e;
-    --ok-soft: #17291e;
-    --warn: #e0b04f;
-    --warn-soft: #2d2412;
-    --bad: #f07b72;
-    --bad-soft: #351a18;
-    --row-hover: #222528;
-    --row-sel: #1c2a3d;
-    --focus: #5b9bf0;
-    color-scheme: dark;
-}
+@import "./ui/tokens.css";
 
 *,
 *::before,
@@ -567,7 +520,7 @@ table.grid tfoot td {
     }
     table.grid.stack td[data-label]::before {
         content: attr(data-label) " ";
-        color: var(--muted);
+        color: var(--text-2);
         font-weight: normal;
     }
     table.grid.stack td.num {

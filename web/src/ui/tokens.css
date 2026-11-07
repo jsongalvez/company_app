@@ -1,0 +1,84 @@
+/* The one place colours and sizes are written. Screens use these names; web/tests/unit/design-lint.test.ts
+   refuses raw values anywhere else, web/tests/unit/contrast.test.ts checks the colour pairs, and
+   web/tests/phone-check.ts holds screens to the size floors below. */
+
+:root,
+[data-theme="light"] {
+    --bg: #f4f4f2;
+    --panel: #ffffff;
+    --panel-2: #f9f9f7;
+    --line: #e1e1dc;
+    --line-strong: #b8b8b0;
+    --text: #1b1b19;
+    --text-2: #5a5a54;
+    --text-3: #6f6f68;
+    --accent: #1f5fbf;
+    --accent-text: #ffffff;
+    --accent-soft: #e3ecfa;
+    --ok: #1d7a3a;
+    --ok-soft: #e2f2e7;
+    --warn: #8a5a00;
+    --warn-soft: #fbf0d9;
+    --bad: #b3261e;
+    --bad-soft: #f9e3e1;
+    --badge: #b3261e;
+    --badge-text: #ffffff;
+    --row-hover: #f0f3f8;
+    --row-sel: #e3ecfa;
+    --focus: #1f5fbf;
+    color-scheme: light;
+}
+
+[data-theme="dark"] {
+    --bg: #121313;
+    --panel: #1a1b1c;
+    --panel-2: #202122;
+    --line: #2c2e2f;
+    --line-strong: #44474a;
+    --text: #e6e6e3;
+    --text-2: #a8a8a3;
+    --text-3: #8d8d87;
+    --accent: #5b9bf0;
+    --accent-text: #0c1420;
+    --accent-soft: #1c2a3d;
+    --ok: #5cc27e;
+    --ok-soft: #17291e;
+    --warn: #e0b04f;
+    --warn-soft: #2d2412;
+    --bad: #f07b72;
+    --bad-soft: #351a18;
+    --badge: #f07b72;
+    --badge-text: #1a0d0c;
+    --row-hover: #222528;
+    --row-sel: #1c2a3d;
+    --focus: #5b9bf0;
+    color-scheme: dark;
+}
+
+:root {
+    --s1: 4px;
+    --s2: 8px;
+    --s3: 12px;
+    --s4: 16px;
+    --s5: 24px;
+    --s6: 32px;
+
+    --t-meta: 13px;
+    --t-body: 15px;
+    --t-row: 16px;
+    --t-input: 16px;
+    --t-title: 17px;
+    --t-num: 20px;
+    --t-big: 30px;
+    --lh: 1.4;
+    --lh-tight: 1.15;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    --tap: 44px;
+    --row: 60px;
+    --bar: 52px;
+    --rule: 3px;
+    --dot: 8px;
+    --icon: 22px;
+    --page-max: 720px;
+}

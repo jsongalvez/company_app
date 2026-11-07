@@ -44,6 +44,19 @@ load_db_env() {
 }
 psqlc() { psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 -Atqc "$1"; }
 
+# What a build is made from: the directory's tree at HEAD, or "dirty" when it holds changes HEAD lacks.
+# before-after compares it with HEAD, so an after shot never comes from an older build.
+tree_of() { [ -z "$(git -C "$ROOT" status --porcelain -- "$1")" ] && git -C "$ROOT" rev-parse "HEAD:$1" || echo dirty; }
+
+# Web: deps once, build into our own dir (not web/dist, which another instance may serve).
+build_web() {
+  local tree; tree=$(tree_of web)
+  ( cd "$ROOT/web" && export PATH=$(dirname "$NODE_BIN"):$PATH
+    [ -d node_modules ] || npm ci --no-audit --no-fund >"$RUN/npm.log" 2>&1
+    npx vite build --outDir "$RUN/dist" --emptyOutDir >"$RUN/web-build.log" 2>&1 ) || { tail -20 "$RUN/web-build.log"; return 1; }
+  echo "$tree" >"$RUN/web-tree"
+}
+
 up() {
   pick_node || return 1
   load_db_env
@@ -51,10 +64,7 @@ up() {
     echo "port $PORT or $RUN already in use; run '$0 down' or set VERIFY_PORT" >&2; return 1
   fi
   mkdir -p "$RUN" "$OUT"
-  # Web: deps once, build into our own dir (not web/dist, which another instance may serve).
-  ( cd "$ROOT/web" && export PATH=$(dirname "$NODE_BIN"):$PATH
-    [ -d node_modules ] || npm ci --no-audit --no-fund >"$RUN/npm.log" 2>&1
-    npx vite build --outDir "$RUN/dist" --emptyOutDir >"$RUN/web-build.log" 2>&1 ) || { tail -20 "$RUN/web-build.log"; return 1; }
+  build_web || return 1
   psqlc "DROP DATABASE IF EXISTS $DB" && psqlc "CREATE DATABASE $DB" || return 1
   echo "$DB" >"$RUN/db"
   if [ -n "${VERIFY_DUMP:-}" ]; then
@@ -66,6 +76,7 @@ up() {
   # Backend: Flyway migrates the empty DB, DevMain seeds owner/staff/relief logins and fixture branch.
   # Env vars win over .env, so the dev instance's settings are not used.
   cd "$ROOT" || return 1
+  tree_of backend >"$RUN/backend-tree"
   # API_DOCS off like prod, so tools/verify/headers.sh checks the same surface.
   APP_PORT=$PORT WEB_DIR="$RUN/dist" POSTGRES_DB=$DB API_DOCS= \
     TEST_USERNAME=owner TEST_PASSWORD=owner-dev-pass SCOPED_USERNAME=staff SCOPED_PASSWORD=staff-dev-pass \
@@ -144,8 +155,12 @@ at() {
 # Before and after shots of each route, plus the stamp tools/quality/shot-gate.sh reads.
 before_after() {
   [ $# -gt 0 ] || { echo "before-after: name at least one route, like '#/today'" >&2; return 2; }
-  git -C "$ROOT" diff --quiet HEAD -- web || { echo "before-after: commit the web change first; the after shot must show HEAD" >&2; return 1; }
+  [ "$(tree_of web)" != dirty ] || { echo "before-after: commit the web change first; the after shot must show HEAD" >&2; return 1; }
   doctor >/dev/null || { echo "before-after: the verify copy on $PORT is not up; run verify.sh up" >&2; return 1; }
+  [ "$(cat "$RUN/backend-tree" 2>/dev/null)" = "$(tree_of backend)" ] && [ "$(tree_of backend)" != dirty ] ||
+    { echo "before-after: the running backend was not built from HEAD's backend/; run verify.sh down, then verify.sh up" >&2; return 1; }
+  [ "$(cat "$RUN/web-tree" 2>/dev/null)" = "$(tree_of web)" ] ||
+    { echo "before-after: the running web build is not HEAD's web/; rebuilding it"; pick_node && build_web || return 1; }
   local base head dir r slug
   base=$(git -C "$ROOT" merge-base HEAD origin/master) || return 1
   head=$(git -C "$ROOT" rev-parse HEAD)

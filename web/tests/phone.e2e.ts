@@ -33,7 +33,7 @@ for (const role of ROLES) {
     });
 }
 
-test("the phone check names small text, small targets, zooming inputs, sideways scroll and wrapped bars", async ({ app, browser }) => {
+test("the phone check names small text, faint text, small targets, zooming inputs, sideways scroll and wrapped bars", async ({ app, browser }) => {
     await browser.setViewport({ ...PHONE });
     await app.open("/");
     type Part = [tag: string, css: Record<string, string>, text: string | null, oneRow: boolean];
@@ -63,6 +63,7 @@ test("the phone check names small text, small targets, zooming inputs, sideways 
     const bad: Part[] = [
         ["div", { width: "500px" }, "wide", false],
         ["span", { fontSize: "11px" }, "tiny", false],
+        ["span", { color: "#999999", backgroundColor: "#ffffff" }, "faint", false],
         ["input", { fontSize: "13px" }, null, false],
         ["button", { height: "26px" }, "Go", false],
         ["div", { width: "100px" }, null, true],
@@ -73,6 +74,7 @@ test("the phone check names small text, small targets, zooming inputs, sideways 
         "scrolls sideways",
         "body text N, under N",
         "text N, under N",
+        "text contrast N.N to N, under N.N to N",
         "input text N, under N (the phone zooms in)",
         "tap target N, under N",
         "tap target N, under N",
