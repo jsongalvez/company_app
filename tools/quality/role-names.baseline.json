@@ -1,0 +1,15 @@
+{
+  "backend/src/main/kotlin/com/companyb/companyapp/authorization/AuthorizationGrants.kt": 1,
+  "backend/src/main/kotlin/com/companyb/companyapp/authorization/GrantStore.kt": 3,
+  "backend/src/main/kotlin/com/companyb/companyapp/contracts/workforce/DelegateContracts.kt": 3,
+  "backend/src/main/kotlin/com/companyb/companyapp/identity/RankRule.kt": 15,
+  "backend/src/main/kotlin/com/companyb/companyapp/identity/Role.kt": 2,
+  "backend/src/main/kotlin/com/companyb/companyapp/identity/UserRepository.kt": 1,
+  "backend/src/main/kotlin/com/companyb/companyapp/identity/UserService.kt": 1,
+  "backend/src/main/kotlin/com/companyb/companyapp/identity/ViewAs.kt": 1,
+  "backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateService.kt": 1,
+  "web/src/lib/format.ts": 7,
+  "web/src/lib/roles-to-save.ts": 2,
+  "web/src/pages/Branches.svelte": 8,
+  "web/src/pages/Users.svelte": 5
+}
