@@ -1,0 +1,4 @@
+# <path> <count> <reason>. Only statements Exposed has no typed form for.
+backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseHealth.kt 1 SELECT 1 liveness probe
+backend/src/main/kotlin/com/companyb/companyapp/client/ClientRepository.kt 1 SET LOCAL pg_trgm.similarity_threshold
+backend/src/main/kotlin/com/companyb/companyapp/database/JdbcTiming.kt 16 the JDBC wrapper that times every statement
