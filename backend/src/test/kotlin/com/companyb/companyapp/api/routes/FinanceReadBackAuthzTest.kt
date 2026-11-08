@@ -2,9 +2,7 @@
 
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -23,7 +21,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -47,6 +44,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     private val targetUser2 = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
     private lateinit var otherBranchDayId: UUID
@@ -78,10 +76,28 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
-        AccessFixtures.allow(assignUser, Act.PAY, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = assignUser,
+            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
         // An owner or manager with no branch assignment holds this at GLOBAL only (active_user_capabilities, part b).
-        AccessFixtures.allow(globalOnlyUser, Act.PAY)
-        AccessFixtures.allow(editOnlyUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = globalOnlyUser,
+            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = editOnlyUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 
     private fun seedCompensationsAndExpense() {
@@ -140,6 +156,19 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
+
+    private fun grantAssignOnBranch(
+        userId: UUID,
+        branchId: UUID,
+    ) {
+        IdentityFixtures.grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+    }
 
     // ──────────────────────────────────────────────
     // GET /api/compensations?branchDayId= → ASSIGN_COMPENSATION
@@ -219,6 +248,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET compensations returns 404 for missing branch day with grant`() {
         val missingBranchId = TestFixtures.uuid()
+        grantAssignOnBranch(assignUser, missingBranchId)
         testServer.client.let { client ->
             assertEquals(
                 404,
@@ -297,6 +327,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET branch-day users returns 404 for missing branch day with grant`() {
         val missingBranchId = TestFixtures.uuid()
+        grantAssignOnBranch(assignUser, missingBranchId)
         testServer.client.let { client ->
             assertEquals(
                 404,
@@ -330,6 +361,23 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             assertTrue(responseBody.contains("\"version\":2"))
             assertTrue(responseBody.contains("\"amount\":\"750.00\""))
             assertTrue(responseBody.contains("\"category\":\"WATER\""))
+        }
+    }
+
+    @Test
+    fun `PATCH expense forbidden for ASSIGN_COMPENSATION-only user`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "amount" to "750.00",
+                    "category" to "WATER",
+                    "notes" to "Updated",
+                    "expectedVersion" to 1,
+                )
+            assertEquals(
+                403,
+                client.patch("/api/expenses/$expenseId", body, asUser(assignUser)).code,
+            )
         }
     }
 
@@ -505,6 +553,37 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             assertTrue(
                 body.contains("\"version\":2"),
                 "#153 Q6 — no version bump on restore (#663: delete bumps 1→2, restore keeps 2)",
+            )
+        }
+    }
+
+    @Test
+    fun `POST restore forbidden for ASSIGN_COMPENSATION-only user`() {
+        val deletedId = TestFixtures.uuid()
+        val createdForbiddenAssign =
+            ExpenseService.create(
+                callerId = editOnlyUser,
+                id = deletedId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = null,
+            )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+            expectedVersion = createdForbiddenAssign.version,
+        )
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/expenses/$deletedId/restore",
+                        emptyMap<String, String>(),
+                        asUser(assignUser),
+                    ).code,
             )
         }
     }

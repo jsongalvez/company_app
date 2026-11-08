@@ -18,7 +18,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -54,6 +53,7 @@ class ClientAuthzTest : BasePostgresTest() {
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private val anonymizeClientId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private var branchDayId: UUID = TestFixtures.uuid()
 
     override fun initTestData() {
@@ -93,7 +93,13 @@ class ClientAuthzTest : BasePostgresTest() {
             assignedBy = ownerUser,
         )
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        AccessFixtures.relief(reliefUser, branchDayId)
+        IdentityFixtures.grantCapability(
+            userId = reliefUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = branchDayId,
+            sourceId = sourceId,
+        )
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestClient(anonymizeClientId)
     }

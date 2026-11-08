@@ -1,9 +1,7 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -25,7 +23,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -67,6 +64,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     private val noneUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private val json =
         Json {
@@ -96,11 +94,29 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         )
 
         // Branch-scoped VIEW_BRANCH_DATA at branchA only.
-        AccessFixtures.allow(viewA, Act.SEE_BRANCH, Place.Branch(branchA))
+        IdentityFixtures.grantCapability(
+            userId = viewA,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
         // Non-view grant at branchB — readable in the picker window, NOT view-exportable.
-        AccessFixtures.allow(editB, Act.WORK_HOME_BRANCH, Place.Branch(branchB))
+        IdentityFixtures.grantCapability(
+            userId = editB,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchB,
+            sourceId = sourceId,
+        )
         // GLOBAL VIEW_BRANCH_DATA with NO branch grants — the all-branches window.
-        AccessFixtures.allow(globalViewUser, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = globalViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
         listOf(viewA, editB, globalViewUser).forEach {
         }
     }

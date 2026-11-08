@@ -1,7 +1,5 @@
 package com.companyb.companyapp.reporting
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -15,7 +13,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -34,6 +31,7 @@ import kotlin.test.assertFailsWith
 class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     private val currentMonth = TestFixtures.currentMonth
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
 
@@ -41,8 +39,20 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "summary-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
         SessionClientFixtures.insertTestClient(clientId)
-        AccessFixtures.allow(callerId, Act.SEE_EVERY_BRANCH)
-        AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 
     @Test

@@ -1,9 +1,7 @@
 package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -15,7 +13,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -46,6 +43,7 @@ class BranchReadAuthzTest : BasePostgresTest() {
     private val noneUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         listOf(
@@ -59,8 +57,20 @@ class BranchReadAuthzTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchA, "Branch Read A")
         BranchWorkforceFixtures.insertTestBranch(branchB, "Branch Read B")
 
-        AccessFixtures.allow(branchViewUser, Act.SEE_BRANCH, Place.Branch(branchA))
-        AccessFixtures.allow(globalViewUser, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = branchViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = globalViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     companion object {

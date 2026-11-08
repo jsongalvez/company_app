@@ -1,6 +1,5 @@
 package com.companyb.companyapp.reporting
 
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
@@ -21,7 +20,6 @@ import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -78,7 +76,13 @@ abstract class ExportServicePostgresBase : BasePostgresTest() {
     }
 
     protected fun grantViewBranchData(userId: UUID) {
-        AccessFixtures.allow(userId, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     protected data class DayFinancials(

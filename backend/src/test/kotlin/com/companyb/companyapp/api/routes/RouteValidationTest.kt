@@ -3,7 +3,6 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.client.ClientTable
@@ -45,7 +44,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -72,6 +70,7 @@ class RouteValidationTest : BasePostgresTest() {
     private val json = Json { ignoreUnknownKeys = true }
     private val testUserId = TEST_USER_ID
     private val testBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private var testBranchDayId: UUID = TestFixtures.uuid()
     private val testCategoryId = TestFixtures.uuid()
     private val testProductId = TestFixtures.uuid()
@@ -82,7 +81,36 @@ class RouteValidationTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(testUserId, "route-test")
         BranchWorkforceFixtures.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
-        AccessFixtures.hold(testUserId, Role.SUPERUSER)
+        val allCodes =
+            listOf(
+                CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityCodes.EDIT_PAST_DAY,
+                CapabilityCodes.VOID_SESSION,
+                CapabilityCodes.SUBMIT_REMITTANCE,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+                CapabilityCodes.MANAGE_PRODUCTS,
+                CapabilityCodes.MANAGE_CATALOG,
+                CapabilityCodes.MANAGE_USERS,
+                CapabilityCodes.ASSIGN_DELEGATE,
+                CapabilityCodes.ERASE_CLIENT,
+            )
+        for (code in allCodes) {
+            IdentityFixtures.grantCapability(
+                userId = testUserId,
+                capabilityCode = code,
+                contextType = CapabilityContextType.BRANCH,
+                contextId = testBranchId,
+                sourceId = sourceId,
+            )
+            IdentityFixtures.grantCapability(
+                userId = testUserId,
+                capabilityCode = code,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+                sourceId = sourceId,
+            )
+        }
         testBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(testBranchId)
         CommerceFinanceFixtures.insertTestCategory(testCategoryId)
         CommerceFinanceFixtures.insertTestProduct(testProductId, categoryId = testCategoryId)

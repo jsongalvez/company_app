@@ -3,8 +3,6 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditedRow
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
@@ -32,7 +30,6 @@ import com.companyb.companyapp.reporting.DailySalesSummaryService
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -64,6 +61,7 @@ import kotlin.time.measureTimedValue
 @Suppress("LargeClass") // #595
 class RemittanceServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private var sessionId: UUID? = null
@@ -74,7 +72,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
 
-        AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test
@@ -260,7 +258,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft without SUBMIT_REMITTANCE is allowed at service layer`() {
-        AccessFixtures.revokeAll(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val remittance =
             RemittanceService.createDraft(
@@ -279,6 +277,8 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create draft with non-existent branch returns not found`() {
         val nonexistentBranchId = TestFixtures.uuid()
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
+
         assertFailsWith<NotFoundException> {
             RemittanceService.createDraft(
                 callerId = callerId,
@@ -534,7 +534,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         // #866 — submit now requires non-empty coverage; the authz intent stays the same.
         addDayBreakdown(remittanceId, TestFixtures.uuid(), resolveBranchDay())
-        AccessFixtures.revokeAll(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
         val result = RemittanceService.submit(callerId, remittanceId, version)

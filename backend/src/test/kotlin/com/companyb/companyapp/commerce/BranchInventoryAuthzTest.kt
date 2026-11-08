@@ -2,8 +2,6 @@
 
 package com.companyb.companyapp.commerce
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -16,7 +14,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -33,24 +30,37 @@ import kotlin.test.assertTrue
 
 class BranchInventoryAuthzTest : BasePostgresTest() {
     private val editOnlyUser = TestFixtures.uuid()
-    private val stockUser = TestFixtures.uuid()
+    private val manageOnlyUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private var branchDayId: UUID = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(editOnlyUser, "edit-only")
-        IdentityFixtures.insertTestUser(stockUser, "stock")
+        IdentityFixtures.insertTestUser(manageOnlyUser, "manage-only")
         IdentityFixtures.insertTestUser(noneUser, "no-caps")
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
 
-        AccessFixtures.allow(editOnlyUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-        AccessFixtures.allow(stockUser, Act.MANAGE_STOCK, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = editOnlyUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = manageOnlyUser,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
 
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
@@ -115,6 +125,16 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `GET inventory forbidden for MANAGE_PRODUCTS-only user`() {
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$branchId/inventory", asUser(manageOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
     fun `GET inventory forbidden for no-capability user`() {
         testServer.client.let { client ->
             assertEquals(
@@ -149,6 +169,16 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `GET low-stock forbidden for MANAGE_PRODUCTS-only user`() {
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$branchId/inventory/low-stock", asUser(manageOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
     fun `GET low-stock forbidden for EDIT_BRANCH_DATA user on other branch`() {
         testServer.client.let { client ->
             assertEquals(
@@ -175,7 +205,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                 client.post(
                     "/api/branches/$branchId/inventory/$productId/restock",
                     body,
-                    asUser(stockUser),
+                    asUser(manageOnlyUser),
                 )
             assertEquals(201, response.code)
         }
@@ -217,7 +247,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$otherBranchId/inventory/$productId/restock",
                         body,
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
         }
@@ -243,7 +273,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/inventory/$productId/restock",
                         restockBody,
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
             val response =
@@ -253,6 +283,21 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     asUser(editOnlyUser),
                 )
             assertEquals(201, response.code)
+        }
+    }
+
+    @Test
+    fun `POST movement TESTER forbidden for MANAGE_PRODUCTS-only user`() {
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/branches/$branchId/inventory/$productId/movement",
+                        movementBody("TESTER", -1),
+                        asUser(manageOnlyUser),
+                    ).code,
+            )
         }
     }
 
@@ -278,7 +323,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                 client.post(
                     "/api/branches/$branchId/inventory/$productId/movement",
                     movementBody("ADJUSTMENT", 5),
-                    asUser(stockUser),
+                    asUser(manageOnlyUser),
                 )
             assertEquals(201, response.code)
         }
@@ -318,7 +363,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/inventory/$productId/restock",
                         restockBody,
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
             assertEquals(
@@ -343,7 +388,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/inventory/$productId/restock",
                         restockBody,
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
             val body =
@@ -354,6 +399,16 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .orEmpty()
             assertTrue(body.contains("RESTOCK"))
             assertTrue(body.contains("quantityChange"))
+        }
+    }
+
+    @Test
+    fun `GET movements forbidden for MANAGE_PRODUCTS-only user`() {
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$branchId/inventory/movements", asUser(manageOnlyUser)).code,
+            )
         }
     }
 
@@ -392,7 +447,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/inventory/$productId/restock",
                         restockBody,
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
             val today = TestFixtures.today
@@ -437,7 +492,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                 client.post(
                     "/api/branches/$branchId/inventory",
                     mapOf("productId" to productId.toString()),
-                    asUser(stockUser),
+                    asUser(manageOnlyUser),
                 )
             assertEquals(201, response.code)
         }
@@ -512,7 +567,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$unknownBranch/inventory",
                         mapOf("productId" to productId.toString()),
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
         }
@@ -534,7 +589,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$unknownBranch/inventory/$productId/restock",
                         body,
-                        asUser(stockUser),
+                        asUser(manageOnlyUser),
                     ).code,
             )
         }

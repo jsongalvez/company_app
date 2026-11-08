@@ -20,7 +20,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -95,7 +94,13 @@ class RouteAccessTest : BasePostgresTest() {
                 )
             }
         }
-        AccessFixtures.relief(people.getValue(Who.REL), today)
+        IdentityFixtures.grantCapability(
+            people.getValue(Who.REL),
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContextType.BRANCH_DAY,
+            today,
+            TestFixtures.uuid(),
+        )
     }
 
     @Test

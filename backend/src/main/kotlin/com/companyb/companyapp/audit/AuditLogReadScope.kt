@@ -12,7 +12,7 @@ import java.util.UUID
  * policy is declared (work item 1).
  *
  * Read window = the caller's branches with any active grant (union pattern,
- * sourced from [Access.branchesStoodAt]). Branchless (global)
+ * sourced from [CapabilityService.findBranchWindow]). Branchless (global)
  * tables get a declared per-table capability policy; rows on unlisted tables
  * with a NULL branch (legacy backfill rows) fall back to the
  * global-view proxy: a GLOBAL `VIEW_BRANCH_DATA` grant ("read-only

@@ -1,9 +1,7 @@
 package com.companyb.companyapp.audit
 import com.companyb.companyapp.audit.AuditLogStore
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -11,7 +9,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.and
@@ -29,6 +26,7 @@ import kotlin.test.assertTrue
 class AuditLogServicePostgresTest : BasePostgresTest() {
     private val editorId = TestFixtures.uuid()
     private val acknowledgerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val recordId = TestFixtures.uuid()
     private val tableName = "test_table"
 
@@ -38,7 +36,13 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         }
         // Global VIEW_BRANCH_DATA = the NULL-branch read fallback (AuditLogReadScope).
         listOf(editorId, acknowledgerId).forEach {
-            AccessFixtures.allow(it, Act.SEE_EVERY_BRANCH)
+            IdentityFixtures.grantCapability(
+                userId = it,
+                capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+                sourceId = sourceId,
+            )
         }
     }
 
@@ -196,7 +200,13 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         // Branch-scoped editor without the global view grant: window = branchA only.
         val windowedUser = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(windowedUser, "audit-windowed")
-        AccessFixtures.allow(windowedUser, Act.WORK_HOME_BRANCH, Place.Branch(branchA))
+        IdentityFixtures.grantCapability(
+            userId = windowedUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
         val recId = recordId
         val tblName = tableName
         transaction {

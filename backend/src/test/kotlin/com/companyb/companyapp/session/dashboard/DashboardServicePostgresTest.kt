@@ -1,7 +1,5 @@
 package com.companyb.companyapp.session.dashboard
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
@@ -16,7 +14,6 @@ import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -287,7 +284,13 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getSessionDetail allows global view holder with bearer`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, callerId, branchId)
-        AccessFixtures.allow(callerId, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = TestFixtures.uuid(),
+        )
 
         val data = DashboardService.getSessionDetail(callerId, sessionId)
 
@@ -303,7 +306,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         val before = DashboardService.getSessionDetail(callerId, sessionId)
         assertEquals(sessionId, before.session.id)
 
-        AccessFixtures.revokeAll(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         assertFailsWith<NotFoundException> {
             DashboardService.getSessionDetail(callerId, sessionId)
@@ -364,7 +367,13 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ) {
-        AccessFixtures.allow(userId, Act.SEE_BRANCH, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = TestFixtures.uuid(),
+        )
     }
 
     private fun assignRole(

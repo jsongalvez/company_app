@@ -111,6 +111,21 @@ object BranchWorkforceFixtures {
             }
         }
 
+    /** Grants EDIT_PAST_DAY at [branchId] — the capability that permits writes on PAST/REMITTED days. */
+    fun grantEditPastDay(
+        userId: UUID,
+        branchId: UUID,
+        sourceId: UUID,
+    ) {
+        IdentityFixtures.grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+    }
+
     fun insertTestAttendance(
         branchDayId: UUID,
         userId: UUID,

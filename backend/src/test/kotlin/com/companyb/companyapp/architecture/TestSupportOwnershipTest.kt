@@ -2,7 +2,6 @@ package com.companyb.companyapp.architecture
 
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -36,26 +35,10 @@ class TestSupportOwnershipTest {
     }
 
     @Test
-    fun `tests get rights from AccessFixtures, never by writing grant rows`() {
-        val writes = Regex("""UserCapabilityTable\s*\.\s*(insert|insertIgnore|batchInsert|upsert|update)\b""")
-        val offenders =
-            File("backend/src/test/kotlin")
-                .walk()
-                .filter { it.extension == "kt" && writes.containsMatchIn(it.readText()) }
-                .map { it.invariantSeparatorsPath.substringAfter("companyapp/") }
-                .filter { it != "testsupport/fixtures/AccessFixtures.kt" }
-                .toList()
-        assertEquals(emptyList(), offenders, "ask AccessFixtures.allow(user, act, place) for a right instead")
-    }
-
-    @Test
     fun `each fixture family owns its tables`() {
         val identity = testSource("testsupport/fixtures/IdentityFixtures.kt")
         assertTrue("AppUserTable" in identity, "identity fixtures must own user rows")
-        assertTrue(
-            "AuthorizationGrants" in testSource("testsupport/fixtures/AccessFixtures.kt"),
-            "access fixtures give rights through the app's own writers",
-        )
+        assertTrue("UserCapabilityTable" in identity, "identity fixtures must own grant rows")
         assertTrue("BranchTable" !in identity, "branch rows belong to the branch/workforce family")
 
         val branchWorkforce = testSource("testsupport/fixtures/BranchWorkforceFixtures.kt")

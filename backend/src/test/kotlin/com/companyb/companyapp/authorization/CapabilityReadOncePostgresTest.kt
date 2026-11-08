@@ -7,7 +7,6 @@ import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -22,6 +21,7 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
     private val user = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranch = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(user, "read-once")
@@ -36,6 +36,8 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
             inRequest {
                 assertTrue(edits(branchId))
                 assertFalse(edits(otherBranch))
+                assertTrue(CapabilityRepository.hasCapabilityAnyContext(user, CapabilityCodes.EDIT_BRANCH_DATA))
+                CapabilityRepository.findBranchWindow(user)
                 RequestQueryTally.snapshot().queries
             }
         assertEquals(1, queries)
@@ -77,6 +79,11 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `the branch window names each branch once`() {
+        assertEquals(listOf(branchId), CapabilityRepository.findBranchWindow(user))
+    }
+
+    @Test
     fun `a grant written in the request is seen by the next check`() {
         inRequest {
             assertFalse(edits(otherBranch))
@@ -100,7 +107,14 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
     private fun edits(branch: java.util.UUID) =
         CapabilityRepository.hasCapability(user, CapabilityCodes.EDIT_BRANCH_DATA, CapabilityContextType.BRANCH, branch)
 
-    private fun grant(branch: java.util.UUID) = AccessFixtures.allow(user, Act.WORK_HOME_BRANCH, Place.Branch(branch))
+    private fun grant(branch: java.util.UUID) =
+        IdentityFixtures.grantCapability(
+            userId = user,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branch,
+            sourceId = sourceId,
+        )
 
     private fun <T> inRequest(block: () -> T): T {
         Database.connect(JdbcTiming.wrap(TestDatabaseLifecycle.requireTestDataSource()))

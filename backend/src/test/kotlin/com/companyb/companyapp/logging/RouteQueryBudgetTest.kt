@@ -145,16 +145,14 @@ class RouteQueryBudgetTest : BasePostgresTest() {
     companion object {
         private const val PASSWORD = "budget-pass-1"
 
-        // Access reads one facts statement per request. Four routes also still read the old grant view for
-        // /api/me/capabilities (the web's grants.ts): +1 each until the web gets its rights from the server.
         val CEILINGS =
             mapOf(
-                "sign-in" to 23,
-                "start" to 17,
+                "sign-in" to 22,
+                "start" to 16,
                 "today-screen" to 7,
-                "clock-in" to 36,
+                "clock-in" to 35,
                 "save session" to 25,
-                "clock-out" to 25,
+                "clock-out" to 24,
             )
 
         private val http: HttpClient = HttpClient.newHttpClient()

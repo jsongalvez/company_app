@@ -1,7 +1,5 @@
 package com.companyb.companyapp.remittance
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.BranchInventoryTable
@@ -30,7 +28,6 @@ import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -65,6 +62,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
@@ -81,7 +79,9 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         BranchWorkforceFixtures.insertTestBranch(branchId)
 
-        AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         SessionClientFixtures.insertTestClient(clientId)
 

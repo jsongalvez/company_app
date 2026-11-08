@@ -2,8 +2,6 @@
 
 package com.companyb.companyapp.branchday
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branchday.DayStatus
@@ -16,7 +14,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -34,18 +31,34 @@ import kotlin.test.assertTrue
 
 class BranchDayAuthzTest : BasePostgresTest() {
     private val editOnlyUser = TestFixtures.uuid()
+    private val manageOnlyUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(editOnlyUser, "edit-only")
+        IdentityFixtures.insertTestUser(manageOnlyUser, "manage-only")
         IdentityFixtures.insertTestUser(noneUser, "no-caps")
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
 
-        AccessFixtures.allow(editOnlyUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = editOnlyUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = manageOnlyUser,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 
     companion object {
@@ -126,6 +139,16 @@ class BranchDayAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `GET today forbidden for MANAGE_PRODUCTS-only user`() {
+        testServer.client.let { client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$branchId/today", asUser(manageOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
     fun `GET today forbidden for no-capability user`() {
         testServer.client.let { client ->
             assertEquals(
@@ -141,6 +164,24 @@ class BranchDayAuthzTest : BasePostgresTest() {
             assertEquals(
                 403,
                 client.get("/api/branches/$otherBranchId/today", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET today returns 404 for missing branch with grant`() {
+        val missingBranchId = TestFixtures.uuid()
+        IdentityFixtures.grantCapability(
+            userId = editOnlyUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = missingBranchId,
+            sourceId = sourceId,
+        )
+        testServer.client.let { client ->
+            assertEquals(
+                404,
+                client.get("/api/branches/$missingBranchId/today", asUser(editOnlyUser)).code,
             )
         }
     }

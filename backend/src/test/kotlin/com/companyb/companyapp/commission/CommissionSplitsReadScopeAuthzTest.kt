@@ -2,9 +2,7 @@ package com.companyb.companyapp.commission
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -16,7 +14,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -41,6 +38,7 @@ class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
     private val globalViewUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -52,9 +50,27 @@ class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Commission Read Scope Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
-        AccessFixtures.allow(memberUser, Act.SEE_COMMISSION, Place.Branch(branchId))
-        AccessFixtures.allow(branchViewUser, Act.SEE_EVERY_BRANCH)
-        AccessFixtures.allow(globalViewUser, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = memberUser,
+            capabilityCode = CapabilityCodes.VIEW_COMMISSION,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = branchViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = globalViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     companion object {

@@ -35,6 +35,7 @@ import kotlin.test.assertTrue
 
 class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
     private val rateId = TestFixtures.uuid()
@@ -48,6 +49,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `set rate for branch creates rate and writes audit`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         val result =
             SessionBaseRateService.setRate(
                 callerId,
@@ -115,6 +118,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `setting second rate for same branch and type deactivates first`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         val first =
             SessionBaseRateService.setRate(
                 callerId,
@@ -155,6 +160,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find active rates returns only current rates`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
         SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, BigDecimal("2000.00"))
 
@@ -165,6 +172,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate idempotent set rate returns existing row`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         val first =
             SessionBaseRateService.setRate(
                 callerId,
@@ -379,6 +388,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find rates for branch with no rates returns empty`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         val rates = SessionBaseRateService.findActiveRates(branchId)
         assertTrue(rates.isEmpty())
     }

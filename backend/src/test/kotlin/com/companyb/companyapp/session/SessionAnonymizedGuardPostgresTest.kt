@@ -1,7 +1,5 @@
 package com.companyb.companyapp.session
 
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -10,7 +8,6 @@ import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -43,8 +40,20 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "anonymized-guard-caller")
         IdentityFixtures.insertTestUser(practitionerId, "anonymized-guard-practitioner")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Anonymized Guard Branch $branchId")
-        AccessFixtures.allow(callerId, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-        AccessFixtures.allow(callerId, Act.SEE_BRANCH, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = TestFixtures.uuid(),
+        )
+        IdentityFixtures.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = TestFixtures.uuid(),
+        )
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, callerId)
         BranchWorkforceFixtures.insertTestAssignment(
             userId = practitionerId,
@@ -202,7 +211,7 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, expectedVersion = 1)
         ClientService.anonymize(callerId, clientId)
-        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, TestFixtures.uuid())
 
         assertFailsWith<ConflictException> {
             SessionService.updateStatus(callerId, sessionId, SessionStatus.CANCELLED, expectedVersion = 2)

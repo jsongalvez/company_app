@@ -1,8 +1,6 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commerce.BranchInventoryTable
@@ -30,7 +28,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -70,6 +67,7 @@ class OutboxReplayContractTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -98,16 +96,16 @@ class OutboxReplayContractTest : BasePostgresTest() {
                 STOCK,
             )
         }
-        grant(staff, Act.WORK_HOME_BRANCH)
-        grant(finance, Act.PAY)
-        grant(finance, Act.WORK_HOME_BRANCH)
+        grant(staff, CapabilityCodes.EDIT_BRANCH_DATA)
+        grant(finance, CapabilityCodes.ASSIGN_COMPENSATION)
+        grant(finance, CapabilityCodes.EDIT_BRANCH_DATA)
         SessionBaseRateService.setRate(staff, TestFixtures.uuid(), branchId, SessionType.REGULAR, BigDecimal("2500.00"))
     }
 
     private fun grant(
         user: UUID,
-        act: Act,
-    ) = AccessFixtures.allow(user, act, Place.Branch(branchId))
+        code: String,
+    ) = IdentityFixtures.grantCapability(user, code, CapabilityContextType.BRANCH, branchId, sourceId)
 
     private fun clockStaffIn() = BranchWorkforceFixtures.insertTestAttendance(branchDayId, staff)
 

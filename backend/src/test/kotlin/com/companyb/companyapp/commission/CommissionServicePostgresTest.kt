@@ -1,7 +1,5 @@
 package com.companyb.companyapp.commission
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -11,7 +9,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -39,6 +36,7 @@ import kotlin.time.measureTimedValue
 class CommissionServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
@@ -55,10 +53,10 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         CommerceFinanceFixtures.insertTestProduct(productId, "Commission Product", categoryId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         ensureInventoryCard(branchId, productId, 100)
-        AccessFixtures.allow(callerId, Act.WORK_ANYWHERE)
+        IdentityFixtures.grantEditBranchData(callerId, sourceId)
         productSaleId = createProductSale(branchDayId)
         insertClockIn(targetUserId, branchDayId)
-        AccessFixtures.allow(callerId, Act.PAY)
+        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
@@ -187,7 +185,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        AccessFixtures.revokeAll(callerId)
+        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val inclusionId = TestFixtures.uuid()
         val inclusion =
@@ -263,7 +261,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
             productId = productId,
             handledBy = callerId,
         )
-        AccessFixtures.allow(callerId, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
 
         CommissionService.createManualInclusion(
             callerId = callerId,
@@ -489,6 +487,12 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantViewBranchData(userId: UUID) {
-        AccessFixtures.allow(userId, Act.SEE_BRANCH, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 }

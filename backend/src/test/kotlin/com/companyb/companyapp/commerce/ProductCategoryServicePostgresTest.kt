@@ -21,6 +21,7 @@ import kotlin.test.assertTrue
 
 class ProductCategoryServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val cat1Id = TestFixtures.uuid()
     private val cat2Id = TestFixtures.uuid()
     private val categoryIds = listOf(cat1Id, cat2Id)
@@ -34,6 +35,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create persists category and writes audit row`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         val result = ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
         assertEquals(cat1Name, result.name)
@@ -47,6 +50,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing category without extra audit`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
         val duplicate = ProductCategoryService.create(callerId, cat1Id, "Changed Name $cat1Id")
@@ -57,6 +62,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate category name with fresh id is rejected`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
         val failure =
@@ -69,6 +76,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list returns all categories`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
         ProductCategoryService.create(callerId, cat2Id, cat2Name)
 
@@ -83,6 +92,8 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id returns persisted category`() {
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
+
         ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
         val found = ProductCategoryService.findById(cat1Id)
@@ -107,6 +118,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
         val newCatId = TestFixtures.uuid()
+        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductCategoryService.create(callerId, newCatId, "Find Category")
 
         val otherCaller = TestFixtures.uuid()

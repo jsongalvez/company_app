@@ -3,9 +3,7 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
@@ -32,7 +30,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -94,6 +91,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private val productId = TestFixtures.uuid()
     private val sessionOnGrantedDay = TestFixtures.uuid()
     private val sessionOnOtherDay = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var grantedDay: UUID
     private lateinit var otherDaySameBranch: UUID
@@ -170,23 +168,61 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     private fun seedGrants() {
         // reliefUser: BRANCH_DAY grant for the granted day (open window).
-        AccessFixtures.relief(reliefUser, grantedDay)
+        IdentityFixtures.grantCapability(
+            userId = reliefUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = grantedDay,
+            sourceId = sourceId,
+        )
         // wrongDayUser: BRANCH_DAY grant for a DIFFERENT day at the same branch.
-        AccessFixtures.relief(wrongDayUser, otherDaySameBranch)
+        IdentityFixtures.grantCapability(
+            userId = wrongDayUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = otherDaySameBranch,
+            sourceId = sourceId,
+        )
         // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Windows
         // derive from the REAL clock, never the frozen operational-day noon (#318): the view
         // compares against the DB's live now(), so a frozen base flips "expired" back active
         // whenever the suite runs inside the seeded window (#412 — daily red span). The wide
         // margins absorb realistic same-host clock skew (the grant must stay expired regardless).
         val seededAt = OffsetDateTime.ofInstant(TestFixtures.realNow(), ZoneOffset.UTC)
-        AccessFixtures.relief(expiredUser, grantedDay, window = seededAt.minusHours(12)..seededAt.minusHours(10))
+        IdentityFixtures.grantCapability(
+            userId = expiredUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = grantedDay,
+            sourceId = sourceId,
+            validFrom = seededAt.minusHours(12),
+            validTo = seededAt.minusHours(10),
+        )
         // branchUser: ordinary BRANCH grant (the branch leg regression).
-        AccessFixtures.allow(branchUser, Act.WORK_HOME_BRANCH, Place.Branch(branchA))
+        IdentityFixtures.grantCapability(
+            userId = branchUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
         // branchCUser: BRANCH grant at the no-day-row branch (the null-day fallback success path).
-        AccessFixtures.allow(branchCUser, Act.WORK_HOME_BRANCH, Place.Branch(branchC))
+        IdentityFixtures.grantCapability(
+            userId = branchCUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchC,
+            sourceId = sourceId,
+        )
         // globalUser: GLOBAL EDIT_BRANCH_DATA — must NOT satisfy the day gates (pre-change
         // strictness preserved; the #131 class).
-        AccessFixtures.allow(globalUser, Act.WORK_ANYWHERE)
+        IdentityFixtures.grantCapability(
+            userId = globalUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     companion object {
@@ -542,8 +578,20 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private fun seedReadUsers() {
         IdentityFixtures.insertTestUser(viewUser, "view-user")
         IdentityFixtures.insertTestUser(globalViewUser, "global-view-user")
-        AccessFixtures.allow(viewUser, Act.SEE_BRANCH, Place.Branch(branchA))
-        AccessFixtures.allow(globalViewUser, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = viewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = globalViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     @Test

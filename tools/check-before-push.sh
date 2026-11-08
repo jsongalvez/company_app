@@ -16,7 +16,6 @@
 #   tools/check-before-push.sh            # changed since merge-base with origin/master (+ uncommitted)
 #   tools/check-before-push.sh --all      # every module, as CI would
 #   tools/check-before-push.sh --plan     # print what would run, run nothing
-#   DEADCODE=1 tools/push.sh origin master  # also run deadCodeCheck (3 min): use it when a push deletes tests or callers
 #
 # Skipped locally, still covered by CI: :backend:test and :backend:verifyOpenApiContract
 # (need the CI Postgres service), and deadCodeCheck (about 3 min of CPU on the 2-core
@@ -34,7 +33,7 @@ for arg in "$@"; do
   case "$arg" in
     --all) mode=all ;;
     --plan) plan_only=1 ;;
-    -h|--help) sed -n 2,23p "$0"; exit 0 ;;
+    -h|--help) sed -n 2,22p "$0"; exit 0 ;;
     *) echo "check-before-push: unknown argument $arg" >&2; exit 2 ;;
   esac
 done
@@ -144,10 +143,6 @@ tools/quality/shot-gate.sh || status=1
 if [ ${#tasks[@]} -gt 0 ]; then
   # --continue: report every red check in one run instead of one per push.
   ./gradlew --continue "${tasks[@]}" || status=1
-fi
-
-if [ "${DEADCODE:-0}" = 1 ]; then
-  ./gradlew deadCodeCheck || status=1
 fi
 
 if [ $want_shell -eq 1 ]; then

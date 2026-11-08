@@ -8,7 +8,6 @@ import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.eq
@@ -49,13 +48,20 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
     private val unrelatedBranch = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         insertUsers()
         insertBranches()
         assignRolesAndAssignments()
 
-        AccessFixtures.allow(directGrantCoordinator, Act.WORK_HOME_BRANCH, Place.Branch(branchA))
+        IdentityFixtures.grantCapability(
+            userId = directGrantCoordinator,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
     }
 
     private fun insertUsers() {
@@ -372,4 +378,21 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     }
 
     // ── Precedence ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `direct grant outranks the role-derived row on the same tuple`() {
+        val editRows =
+            CapabilityService
+                .getCapabilitiesForUser(directGrantCoordinator)
+                .filter {
+                    it.capabilityCode == CapabilityCodes.EDIT_BRANCH_DATA &&
+                        it.contextType == CapabilityContextType.BRANCH
+                }
+        assertEquals(1, editRows.size, "view must dedup direct + derived rows on one tuple")
+        assertEquals(
+            CapabilitySourceType.SYSTEM,
+            editRows.single().sourceType,
+            "direct grant (priority 100) must win over derived (5)",
+        )
+    }
 }

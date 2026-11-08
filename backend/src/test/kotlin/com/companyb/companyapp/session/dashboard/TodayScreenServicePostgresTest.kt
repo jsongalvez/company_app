@@ -1,8 +1,6 @@
 package com.companyb.companyapp.session.dashboard
 
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -15,7 +13,6 @@ import com.companyb.companyapp.session.VisitBookingService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -58,8 +55,20 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
             slot = 2,
             assignedBy = onDuty,
         )
-        AccessFixtures.allow(onDuty, Act.SEE_BRANCH, Place.Branch(branchId))
-        AccessFixtures.allow(globalViewer, Act.SEE_EVERY_BRANCH)
+        IdentityFixtures.grantCapability(
+            userId = onDuty,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = TestFixtures.uuid(),
+        )
+        IdentityFixtures.grantCapability(
+            userId = globalViewer,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = TestFixtures.uuid(),
+        )
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, onDuty)
         AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, elsewhere)
         val day = BranchWorkforceFixtures.createBranchDayForToday(branchId)

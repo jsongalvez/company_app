@@ -7,7 +7,6 @@ import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.Place
-import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -26,7 +25,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import io.javalin.Javalin
@@ -72,6 +70,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     private val bobUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var tomorrow: LocalDate
     private lateinit var yesterday: LocalDate
@@ -86,7 +85,6 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(otherInviter, "other-inviter")
         IdentityFixtures.insertTestUser(nonAssigned, "non-assigned")
         IdentityFixtures.insertTestUser(invitee, "invitee")
-        AccessFixtures.hold(invitee, Role.PRACTITIONER)
         IdentityFixtures.insertTestUser(otherInvitee, "other-invitee")
         IdentityFixtures.insertTestUser(inactiveUser, "inactive")
         IdentityFixtures.insertTestUser(aliceUser, "alice")
@@ -308,7 +306,13 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `invitee with an active grant for the day conflicts`() {
-        AccessFixtures.relief(invitee, tomorrowDayId)
+        IdentityFixtures.grantCapability(
+            userId = invitee,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = tomorrowDayId,
+            sourceId = sourceId,
+        )
         testServer.client.let { client ->
             val response =
                 client.post(
@@ -658,7 +662,13 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `candidates exclude self, live invitees and granted users`() {
-        AccessFixtures.relief(otherInvitee, tomorrowDayId)
+        IdentityFixtures.grantCapability(
+            userId = otherInvitee,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = tomorrowDayId,
+            sourceId = sourceId,
+        )
         testServer.client.let { client ->
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
 

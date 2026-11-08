@@ -1,7 +1,5 @@
 package com.companyb.companyapp.integration
 
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceType
@@ -15,7 +13,6 @@ import com.companyb.companyapp.remittance.RemittanceRepository
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import java.math.BigDecimal
@@ -35,6 +32,7 @@ import kotlin.test.assertTrue
  */
 class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
 
     override fun initTestData() {
@@ -47,7 +45,7 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
         repeat(RACE_ITERATIONS) { iteration ->
             val iterBranchId = TestFixtures.uuid()
             BranchWorkforceFixtures.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
-            AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(iterBranchId))
+            IdentityFixtures.grantSubmitRemittance(callerId, sourceId, iterBranchId)
             val dayId = BranchWorkforceFixtures.createBranchDayForToday(iterBranchId)
             val remittanceId = createDraftCovering(iterBranchId, dayId)
             val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -89,7 +87,7 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
         repeat(RACE_ITERATIONS) { iteration ->
             val iterBranchId = TestFixtures.uuid()
             BranchWorkforceFixtures.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
-            AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(iterBranchId))
+            IdentityFixtures.grantSubmitRemittance(callerId, sourceId, iterBranchId)
             val dayId = BranchWorkforceFixtures.createBranchDayForToday(iterBranchId)
             val remittanceId = createDraftCovering(iterBranchId, dayId)
             val version = RemittanceService.getRemittance(remittanceId).remittance.version

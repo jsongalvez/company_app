@@ -1,7 +1,5 @@
 package com.companyb.companyapp.remittance
 
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
@@ -15,7 +13,6 @@ import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.finance.ExpenseTable
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -39,6 +36,7 @@ import kotlin.test.assertNull
  */
 class RemittanceSubmitCoveragePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
 
@@ -50,7 +48,7 @@ class RemittanceSubmitCoveragePostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "remittance-coverage-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Coverage Branch ${TestFixtures.uuid()}")
-        AccessFixtures.allow(callerId, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
+        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
         SessionClientFixtures.insertTestClient(clientId)
     }
 

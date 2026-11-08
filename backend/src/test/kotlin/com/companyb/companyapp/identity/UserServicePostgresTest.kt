@@ -1,7 +1,6 @@
 package com.companyb.companyapp.identity
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
-import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID
 import com.companyb.companyapp.contracts.audit.AuditAction
@@ -16,7 +15,6 @@ import com.companyb.companyapp.identity.RoleRepository
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -39,6 +37,7 @@ import kotlin.test.assertTrue
 class UserServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "caller")
@@ -48,7 +47,7 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `deactivate persists inactive status, writes audit log, and rejects existing token`() {
-        AccessFixtures.allow(callerId, Act.MANAGE_USERS)
+        IdentityFixtures.grantManageUsers(callerId, sourceId)
         val targetToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)

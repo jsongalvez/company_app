@@ -1,8 +1,6 @@
 package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -17,7 +15,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -49,6 +46,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(editorUser, "session-editor")
@@ -68,10 +66,34 @@ class SessionEditAuthzTest : BasePostgresTest() {
             sessionStatus = SessionStatus.NO_SHOW,
         )
 
-        AccessFixtures.allow(editorUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-        AccessFixtures.allow(wrongBranchUser, Act.WORK_HOME_BRANCH, Place.Branch(otherBranchId))
-        AccessFixtures.allow(coordinatorUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-        AccessFixtures.allow(coordinatorUser, Act.CHANGE_CLOSED_DAY, Place.Branch(branchId))
+        IdentityFixtures.grantCapability(
+            userId = editorUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = wrongBranchUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = otherBranchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = coordinatorUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantCapability(
+            userId = coordinatorUser,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 
     companion object {
@@ -143,10 +165,11 @@ class SessionEditAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `status correction is forbidden for a member of another branch`() {
+    fun `status correction is forbidden without Coordinator capability`() {
         testServer.client.let { client ->
+            // NO_SHOW -> CANCELLED swaps outcomes: a correction, Coordinator only.
             val body = mapOf("status" to "CANCELLED", "version" to 1)
-            assertEquals(403, client.patch("/api/sessions/$sessionId/status", body, asUser(wrongBranchUser)).code)
+            assertEquals(403, client.patch("/api/sessions/$sessionId/status", body, asUser(editorUser)).code)
         }
     }
 

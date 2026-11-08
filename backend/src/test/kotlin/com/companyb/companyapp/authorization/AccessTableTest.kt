@@ -21,7 +21,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -116,7 +115,13 @@ class AccessTableTest : BasePostgresTest() {
         people.values.forEach { BranchWorkforceFixtures.insertTestAttendance(day(Day.TODAY), it) }
         seedPayees()
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, person(Who.COORDINATOR))
-        AccessFixtures.relief(person(Who.RELIEF), day(Day.TODAY))
+        IdentityFixtures.grantCapability(
+            person(Who.RELIEF),
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContextType.BRANCH_DAY,
+            day(Day.TODAY),
+            TestFixtures.uuid(),
+        )
         grantHelpers()
         val category = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestCategory(category)
@@ -148,7 +153,13 @@ class AccessTableTest : BasePostgresTest() {
         reliefPayees.values.forEach { id ->
             IdentityFixtures.insertTestUser(id, "relief-payee")
             assignRole(id, "PRACTITIONER")
-            AccessFixtures.relief(id, day(Day.TODAY))
+            IdentityFixtures.grantCapability(
+                id,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContextType.BRANCH_DAY,
+                day(Day.TODAY),
+                TestFixtures.uuid(),
+            )
         }
         strangers.values.forEach { id ->
             IdentityFixtures.insertTestUser(id, "stranger")
@@ -180,9 +191,19 @@ class AccessTableTest : BasePostgresTest() {
     }
 
     private fun grantHelpers() {
-        AccessFixtures.helper(person(Who.HELPER), branchId)
-        AccessFixtures.endHelper(AccessFixtures.helper(person(Who.HELPER_REMOVED), branchId))
-        AccessFixtures.helper(person(Who.HELPER_COORDINATOR), branchId, DelegateRole.COORDINATOR)
+        // Owed #28: "A helper shares commissions, just think of it as a relief but indefinite until removed."
+        transaction {
+            AuthorizationGrants.grantDelegateCapabilityInTransaction(person(Who.HELPER), branchId, TestFixtures.uuid())
+            val removed = TestFixtures.uuid()
+            AuthorizationGrants.grantDelegateCapabilityInTransaction(person(Who.HELPER_REMOVED), branchId, removed)
+            AuthorizationGrants.closeDelegateCapabilityInTransaction(removed)
+            AuthorizationGrants.grantDelegateCapabilityInTransaction(
+                person(Who.HELPER_COORDINATOR),
+                branchId,
+                TestFixtures.uuid(),
+                DelegateRole.COORDINATOR,
+            )
+        }
     }
 
     private val odd = mutableListOf<String>()

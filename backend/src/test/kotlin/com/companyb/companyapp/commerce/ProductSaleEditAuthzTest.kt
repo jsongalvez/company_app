@@ -21,7 +21,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
@@ -86,7 +85,13 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         )
         IdentityFixtures.insertTestUser(relief, "relief")
         assignRole(relief, "PRACTITIONER")
-        AccessFixtures.relief(relief, todayId)
+        IdentityFixtures.grantCapability(
+            relief,
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContextType.BRANCH_DAY,
+            todayId,
+            TestFixtures.uuid(),
+        )
         val category = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestCategory(category)
         CommerceFinanceFixtures.insertTestProduct(
@@ -176,7 +181,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
 
     @Test
     fun `the day's sales list shows deleted ones marked, with their reason`() {
-        val who = members.getValue("PRACTITIONER")
+        val who = members.getValue("ACCOUNTANT")
         val (kept, _) = sell(todayId, who, quantity = 1)
         val (gone, v) = sell(todayId, who, quantity = 1)
         assertCode(200, delete(gone, v, "wrong product", who), who)
@@ -351,7 +356,7 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
 
     companion object {
         private const val STOCK = 500
-        private val MEMBER_ROLES = listOf("OWNER", "PRACTITIONER")
+        private val MEMBER_ROLES = listOf("OWNER", "ACCOUNTANT", "PRACTITIONER")
         private val defaultUser = TestFixtures.uuid()
 
         @JvmField

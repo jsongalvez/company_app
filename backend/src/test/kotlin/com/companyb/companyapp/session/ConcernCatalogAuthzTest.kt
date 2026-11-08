@@ -1,8 +1,6 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -14,7 +12,6 @@ import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
-import com.companyb.companyapp.testsupport.fixtures.AccessFixtures
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
@@ -42,6 +39,7 @@ class ConcernCatalogAuthzTest : BasePostgresTest() {
     private val reliefUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private var branchDayId: UUID = TestFixtures.uuid()
@@ -52,10 +50,22 @@ class ConcernCatalogAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(reliefUser, "concern-relief")
         IdentityFixtures.insertTestUser(noneUser, "concern-none")
         BranchWorkforceFixtures.insertTestBranch(branchId)
-        AccessFixtures.allow(branchUser, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-        AccessFixtures.allow(globalUser, Act.WORK_ANYWHERE)
+        IdentityFixtures.grantCapability(
+            userId = branchUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        IdentityFixtures.grantEditBranchData(globalUser, sourceId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        AccessFixtures.relief(reliefUser, branchDayId)
+        IdentityFixtures.grantCapability(
+            userId = reliefUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = branchDayId,
+            sourceId = sourceId,
+        )
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
     }
