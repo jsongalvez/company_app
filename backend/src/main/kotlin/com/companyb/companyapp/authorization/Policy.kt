@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import java.util.UUID
 
 private const val VIEW = CapabilityCodes.VIEW_BRANCH_DATA
@@ -89,8 +90,8 @@ data class Grant(
 /**
  * What the database says about one person. [unassignedBranches] are the branches some role of
  * theirs works at without an assignment, with the roles that reach each. [rows] are their
- * `user_capability` rows in force now (helper seats and direct grants), [reliefDays] the branch days they
- * work as relief.
+ * `user_capability` rows in force now (direct grants), [reliefDays] the branch days they work as relief,
+ * [helperSeats] the branches they help at, with the role they work under there.
  */
 data class Facts(
     val active: Boolean,
@@ -99,18 +100,29 @@ data class Facts(
     val unassignedBranches: Map<UUID, Set<Role>>,
     val rows: List<Grant>,
     val reliefDays: Set<UUID>,
+    val helperSeats: Map<UUID, Set<DelegateRole>>,
 )
 
 object Policy {
     /** What every working person holds where they work. */
     val MEMBER: Set<String> = setOf(VIEW, EDIT, VOID, COMMISSION)
 
+    /** What a helper holds at their mission or tour, by the role they work under there. */
+    val HELPER: Map<DelegateRole, Set<String>> =
+        mapOf(
+            DelegateRole.PRACTITIONER to MEMBER,
+            DelegateRole.COORDINATOR to MEMBER + setOf(PAST_DAY, REMIT, PAY, STOCK, ALERTS),
+        )
+
+    /** The helper roles whose people get next-appointment alerts at the branch they help. */
+    val ALERTED_HELPERS: Set<DelegateRole> = HELPER.filterValues { ALERTS in it }.keys
+
     /** Below every `user_capability` row ([GrantPriorities]), so a direct grant names the source. */
     const val ROLE_PRIORITY: Short = 5
 
     /**
      * Every grant [facts] give, one per code and context, the highest priority winning. An edit row
-     * at a branch carries a view there; a relief day or a helper seat carries a member's rights.
+     * at a branch carries a view there; a relief day carries a member's rights, a helper seat [HELPER]'s.
      */
     fun grants(facts: Facts): List<Grant> {
         if (!facts.active) return emptyList()
@@ -126,7 +138,11 @@ object Policy {
         val unassigned = facts.unassignedBranches.flatMap { (branch, roles) -> atBranch(roles, branch) }
         val carried = facts.rows.flatMap { carriedBy(it) }
         val relief = facts.reliefDays.flatMap { day -> MEMBER.map { reliefGrant(it, day) } }
-        return (facts.rows + carried + relief + everywhere + homes + unassigned)
+        val helping =
+            facts.helperSeats.flatMap { (branch, roles) ->
+                roles.flatMap { HELPER.getValue(it) }.map { helperGrant(it, branch) }
+            }
+        return (facts.rows + carried + relief + helping + everywhere + homes + unassigned)
             .groupBy { Triple(it.code, it.contextType, it.contextId) }
             .map { (_, same) -> same.maxBy { it.priority } }
     }
@@ -139,11 +155,25 @@ object Policy {
         return (roles.flatMap { it.atBranch } + member).map { roleGrant(it, CapabilityContextType.BRANCH, branch) }
     }
 
-    private fun carriedBy(row: Grant): List<Grant> {
-        if (row.code != EDIT || row.contextType == CapabilityContextType.GLOBAL) return emptyList()
-        val codes = if (row.sourceType == CapabilitySourceType.MEDICAL_MISSION_DELEGATE) MEMBER - EDIT else setOf(VIEW)
-        return codes.map { row.copy(code = it) }
-    }
+    private fun carriedBy(row: Grant): List<Grant> =
+        if (row.code == EDIT &&
+            row.contextType != CapabilityContextType.GLOBAL
+        ) {
+            listOf(row.copy(code = VIEW))
+        } else {
+            emptyList()
+        }
+
+    private fun helperGrant(
+        code: String,
+        branch: UUID,
+    ) = Grant(
+        code,
+        CapabilityContextType.BRANCH,
+        branch,
+        CapabilitySourceType.MEDICAL_MISSION_DELEGATE,
+        GrantPriorities.MEDICAL_MISSION_DELEGATE,
+    )
 
     private fun reliefGrant(
         code: String,

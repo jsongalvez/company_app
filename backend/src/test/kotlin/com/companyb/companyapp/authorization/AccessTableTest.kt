@@ -189,16 +189,9 @@ class AccessTableTest : BasePostgresTest() {
     private fun grantHelpers() {
         // Owed #28: "A helper shares commissions, just think of it as a relief but indefinite until removed."
         transaction {
-            AuthorizationGrants.grantDelegateCapabilityInTransaction(person(Who.HELPER), branchId, TestFixtures.uuid())
-            val removed = TestFixtures.uuid()
-            AuthorizationGrants.grantDelegateCapabilityInTransaction(person(Who.HELPER_REMOVED), branchId, removed)
-            AuthorizationGrants.closeDelegateCapabilityInTransaction(removed)
-            AuthorizationGrants.grantDelegateCapabilityInTransaction(
-                person(Who.HELPER_COORDINATOR),
-                branchId,
-                TestFixtures.uuid(),
-                DelegateRole.COORDINATOR,
-            )
+            IdentityFixtures.helperSeat(person(Who.HELPER), branchId)
+            IdentityFixtures.helperSeat(person(Who.HELPER_REMOVED), branchId, ended = true)
+            IdentityFixtures.helperSeat(person(Who.HELPER_COORDINATOR), branchId, DelegateRole.COORDINATOR)
         }
     }
 

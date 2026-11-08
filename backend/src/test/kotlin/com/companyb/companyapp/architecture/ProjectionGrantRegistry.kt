@@ -15,6 +15,7 @@ object ProjectionGrantRegistry {
             ProjectionGrant("authorization/CapabilityRepository.kt", "RoleTable"),
             ProjectionGrant("authorization/CapabilityRepository.kt", "UserRoleTable"),
             ProjectionGrant("authorization/CapabilityRepository.kt", "UserBranchAssignmentTable"),
+            ProjectionGrant("authorization/CapabilityRepository.kt", "MedicalMissionDelegateTable"),
             ProjectionGrant("audit/AuditLogStore.kt", "AppUserTable"),
             ProjectionGrant("audit/AuditLogStore.kt", "BranchTable"),
             // A session's change history takes in its people and voids (owed #20).

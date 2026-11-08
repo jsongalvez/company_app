@@ -5,12 +5,14 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
+import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
@@ -74,7 +76,10 @@ internal object CapabilityRepository {
             .reduce { a, b -> a or b }
     }
 
-    /** A person's roles, the branches they reach unassigned, their open assignments and their grant rows. */
+    /**
+     * A person's roles, the branches they reach unassigned, their open assignments, grant rows,
+     * relief days and helper seats.
+     */
     private val FACTS =
         AppUserTable
             .join(UserRoleTable, JoinType.LEFT, AppUserTable.id, UserRoleTable.userId)
@@ -99,6 +104,12 @@ internal object CapabilityRepository {
                 AppUserTable.id,
                 ReliefDayTable.userId,
                 additionalConstraint = { reliefInForce() },
+            ).join(
+                MedicalMissionDelegateTable,
+                JoinType.LEFT,
+                AppUserTable.id,
+                MedicalMissionDelegateTable.targetUser,
+                additionalConstraint = { MedicalMissionDelegateTable.endedAt.isNull() },
             )
 
     /** The tables a person's grants come from: a write to one drops the request's copy. */
@@ -116,7 +127,8 @@ internal object CapabilityRepository {
 
     /**
      * What [Policy] needs about [userId], in one statement: their roles, the branches those roles
-     * work at unassigned, their open assignments, their `user_capability` rows and their relief days in force. The
+     * work at unassigned, their open assignments, their `user_capability` rows, their relief days in force and
+     * their open helper seats. The
      * left joins multiply into a handful of rows, which costs less than a statement each.
      */
     private fun factsOf(userId: UUID): Facts {
@@ -133,6 +145,8 @@ internal object CapabilityRepository {
                     UserCapabilityTable.sourceType,
                     UserCapabilityTable.priority,
                     ReliefDayTable.branchDayId,
+                    MedicalMissionDelegateTable.branchId,
+                    MedicalMissionDelegateTable.role,
                 ).where { AppUserTable.id eq userId }
                 .toList()
         val unassigned = mutableMapOf<UUID, MutableSet<Role>>()
@@ -146,6 +160,13 @@ internal object CapabilityRepository {
             homes = rows.mapNotNull { it.getOrNull(UserBranchAssignmentTable.branchId) }.toSet(),
             unassignedBranches = unassigned,
             reliefDays = rows.mapNotNull { it.getOrNull(ReliefDayTable.branchDayId) }.toSet(),
+            helperSeats =
+                rows
+                    .mapNotNull { row ->
+                        val branch = row.getOrNull(MedicalMissionDelegateTable.branchId) ?: return@mapNotNull null
+                        branch to DelegateRole.valueOf(row[MedicalMissionDelegateTable.role])
+                    }.groupBy({ it.first }, { it.second })
+                    .mapValues { it.value.toSet() },
             rows =
                 rows
                     .mapNotNull { row ->
@@ -236,8 +257,8 @@ internal object CapabilityRepository {
 
     /**
      * For each of [branchIds], the active people assigned there who get next-appointment alerts:
-     * by a role in [Policy.ALERTED_ROLES], or by an alerts grant in force at that branch (a helper
-     * picked as Coordinator). Runs on the caller's transaction.
+     * by a role in [Policy.ALERTED_ROLES], by a helper seat there under a role in [Policy.ALERTED_HELPERS],
+     * or by an alerts grant in force at that branch. Runs on the caller's transaction.
      */
     fun alertedByBranchInTransaction(branchIds: Collection<UUID>): Map<UUID, List<UUID>> {
         val byRole =
@@ -263,6 +284,17 @@ internal object CapabilityRepository {
                             inForce()
                     },
             )
+        val bySeat =
+            exists(
+                MedicalMissionDelegateTable
+                    .select(MedicalMissionDelegateTable.targetUser)
+                    .where {
+                        (MedicalMissionDelegateTable.targetUser eq UserBranchAssignmentTable.userId) and
+                            (MedicalMissionDelegateTable.branchId eq UserBranchAssignmentTable.branchId) and
+                            (MedicalMissionDelegateTable.role inList Policy.ALERTED_HELPERS.map { it.name }) and
+                            MedicalMissionDelegateTable.endedAt.isNull()
+                    },
+            )
         return UserBranchAssignmentTable
             .innerJoin(AppUserTable, { UserBranchAssignmentTable.userId }, { AppUserTable.id })
             .select(UserBranchAssignmentTable.userId, UserBranchAssignmentTable.branchId)
@@ -270,7 +302,7 @@ internal object CapabilityRepository {
                 (UserBranchAssignmentTable.branchId inList branchIds) and
                     UserBranchAssignmentTable.endedAt.isNull() and
                     (AppUserTable.status eq UserStatus.ACTIVE) and
-                    (byRole or byGrant)
+                    (byRole or bySeat or byGrant)
             }.withDistinct()
             .map { it[UserBranchAssignmentTable.branchId] to it[UserBranchAssignmentTable.userId] }
             .groupBy({ it.first }, { it.second })

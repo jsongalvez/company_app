@@ -3,7 +3,6 @@ package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
-import com.companyb.companyapp.authorization.AuthorizationGrants
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.workforce.DelegateRole
@@ -97,12 +96,6 @@ object MedicalMissionDelegateService {
                 requireRequestOwnership(result.delegate, targetUserId, branchId, callerId)
             }
             if (result.inserted) {
-                AuthorizationGrants.grantDelegateCapabilityInTransaction(
-                    targetUserId = targetUserId,
-                    branchId = branchId,
-                    delegateId = delegateId,
-                    role = role,
-                )
                 MedicalMissionDelegateAudit.inserted(AuditContext(callerId, branchId), result.delegate)
             }
             result.delegate
@@ -147,7 +140,6 @@ object MedicalMissionDelegateService {
                 val result = MedicalMissionDelegateRepository.revokeInTransaction(delegateId)
 
                 if (result.changed) {
-                    AuthorizationGrants.closeDelegateCapabilityInTransaction(delegateId)
                     MedicalMissionDelegateAudit.updated(
                         AuditContext(callerId, before.branchId),
                         before,

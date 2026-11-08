@@ -9,9 +9,12 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.identity.UserStatus
+import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
+import com.companyb.companyapp.test.TestFixtures
+import com.companyb.companyapp.workforce.relief.MedicalMissionDelegateTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -185,6 +188,26 @@ object IdentityFixtures {
             }
         }
     }
+
+    /** Seats [userId] as a helper at [branchId] under [role]; returns the seat's id. */
+    fun helperSeat(
+        userId: UUID,
+        branchId: UUID,
+        role: DelegateRole = DelegateRole.PRACTITIONER,
+        ended: Boolean = false,
+    ): UUID =
+        TestFixtures.uuid().also { id ->
+            transaction {
+                MedicalMissionDelegateTable.insert {
+                    it[MedicalMissionDelegateTable.id] = id
+                    it[MedicalMissionDelegateTable.targetUser] = userId
+                    it[MedicalMissionDelegateTable.assignedBy] = userId
+                    it[MedicalMissionDelegateTable.branchId] = branchId
+                    it[MedicalMissionDelegateTable.role] = role.name
+                    if (ended) it[MedicalMissionDelegateTable.endedAt] = OffsetDateTime.now().minusDays(1)
+                }
+            }
+        }
 
     fun insertTestUser(
         id: UUID,

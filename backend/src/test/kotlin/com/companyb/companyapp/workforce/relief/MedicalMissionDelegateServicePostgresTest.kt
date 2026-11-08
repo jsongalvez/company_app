@@ -1,7 +1,8 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.CapabilityTable
-import com.companyb.companyapp.authorization.UserCapabilityTable
+import com.companyb.companyapp.authorization.Policy
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -74,7 +75,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `successful assign creates delegate and user_capability`() {
+    fun `successful assign creates delegate and seats the target there`() {
         val delegateId = TestFixtures.uuid()
 
         val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
@@ -85,8 +86,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertEquals(callerId, result.assignedBy)
         assertNull(result.endedAt)
         assertTrue(delegateExists(delegateId))
-        assertTrue(capabilityExistsForDelegate(delegateId, targetUserId, branchId))
-        assertEquals(editBranchDataCapabilityId(), grantCapabilityIdForDelegate(delegateId))
+        assertEquals(Policy.MEMBER, seatGrants())
     }
 
     @Test
@@ -309,7 +309,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `successful revoke sets ended_at and expires user_capability`() {
+    fun `successful revoke sets ended_at and ends the seat's rights`() {
         val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
 
@@ -318,7 +318,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertEquals(delegateId, result.id)
         assertNotNull(result.endedAt)
         assertTrue(delegateHasEndedAt(delegateId))
-        assertTrue(capabilityIsExpired(delegateId))
+        assertEquals(emptySet(), seatGrants())
     }
 
     @Test
@@ -330,7 +330,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         val retry = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
 
         assertNotNull(retry.endedAt)
-        assertEquals(0L, activeCapabilityCount(delegateId))
+        assertEquals(emptySet(), seatGrants())
         assertEquals(2L, delegateAuditCount(delegateId))
     }
 
@@ -347,7 +347,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `concurrent revoke is idempotent and closes capability once`() {
+    fun `concurrent revoke is idempotent and ends the seat once`() {
         val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
 
@@ -375,8 +375,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertTrue(outcomes.all { it.isSuccess && it.getOrNull()?.endedAt != null })
         assertEquals(2L, delegateAuditCount(delegateId))
         assertEquals(1L, delegateUpdateAuditCount(delegateId))
-        assertEquals(0L, activeCapabilityCount(delegateId))
-        assertTrue(capabilityIsExpired(delegateId))
+        assertEquals(emptySet(), seatGrants())
     }
 
     @Test
@@ -480,65 +479,15 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                 .single()[MedicalMissionDelegateTable.endedAt] != null
         }
 
-    private fun capabilityExistsForDelegate(
-        delegateId: UUID,
-        userId: UUID,
-        contextId: UUID,
-    ): Boolean =
-        transaction {
-            UserCapabilityTable
-                .selectAll()
-                .where {
-                    (UserCapabilityTable.sourceId eq delegateId) and
-                        (UserCapabilityTable.userId eq userId) and
-                        (UserCapabilityTable.contextId eq contextId) and
-                        (UserCapabilityTable.contextType eq CapabilityContextType.BRANCH) and
-                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE) and
-                        (UserCapabilityTable.validTo.isNull())
-                }.empty()
-                .not()
-        }
-
-    private fun editBranchDataCapabilityId(): UUID =
-        transaction {
-            CapabilityTable
-                .selectAll()
-                .where { CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA }
-                .single()[CapabilityTable.id]
-        }
-
-    private fun grantCapabilityIdForDelegate(delegateId: UUID): UUID =
-        transaction {
-            UserCapabilityTable
-                .selectAll()
-                .where {
-                    (UserCapabilityTable.sourceId eq delegateId) and
-                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE)
-                }.single()[UserCapabilityTable.capabilityId]
-        }
-
-    private fun capabilityIsExpired(delegateId: UUID): Boolean =
-        transaction {
-            UserCapabilityTable
-                .selectAll()
-                .where {
-                    (UserCapabilityTable.sourceId eq delegateId) and
-                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE) and
-                        (UserCapabilityTable.validTo.isNotNull())
-                }.empty()
-                .not()
-        }
-
-    private fun activeCapabilityCount(delegateId: UUID): Long =
-        transaction {
-            UserCapabilityTable
-                .selectAll()
-                .where {
-                    (UserCapabilityTable.sourceId eq delegateId) and
-                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE) and
-                        UserCapabilityTable.validTo.isNull()
-                }.count()
-        }
+    private fun seatGrants(): Set<String> =
+        CapabilityService
+            .getCapabilitiesForUser(targetUserId)
+            .filter {
+                it.contextType == CapabilityContextType.BRANCH &&
+                    it.contextId == branchId.toString() &&
+                    it.sourceType == CapabilitySourceType.MEDICAL_MISSION_DELEGATE
+            }.map { it.capabilityCode }
+            .toSet()
 
     private fun delegateAuditCount(delegateId: UUID): Long =
         transaction {

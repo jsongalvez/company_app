@@ -1,11 +1,10 @@
 package com.companyb.companyapp.authorization
 
-import com.companyb.companyapp.contracts.workforce.DelegateRole
 import java.util.UUID
 
 /**
- * Narrow grant seam for workforce commands: the relief request/accept/revoke and
- * delegate assign/revoke flows write grants only through here — thin delegations to the
+ * Narrow grant seam for workforce commands: the relief request/accept/revoke flows write
+ * relief days only through here — thin delegations to the
  * internal [GrantStore], not a facade over every store method. Service-to-service calls need no
  * architecture allowlist entry; direct
  * grant-table imports from other owners stay banned.
@@ -23,21 +22,4 @@ object AuthorizationGrants {
         userId: UUID,
         sourceId: UUID,
     ) = GrantStore.deleteReliefGrantBySourceIdInTransaction(userId, sourceId)
-
-    /**
-     * Writes the branch-scoped delegate grant for the delegate-assign flow.
-     * Owns the fixed capability, source, context and priority — callers
-     * supply only target user, branch and delegate identity.
-     * Runs on the caller's command transaction.
-     */
-    fun grantDelegateCapabilityInTransaction(
-        targetUserId: UUID,
-        branchId: UUID,
-        delegateId: UUID,
-        role: DelegateRole = DelegateRole.PRACTITIONER,
-    ) = GrantStore.grantDelegateCapabilityInTransaction(targetUserId, branchId, delegateId, role)
-
-    /** Closes the delegate grant window for the delegate-revoke flow. Runs on the caller's transaction. */
-    fun closeDelegateCapabilityInTransaction(delegateId: UUID) =
-        GrantStore.closeDelegateCapabilityInTransaction(delegateId)
 }

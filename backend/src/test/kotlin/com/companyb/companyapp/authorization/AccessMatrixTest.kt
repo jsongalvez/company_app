@@ -70,10 +70,9 @@ class AccessMatrixTest : BasePostgresTest() {
             ReliefDayTable.update({ ReliefDayTable.userId eq people.getValue(Who.RELIEF_ENDED) }) {
                 it[ReliefDayTable.validTo] = OffsetDateTime.now().minusDays(1)
             }
-            helper(Who.HELPER, DelegateRole.PRACTITIONER)
-            helper(Who.HELPER_COORDINATOR, DelegateRole.COORDINATOR)
-            val removed = helper(Who.HELPER_REMOVED, DelegateRole.PRACTITIONER)
-            AuthorizationGrants.closeDelegateCapabilityInTransaction(removed)
+            IdentityFixtures.helperSeat(people.getValue(Who.HELPER), mission, DelegateRole.PRACTITIONER)
+            IdentityFixtures.helperSeat(people.getValue(Who.HELPER_COORDINATOR), mission, DelegateRole.COORDINATOR)
+            IdentityFixtures.helperSeat(people.getValue(Who.HELPER_REMOVED), mission, ended = true)
         }
     }
 
@@ -81,14 +80,6 @@ class AccessMatrixTest : BasePostgresTest() {
         AuthorizationGrants.grantReliefCapabilityInTransaction(
             GrantReliefCapabilityParams(people.getValue(who), today, TestFixtures.uuid(), validTo = null),
         )
-
-    private fun helper(
-        who: Who,
-        role: DelegateRole,
-    ): UUID =
-        TestFixtures.uuid().also {
-            AuthorizationGrants.grantDelegateCapabilityInTransaction(people.getValue(who), mission, it, role)
-        }
 
     private fun places(): List<Pair<String, Place>> =
         listOf(
