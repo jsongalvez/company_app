@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.GatedHandler
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.database.JdbcTiming
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -15,6 +16,7 @@ import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.identity.ViewAs
+import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.registerAllRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
@@ -114,11 +116,68 @@ class RouteAccessTest : BasePostgresTest() {
         )
     }
 
+    /**
+     * Once answers name the tables they changed (`docs/rebuild/plan.md`, Revisions 2), a GET that
+     * changes a table marks other answers stale, and one that changes a table on every read keeps its
+     * own answer stale for ever. Each GET runs bare and with [filledQuery], so handlers that need
+     * parameters get past their checks.
+     */
+    @Test
+    fun `a GET changes only rows a first read makes, and nothing when read again`() {
+        val problems =
+            routes.filter { it.method == HandlerType.GET }.flatMap { r ->
+                Who.entries.flatMap { who ->
+                    listOf("", filledQuery()).flatMap { query ->
+                        val read = "GET ${r.path}${if (query.isEmpty()) "" else "?{query}"} as $who"
+                        val first = changed(r.path + query, who)
+                        val again = changed(r.path + query, who)
+                        listOfNotNull(
+                            (first - MADE_ON_FIRST_READ.keys).takeIf { it.isNotEmpty() }?.let { "$read changed $it" },
+                            again.takeIf { it.isNotEmpty() }?.let { "$read changed $it when read again" },
+                        )
+                    }
+                }
+            }
+        assertEquals(emptyList(), problems)
+    }
+
+    private fun filledQuery(): String {
+        val day = TestFixtures.today
+        return listOf(
+            "q" to "santos",
+            "date" to day,
+            "from" to day.minusDays(WEEK),
+            "to" to day,
+            "dateFrom" to day.minusDays(WEEK),
+            "dateTo" to day,
+            "branchId" to branchId,
+            "branchDayId" to today,
+            "withToday" to true,
+            "limit" to LIMIT,
+        ).joinToString("&", prefix = "?") { (k, v) -> "$k=$v" }
+    }
+
+    private fun changed(
+        path: String,
+        who: Who,
+    ): Set<String> =
+        send(HandlerType.GET, path, who)
+            .headers()
+            .firstValue(CHANGED)
+            .map { it.split(",").toSet() }
+            .orElse(emptySet())
+
     private fun call(
         method: HandlerType,
         path: String,
         who: Who,
-    ): Int {
+    ): Int = send(method, path, who).statusCode()
+
+    private fun send(
+        method: HandlerType,
+        path: String,
+        who: Who,
+    ): HttpResponse<Void> {
         val url = testServer.client.origin + fill(path)
         val body =
             if (method ==
@@ -135,7 +194,7 @@ class RouteAccessTest : BasePostgresTest() {
                 .header("Content-Type", "application/json")
                 .method(method.name, body)
                 .build()
-        return http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode()
+        return http.send(request, HttpResponse.BodyHandlers.discarding())
     }
 
     private fun fill(path: String): String =
@@ -163,6 +222,17 @@ class RouteAccessTest : BasePostgresTest() {
 
     companion object {
         const val FILE = "backend/src/test/resources/route-access.txt"
+        private const val CHANGED = "X-Test-Changed"
+        private const val WEEK = 7L
+        private const val LIMIT = 5
+
+        /** Tables a GET may change, because a read makes the row the first time and finds it after. */
+        private val MADE_ON_FIRST_READ =
+            mapOf(
+                "branch_day" to
+                    "a branch's day is made the first time it is read (BranchDayService.getToday): " +
+                    "the web needs the day's id before the day's first write",
+            )
         private val PARAM = Regex("\\{(\\w+)}")
         private val http: HttpClient = HttpClient.newHttpClient()
 
@@ -215,7 +285,8 @@ class RouteAccessTest : BasePostgresTest() {
                     }
                 }
                 cfg.routes.before { ctx ->
-                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
+                    Database.connect(JdbcTiming.wrap(TestDatabaseLifecycle.requireTestDataSource()))
+                    RequestQueryTally.startRequest()
                     ctx.attribute("userId", ViewAs.resolve(ctx, ctx.header("X-Test-User") ?: defaultUser.toString()))
                 }
                 cfg.routes.exception(ValidationException::class.java) { e, ctx ->
@@ -239,6 +310,12 @@ class RouteAccessTest : BasePostgresTest() {
                     )
                 }
                 registerAllRoutes(cfg)
+                cfg.routes.after { ctx ->
+                    RequestQueryTally.changed().takeIf { it.isNotEmpty() }?.let {
+                        ctx.header(CHANGED, it.sorted().joinToString(","))
+                    }
+                    RequestQueryTally.endRequest()
+                }
             }
         }
     }

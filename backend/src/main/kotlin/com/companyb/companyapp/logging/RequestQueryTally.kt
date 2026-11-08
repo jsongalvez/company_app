@@ -54,15 +54,19 @@ object RequestQueryTally {
 
     private val logger = KotlinLogging.logger {}
     private val quotedLiteral = Regex("'(?:[^']|'')*'")
-    private val readOnly = Regex("^\\s*SELECT\\b", RegexOption.IGNORE_CASE)
+    private val changesNoTable = Regex("^\\s*(?:SELECT|SET|SHOW)\\b", RegexOption.IGNORE_CASE)
     private val writeTarget =
         Regex("^\\s*(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+\"?(\\w+)\"?[\\s(]", RegexOption.IGNORE_CASE)
 
     private class Tally {
         var nanos = 0L
         var queries = 0
+        val changed = HashSet<String>()
         val untilWrite = HashMap<ReadKey, Held>()
     }
+
+    /** Stands in [changed] for a write whose statement text names no table, such as a batch. */
+    const val UNNAMED_WRITE = "*"
 
     /** Names one request-scoped read kept by [untilWrite]; implement it with a data class. */
     interface ReadKey
@@ -91,6 +95,17 @@ object RequestQueryTally {
         val tally = current.get() ?: return Snapshot(dbMs = 0, queries = 0)
         return Snapshot(dbMs = tally.nanos / NANOS_PER_MILLI, queries = tally.queries)
     }
+
+    /**
+     * The tables this request's statements wrote, rolled back or not, with [UNNAMED_WRITE] for a
+     * write whose table the text does not name. Empty outside a request.
+     */
+    fun changed(): Set<String> =
+        current
+            .get()
+            ?.changed
+            ?.toSet()
+            .orEmpty()
 
     /**
      * [load]'s answer for [key], kept for the rest of this request until a statement writes one of
@@ -127,11 +142,13 @@ object RequestQueryTally {
         current.get()?.untilWrite?.clear()
     }
 
-    private fun dropReadsOf(sql: String) {
-        val memo = current.get()?.untilWrite ?: return
-        if (memo.isEmpty() || readOnly.containsMatchIn(sql)) return
-        val table = writeTarget.find(sql)?.groupValues?.get(1)
-        if (table == null) memo.clear() else memo.values.removeIf { table in it.reads }
+    /** The table [sql] writes: null for a read or a setting, [UNNAMED_WRITE] when the text names none. */
+    private fun writtenBy(sql: String): String? =
+        if (changesNoTable.containsMatchIn(sql)) null else writeTarget.find(sql)?.groupValues?.get(1) ?: UNNAMED_WRITE
+
+    private fun Tally.wrote(table: String) {
+        changed += table
+        if (table == UNNAMED_WRITE) untilWrite.clear() else untilWrite.values.removeIf { table in it.reads }
     }
 
     fun record(
@@ -141,8 +158,8 @@ object RequestQueryTally {
         current.get()?.let {
             it.nanos += nanos
             it.queries++
+            writtenBy(sql)?.let { table -> it.wrote(table) }
         }
-        dropReadsOf(sql)
         val ms = nanos / NANOS_PER_MILLI
         if (ms >= slowMs) {
             val traceId = MDC.get(TraceIdFilter.ATTRIBUTE) ?: TRACE_UNKNOWN
