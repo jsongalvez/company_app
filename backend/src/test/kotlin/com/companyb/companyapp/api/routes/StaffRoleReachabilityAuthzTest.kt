@@ -36,8 +36,7 @@ import kotlin.test.assertEquals
 
 /**
  * #417 route-level proof: a freshly created staff user whose ONLY grants are the
- * role bundle + one ACTIVE home-branch assignment (zero direct user_capability
- * rows) passes the affected route classes' gates through the HTTP stack — one
+ * role bundle + one ACTIVE home-branch assignment passes the affected route classes' gates through the HTTP stack — one
  * probe per class: expense create (EDIT_BRANCH_DATA, the same
  * requireBranchOrBranchDayCapability filter session create/mutations use),
  * compensation read (ASSIGN_COMPENSATION), remittance list (SUBMIT_REMITTANCE),

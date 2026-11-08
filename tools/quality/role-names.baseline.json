@@ -8,6 +8,7 @@
   "backend/src/main/kotlin/com/companyb/companyapp/identity/UserService.kt": 1,
   "backend/src/main/kotlin/com/companyb/companyapp/identity/ViewAs.kt": 1,
   "backend/src/main/kotlin/com/companyb/companyapp/workforce/relief/MedicalMissionDelegateService.kt": 1,
+  "backend/src/main/resources/db/migration/V16__no_grant_rows.sql": 1,
   "web/src/lib/format.ts": 7,
   "web/src/lib/roles-to-save.ts": 2,
   "web/src/pages/Branches.svelte": 8,

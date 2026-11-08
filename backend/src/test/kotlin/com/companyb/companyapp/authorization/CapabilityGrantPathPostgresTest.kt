@@ -35,10 +35,8 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     private val managerUser = TestFixtures.uuid()
     private val inactiveOwnerUser = TestFixtures.uuid()
     private val noRoleUser = TestFixtures.uuid()
-    private val directUser = TestFixtures.uuid()
     private val dedupUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         listOf(
@@ -48,7 +46,6 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
             coordinatorUser to "coordinator",
             managerUser to "manager",
             noRoleUser to "no-role",
-            directUser to "direct",
             dedupUser to "dedup",
         ).forEach { (id, prefix) ->
             IdentityFixtures.insertTestUser(id, prefix)
@@ -72,20 +69,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         assignRole(inactiveOwnerUser, "OWNER")
         assignRole(dedupUser, "OWNER")
 
-        IdentityFixtures.grantCapability(
-            userId = directUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = dedupUser,
-            capabilityCode = CapabilityCodes.MANAGE_USERS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.hold(dedupUser, Role.MANAGER)
     }
 
     private fun assignRole(
@@ -213,36 +197,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         assertTrue(CapabilityService.getCapabilitiesForUser(noRoleUser).isEmpty())
     }
 
-    @Test
-    fun `direct user_capability rows still work`() {
-        assertTrue(
-            CapabilityService.hasCapability(
-                userId = directUser,
-                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = branchId,
-            ),
-            "direct BRANCH grants must be unaffected by the union",
-        )
-        assertFalse(has(directUser, CapabilityCodes.MANAGE_USERS))
-    }
-
     // ── Dedup between direct and derived rows ──────────────────────────────
-
-    @Test
-    fun `direct grant beats role-derived row on the same tuple`() {
-        assertTrue(has(dedupUser, CapabilityCodes.MANAGE_USERS))
-        val manageUsers =
-            CapabilityService
-                .getCapabilitiesForUser(dedupUser)
-                .filter { it.capabilityCode == CapabilityCodes.MANAGE_USERS }
-        assertEquals(1, manageUsers.size, "view must dedup direct + derived rows")
-        assertEquals(
-            "SYSTEM",
-            manageUsers.single().sourceType.name,
-            "direct grant (priority 100) must win over derived (5)",
-        )
-    }
 
     @Test
     fun `derived rows are reported with ROLE source and GLOBAL context`() {

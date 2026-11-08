@@ -38,13 +38,7 @@ class StartServiceTest : BasePostgresTest() {
         }
         // Staff work at their branch: the day is read for them (a global grant does not count here).
         listOf(onDuty, offDuty).forEach {
-            IdentityFixtures.grantCapability(
-                it,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH,
-                branchA,
-                boss,
-            )
+            IdentityFixtures.member(it, branchA)
         }
         AttendanceService.clockIn(TestFixtures.uuid(), branchA, onDuty)
     }

@@ -48,20 +48,13 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
     private val unrelatedBranch = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         insertUsers()
         insertBranches()
         assignRolesAndAssignments()
 
-        IdentityFixtures.grantCapability(
-            userId = directGrantCoordinator,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(directGrantCoordinator, branchA)
     }
 
     private fun insertUsers() {
@@ -378,21 +371,4 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     }
 
     // ── Precedence ─────────────────────────────────────────────────────────
-
-    @Test
-    fun `direct grant outranks the role-derived row on the same tuple`() {
-        val editRows =
-            CapabilityService
-                .getCapabilitiesForUser(directGrantCoordinator)
-                .filter {
-                    it.capabilityCode == CapabilityCodes.EDIT_BRANCH_DATA &&
-                        it.contextType == CapabilityContextType.BRANCH
-                }
-        assertEquals(1, editRows.size, "view must dedup direct + derived rows on one tuple")
-        assertEquals(
-            CapabilitySourceType.SYSTEM,
-            editRows.single().sourceType,
-            "direct grant (priority 100) must win over derived (5)",
-        )
-    }
 }

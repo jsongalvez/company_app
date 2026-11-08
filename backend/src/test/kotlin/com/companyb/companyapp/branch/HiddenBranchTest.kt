@@ -4,6 +4,7 @@ import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogService
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -40,20 +41,8 @@ class HiddenBranchTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(shown, "Shown Branch")
         BranchWorkforceFixtures.insertTestBranch(hidden, "Hidden Probe Branch")
         transaction { exec("UPDATE branch SET hidden = true WHERE id = '$hidden'") }
-        IdentityFixtures.grantCapability(
-            userId = globalViewer,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = probeUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = hidden,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.hold(globalViewer, Role.ACCOUNTANT)
+        IdentityFixtures.member(probeUser, hidden)
     }
 
     companion object {

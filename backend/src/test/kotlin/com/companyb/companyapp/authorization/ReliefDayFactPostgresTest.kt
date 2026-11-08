@@ -16,7 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-/** Relief is a `relief_day` fact; `user_capability` can no longer hold a day. */
+/** Relief is a `relief_day` fact, read by the policy. */
 class ReliefDayFactPostgresTest : BasePostgresTest() {
     private val person = TestFixtures.uuid()
     private val branch = TestFixtures.uuid()
@@ -27,7 +27,7 @@ class ReliefDayFactPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `granting relief writes one relief day and no grant row`() {
+    fun `granting relief writes one relief day`() {
         val day = BranchDayService.resolveOrCreate(branch, TestFixtures.today).id
         transaction {
             AuthorizationGrants.grantReliefCapabilityInTransaction(
@@ -42,26 +42,7 @@ class ReliefDayFactPostgresTest : BasePostgresTest() {
                         it[ReliefDayTable.branchDayId]
                 },
             )
-            assertEquals(0, UserCapabilityTable.selectAll().count())
         }
         assertEquals(setOf(person), CapabilityService.reliefHolders(day))
-    }
-
-    @Test
-    fun `a grant row for a day is refused`() {
-        val day = BranchDayService.resolveOrCreate(branch, TestFixtures.today).id
-        val edit = checkNotNull(CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA))
-        assertFailsWith<ExposedSQLException> {
-            transaction {
-                UserCapabilityTable.insert {
-                    it[userId] = person
-                    it[capabilityId] = edit
-                    it[contextType] = CapabilityContextType.BRANCH_DAY
-                    it[contextId] = day
-                    it[sourceType] = CapabilitySourceType.RELIEF_ACCESS
-                    it[sourceId] = person
-                }
-            }
-        }
     }
 }

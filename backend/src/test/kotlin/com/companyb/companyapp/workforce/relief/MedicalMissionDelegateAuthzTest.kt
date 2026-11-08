@@ -4,6 +4,7 @@ import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.workforce.DelegateResponse
@@ -44,7 +45,6 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
     private val targetUser = TestFixtures.uuid()
     private val missionBranch = TestFixtures.uuid()
     private val clinicBranch = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -54,7 +54,7 @@ class MedicalMissionDelegateAuthzTest : BasePostgresTest() {
         }
         assignRole(targetUser, "MANAGER")
         assignRole(ownerUser, "OWNER")
-        IdentityFixtures.grantAssignDelegate(managerUser, sourceId)
+        IdentityFixtures.hold(managerUser, Role.MANAGER)
         insertBranch(missionBranch, BranchType.MEDICAL_MISSION)
         insertBranch(clinicBranch, BranchType.CLINIC)
     }

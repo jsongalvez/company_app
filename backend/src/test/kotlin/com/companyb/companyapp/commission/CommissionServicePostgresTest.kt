@@ -1,5 +1,7 @@
 package com.companyb.companyapp.commission
+
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
@@ -36,7 +38,6 @@ import kotlin.time.measureTimedValue
 class CommissionServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
@@ -53,10 +54,10 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         CommerceFinanceFixtures.insertTestProduct(productId, "Commission Product", categoryId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         ensureInventoryCard(branchId, productId, 100)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.member(callerId, branchId)
         productSaleId = createProductSale(branchDayId)
         insertClockIn(targetUserId, branchDayId)
-        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.hold(callerId, Role.OWNER)
     }
 
     @Test
@@ -185,8 +186,6 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val inclusionId = TestFixtures.uuid()
         val inclusion =
             CommissionService.createManualInclusion(
@@ -261,7 +260,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
             productId = productId,
             handledBy = callerId,
         )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         CommissionService.createManualInclusion(
             callerId = callerId,
@@ -487,12 +486,6 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantViewBranchData(userId: UUID) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(userId, branchId)
     }
 }

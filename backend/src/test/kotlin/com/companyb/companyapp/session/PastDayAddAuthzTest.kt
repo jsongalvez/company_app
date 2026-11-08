@@ -50,7 +50,6 @@ class PastDayAddAuthzTest : BasePostgresTest() {
     private val existingSession = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val yesterday = TestFixtures.today.minusDays(1)
     private lateinit var yesterdayId: UUID
     private lateinit var remittedId: UUID
@@ -63,9 +62,7 @@ class PastDayAddAuthzTest : BasePostgresTest() {
         yesterdayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, yesterday)
         remittedId = BranchWorkforceFixtures.createRemittedBranchDay(branchId, TestFixtures.today.minusDays(2))
         SessionClientFixtures.insertTestSession(existingSession, clientId, yesterdayId)
-        for (code in listOf(CapabilityCodes.VIEW_BRANCH_DATA, CapabilityCodes.EDIT_BRANCH_DATA)) {
-            IdentityFixtures.grantCapability(staff, code, CapabilityContextType.BRANCH, branchId, sourceId)
-        }
+        IdentityFixtures.member(staff, branchId)
         SessionBaseRateService.setRate(staff, TestFixtures.uuid(), branchId, SessionType.REGULAR, BigDecimal("2500.00"))
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)

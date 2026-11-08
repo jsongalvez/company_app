@@ -1,7 +1,9 @@
 @file:Suppress("LargeClass") // #597
 
 package com.companyb.companyapp.commerce
+
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -36,7 +38,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private var branchDayId: UUID = TestFixtures.uuid()
 
     override fun initTestData() {
@@ -47,20 +48,8 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
 
-        IdentityFixtures.grantCapability(
-            userId = editOnlyUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = manageOnlyUser,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(editOnlyUser, branchId)
+        IdentityFixtures.member(manageOnlyUser, branchId, Role.COORDINATOR)
 
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
@@ -125,16 +114,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `GET inventory forbidden for MANAGE_PRODUCTS-only user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/branches/$branchId/inventory", asUser(manageOnlyUser)).code,
-            )
-        }
-    }
-
-    @Test
     fun `GET inventory forbidden for no-capability user`() {
         testServer.client.let { client ->
             assertEquals(
@@ -164,16 +143,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
             assertEquals(
                 200,
                 client.get("/api/branches/$branchId/inventory/low-stock", asUser(editOnlyUser)).code,
-            )
-        }
-    }
-
-    @Test
-    fun `GET low-stock forbidden for MANAGE_PRODUCTS-only user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/branches/$branchId/inventory/low-stock", asUser(manageOnlyUser)).code,
             )
         }
     }
@@ -287,21 +256,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `POST movement TESTER forbidden for MANAGE_PRODUCTS-only user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .post(
-                        "/api/branches/$branchId/inventory/$productId/movement",
-                        movementBody("TESTER", -1),
-                        asUser(manageOnlyUser),
-                    ).code,
-            )
-        }
-    }
-
-    @Test
     fun `POST movement TESTER forbidden for EDIT_BRANCH_DATA user on other branch`() {
         testServer.client.let { client ->
             assertEquals(
@@ -399,16 +353,6 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .orEmpty()
             assertTrue(body.contains("RESTOCK"))
             assertTrue(body.contains("quantityChange"))
-        }
-    }
-
-    @Test
-    fun `GET movements forbidden for MANAGE_PRODUCTS-only user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/branches/$branchId/inventory/movements", asUser(manageOnlyUser)).code,
-            )
         }
     }
 

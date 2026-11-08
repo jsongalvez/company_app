@@ -1,5 +1,7 @@
 package com.companyb.companyapp.workforce
+
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.contracts.workforce.CreateAssignmentRequest
 import com.companyb.companyapp.contracts.workforce.SwapSlotsRequest
@@ -55,7 +57,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         listOf(managerUser, noGrantUser, userAId, userBId).forEach { id ->
             IdentityFixtures.insertTestUser(id, id.toString().take(6))
         }
-        IdentityFixtures.grantManageUsers(managerUser, managerUser)
+        IdentityFixtures.hold(managerUser, Role.MANAGER)
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch 134")
         assignmentAId =
             BranchWorkforceFixtures.insertTestAssignment(

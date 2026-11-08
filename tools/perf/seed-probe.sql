@@ -14,11 +14,10 @@ INSERT INTO session_base_rate (set_by, branch_id, session_type, rate, effective_
   WHERE u.username = 'probe' AND b.name = 'probe'
     AND NOT EXISTS (SELECT 1 FROM session_base_rate x
                     WHERE x.branch_id = b.id AND x.session_type = t.session_type::session_type AND x.effective_until > now());
-INSERT INTO user_capability (user_id, capability_id, context_type, context_id, source_type, source_id)
-  SELECT u.id, c.id, 'BRANCH', b.id, 'SYSTEM', b.id
-  FROM app_user u, branch b, capability c
-  WHERE u.username = 'probe' AND b.name = 'probe' AND c.code IN ('VIEW_BRANCH_DATA', 'EDIT_BRANCH_DATA', 'VOID_SESSION')
-    AND NOT EXISTS (SELECT 1 FROM user_capability x WHERE x.user_id = u.id AND x.capability_id = c.id);
+INSERT INTO user_role (user_id, role_id)
+  SELECT u.id, r.id FROM app_user u, role r
+  WHERE u.username = 'probe' AND r.name = 'PRACTITIONER'
+    AND NOT EXISTS (SELECT 1 FROM user_role x WHERE x.user_id = u.id AND x.role_id = r.id);
 INSERT INTO user_branch_assignment (user_id, branch_id, slot, assigned_by)
   SELECT u.id, b.id, 0, u.id FROM app_user u, branch b
   WHERE u.username = 'probe' AND b.name = 'probe'

@@ -1,7 +1,9 @@
 package com.companyb.companyapp.commerce
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.commerce.ProductService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -47,18 +49,15 @@ import kotlin.test.assertTrue
  */
 class CatalogAuthzTest : BasePostgresTest() {
     private val catalogUser = TestFixtures.uuid()
-    private val branchProductsUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val ownerUser = TestFixtures.uuid()
     private val coordinatorUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(catalogUser, "catalog")
-        IdentityFixtures.insertTestUser(branchProductsUser, "branch-products")
         IdentityFixtures.insertTestUser(noneUser, "no-caps")
         IdentityFixtures.insertTestUser(ownerUser, "catalog-owner")
         IdentityFixtures.insertTestUser(coordinatorUser, "catalog-coordinator")
@@ -67,20 +66,7 @@ class CatalogAuthzTest : BasePostgresTest() {
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Catalog Branch $branchId")
 
-        IdentityFixtures.grantCapability(
-            userId = catalogUser,
-            capabilityCode = CapabilityCodes.MANAGE_CATALOG,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = branchProductsUser,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.hold(catalogUser, Role.PRACTITIONER)
 
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
@@ -181,14 +167,6 @@ class CatalogAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `GET products includeInactive forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        assertEquals(
-            403,
-            testServer.client.get("/api/products?includeInactive=true", asUser(branchProductsUser)).code,
-        )
-    }
-
-    @Test
     fun `GET products includeInactive unauthenticated gets 401`() {
         assertEquals(401, testServer.client.get("/api/products?includeInactive=true").code)
     }
@@ -196,11 +174,6 @@ class CatalogAuthzTest : BasePostgresTest() {
     @Test
     fun `GET products forbidden without catalog grant`() {
         assertEquals(403, testServer.client.get("/api/products", asUser(noneUser)).code)
-    }
-
-    @Test
-    fun `GET products forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        assertEquals(403, testServer.client.get("/api/products", asUser(branchProductsUser)).code)
     }
 
     @Test
@@ -360,45 +333,4 @@ class CatalogAuthzTest : BasePostgresTest() {
 
     // #437 matrix: BRANCH MANAGE_PRODUCTS never satisfies the GLOBAL catalog
     // gates (#131 strictness) — every catalog path, not just the collection.
-
-    @Test
-    fun `GET product detail forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        assertEquals(403, testServer.client.get("/api/products/$productId", asUser(branchProductsUser)).code)
-    }
-
-    @Test
-    fun `POST products forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        val body =
-            mapOf(
-                "id" to TestFixtures.uuid().toString(),
-                "name" to "Branch Product",
-                "productCategoryId" to categoryId.toString(),
-                "unitPrice" to "50.00",
-                "commissionAmount" to "5.00",
-            )
-        assertEquals(403, testServer.client.post("/api/products", body, asUser(branchProductsUser)).code)
-    }
-
-    @Test
-    fun `PATCH product forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        val body = mapOf("name" to "Branch Rename")
-        val code = testServer.client.patch("/api/products/$productId", body, asUser(branchProductsUser)).code
-        assertEquals(403, code)
-    }
-
-    @Test
-    fun `GET product-categories forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        assertEquals(403, testServer.client.get("/api/product-categories", asUser(branchProductsUser)).code)
-    }
-
-    @Test
-    fun `GET product-category detail forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        assertEquals(403, testServer.client.get("/api/product-categories/$categoryId", asUser(branchProductsUser)).code)
-    }
-
-    @Test
-    fun `POST product-categories forbidden for BRANCH MANAGE_PRODUCTS holder`() {
-        val body = mapOf("id" to TestFixtures.uuid().toString(), "name" to "Branch Category")
-        assertEquals(403, testServer.client.post("/api/product-categories", body, asUser(branchProductsUser)).code)
-    }
 }

@@ -1,9 +1,11 @@
 @file:Suppress("LargeClass") // #598
 
 package com.companyb.companyapp.workforce.relief
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
@@ -192,30 +194,11 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             validTo = seededAt.minusHours(10),
         )
         // branchUser: ordinary BRANCH grant (the branch leg regression).
-        IdentityFixtures.grantCapability(
-            userId = branchUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(branchUser, branchA)
         // branchCUser: BRANCH grant at the no-day-row branch (the null-day fallback success path).
-        IdentityFixtures.grantCapability(
-            userId = branchCUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchC,
-            sourceId = sourceId,
-        )
-        // globalUser: GLOBAL EDIT_BRANCH_DATA — must NOT satisfy the day gates (pre-change
-        // strictness preserved; the #131 class).
-        IdentityFixtures.grantCapability(
-            userId = globalUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(branchCUser, branchC)
+        // globalUser: a member of another branch, who must not pass the day gates here.
+        IdentityFixtures.member(globalUser, branchC)
     }
 
     companion object {
@@ -571,20 +554,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private fun seedReadUsers() {
         IdentityFixtures.insertTestUser(viewUser, "view-user")
         IdentityFixtures.insertTestUser(globalViewUser, "global-view-user")
-        IdentityFixtures.grantCapability(
-            userId = viewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = globalViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(viewUser, branchA)
+        IdentityFixtures.hold(globalViewUser, Role.ACCOUNTANT)
     }
 
     @Test

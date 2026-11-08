@@ -1,8 +1,10 @@
 @file:Suppress("LargeClass") // #595
 
 package com.companyb.companyapp.remittance
+
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.remittance.RemittanceLineType
@@ -40,7 +42,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
     private val submitUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val globalViewer = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
@@ -73,28 +74,8 @@ class RemittanceAuthzTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Remittance Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Remittance Branch $otherBranchId")
 
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        // Every role that sends remittances can also view its branch.
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = globalViewer,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(submitUser, branchId, Role.COORDINATOR)
+        IdentityFixtures.hold(globalViewer, Role.ACCOUNTANT)
 
         SessionClientFixtures.insertTestClient(clientId)
     }
@@ -292,13 +273,6 @@ class RemittanceAuthzTest : BasePostgresTest() {
     @Test
     fun `GET list returns 404 for missing branch with grant`() {
         val missingBranchId = TestFixtures.uuid()
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = missingBranchId,
-            sourceId = sourceId,
-        )
         testServer.client.let { client ->
             assertEquals(
                 404,
@@ -1066,20 +1040,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     fun `GET list on branch with zero rows returns 200 empty list`() {
         val emptyBranch = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(emptyBranch, "Empty Remittance Branch $emptyBranch")
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = emptyBranch,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = emptyBranch,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(submitUser, emptyBranch, Role.COORDINATOR)
         testServer.client.let { client ->
             val response = client.get("/api/remittances?branchId=$emptyBranch", asUser(submitUser))
             assertEquals(200, response.code)
@@ -1091,20 +1052,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     fun `GET pickers on branch with zero rows return 200 empty lists`() {
         val emptyBranch = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(emptyBranch, "Empty Picker Branch $emptyBranch")
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = emptyBranch,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = submitUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = emptyBranch,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(submitUser, emptyBranch, Role.COORDINATOR)
         testServer.client.let { client ->
             val sessions =
                 client.get(

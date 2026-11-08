@@ -89,16 +89,14 @@ data class Grant(
 
 /**
  * What the database says about one person. [unassignedBranches] are the branches some role of
- * theirs works at without an assignment, with the roles that reach each. [rows] are their
- * `user_capability` rows in force now (direct grants), [reliefDays] the branch days they work as relief,
- * [helperSeats] the branches they help at, with the role they work under there.
+ * theirs works at without an assignment, with the roles that reach each. [reliefDays] are the branch
+ * days they work as relief, [helperSeats] the branches they help at, with the role they work under there.
  */
 data class Facts(
     val active: Boolean,
     val roles: Set<Role>,
     val homes: Set<UUID>,
     val unassignedBranches: Map<UUID, Set<Role>>,
-    val rows: List<Grant>,
     val reliefDays: Set<UUID>,
     val helperSeats: Map<UUID, Set<DelegateRole>>,
 )
@@ -117,12 +115,12 @@ object Policy {
     /** The helper roles whose people get next-appointment alerts at the branch they help. */
     val ALERTED_HELPERS: Set<DelegateRole> = HELPER.filterValues { ALERTS in it }.keys
 
-    /** Below every `user_capability` row ([GrantPriorities]), so a direct grant names the source. */
+    /** Below relief and helper grants ([GrantPriorities]), so a code held both ways names relief or the seat. */
     const val ROLE_PRIORITY: Short = 5
 
     /**
-     * Every grant [facts] give, one per code and context, the highest priority winning. An edit row
-     * at a branch carries a view there; a relief day carries a member's rights, a helper seat [HELPER]'s.
+     * Every grant [facts] give, one per code and context, the highest priority winning. A relief day
+     * carries a member's rights, a helper seat [HELPER]'s.
      */
     fun grants(facts: Facts): List<Grant> {
         if (!facts.active) return emptyList()
@@ -136,13 +134,12 @@ object Policy {
             }
         val homes = facts.homes.flatMap { branch -> atBranch(facts.roles, branch) }
         val unassigned = facts.unassignedBranches.flatMap { (branch, roles) -> atBranch(roles, branch) }
-        val carried = facts.rows.flatMap { carriedBy(it) }
         val relief = facts.reliefDays.flatMap { day -> MEMBER.map { reliefGrant(it, day) } }
         val helping =
             facts.helperSeats.flatMap { (branch, roles) ->
                 roles.flatMap { HELPER.getValue(it) }.map { helperGrant(it, branch) }
             }
-        return (facts.rows + carried + relief + helping + everywhere + homes + unassigned)
+        return (relief + helping + everywhere + homes + unassigned)
             .groupBy { Triple(it.code, it.contextType, it.contextId) }
             .map { (_, same) -> same.maxBy { it.priority } }
     }
@@ -154,15 +151,6 @@ object Policy {
         val member = if (roles.any { it.works }) MEMBER else emptySet()
         return (roles.flatMap { it.atBranch } + member).map { roleGrant(it, CapabilityContextType.BRANCH, branch) }
     }
-
-    private fun carriedBy(row: Grant): List<Grant> =
-        if (row.code == EDIT &&
-            row.contextType != CapabilityContextType.GLOBAL
-        ) {
-            listOf(row.copy(code = VIEW))
-        } else {
-            emptyList()
-        }
 
     private fun helperGrant(
         code: String,

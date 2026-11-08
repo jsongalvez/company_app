@@ -59,20 +59,6 @@ class ClientAnonymizeSessionRacePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(practitionerId, "anon-race-practitioner")
         IdentityFixtures.insertTestUser(contenderPractitionerId, "anon-race-contender")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Anon Race Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, callerId)
         BranchWorkforceFixtures.insertTestAssignment(
             userId = practitionerId,

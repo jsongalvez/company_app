@@ -1,11 +1,6 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.authorization.CapabilityRepository
-import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
-import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.identity.Password
@@ -32,15 +27,11 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-private const val DEV_USER_ROLE_NAME = "OWNER"
 private const val DEV_SUPERUSER_USERNAME = "dev"
 private const val DEV_SUPERUSER_PASSWORD = "dev-dev-pass"
 private const val DEV_USER_EMAIL_DOMAIN = "@example.com"
 private const val SCOPED_USER_SLOT: Short = 1
 
-// #575 — the dev owner clocks in at the fixture branch (BranchSelect lists assigned branches;
-// capabilities alone render an empty list with no clock-in path), so the global seed carries
-// a senior home assignment there. Slot is per user per branch — no collision with the scoped seat.
 private const val DEV_USER_SLOT: Short = 1
 
 // #568 — MagicNumber scope: src/dev is analyzed under production rules.
@@ -57,37 +48,6 @@ private val DEV_SESSION_BASE_RATES: Map<SessionType, BigDecimal> =
     )
 
 internal val DEV_FIXTURE_BRANCH_ID = UUID.fromString("00000000-0000-4000-8000-000000000001")
-
-private val DEV_CAPABILITIES =
-    listOf(
-        "VIEW_BRANCH_DATA",
-        "EDIT_BRANCH_DATA",
-        "EDIT_PAST_DAY",
-        "VOID_SESSION",
-        "SUBMIT_REMITTANCE",
-        "ASSIGN_COMPENSATION",
-        "MANAGE_PRODUCTS",
-        "MANAGE_CATALOG",
-        "MANAGE_USERS",
-        "ASSIGN_DELEGATE",
-    )
-
-private val DEV_FIXTURE_BRANCH_CAPABILITIES =
-    listOf(
-        "VIEW_BRANCH_DATA",
-        "EDIT_BRANCH_DATA",
-        "EDIT_PAST_DAY",
-        "VOID_SESSION",
-        "SUBMIT_REMITTANCE",
-        "ASSIGN_COMPENSATION",
-        "MANAGE_PRODUCTS",
-    )
-
-// #413 — the relief requester seat: exactly EDIT_BRANCH_DATA at the fixture branch.
-private val RELIEF_USER_CAPABILITIES =
-    listOf(
-        "EDIT_BRANCH_DATA",
-    )
 
 private data class Credentials(
     val username: String,
@@ -115,16 +75,7 @@ object DevSeeder {
 
     /** Local-only developer account (SUPERUSER) for trying "View as". */
     private fun seedDeveloper() {
-        val userId = ensureUser(Credentials(DEV_SUPERUSER_USERNAME, DEV_SUPERUSER_PASSWORD))
-        val roleId =
-            RoleTable
-                .selectAll()
-                .where { RoleTable.name eq "SUPERUSER" }
-                .single()[RoleTable.id]
-        UserRoleTable.insertIgnore {
-            it[UserRoleTable.userId] = userId
-            it[UserRoleTable.roleId] = roleId
-        }
+        ensureRole(ensureUser(Credentials(DEV_SUPERUSER_USERNAME, DEV_SUPERUSER_PASSWORD)), "SUPERUSER")
         logger.info { "[DEV-SEED] Ensured developer '$DEV_SUPERUSER_USERNAME' with SUPERUSER role" }
     }
 
@@ -137,77 +88,37 @@ object DevSeeder {
         return if (name != null && pass != null) Credentials(name, pass) else null
     }
 
+    /** The dev owner: an Owner, and a Coordinator member of the fixture branch, so they also send its remittances. */
     private fun seedGlobalUser(credentials: Credentials) {
-        // #880 — reconcile-or-skip per entity: a rerun after a partial seed heals the
-        // missing rows instead of early-returning on the existing user row.
         val userId = ensureUser(credentials)
-
-        val ownerRoleId =
-            RoleTable
-                .selectAll()
-                .where { RoleTable.name eq DEV_USER_ROLE_NAME }
-                .single()[RoleTable.id]
-        UserRoleTable.insertIgnore {
-            it[UserRoleTable.userId] = userId
-            it[UserRoleTable.roleId] = ownerRoleId
-        }
-
-        for (code in DEV_CAPABILITIES) {
-            ensureCapability(userId, code, CapabilityContextType.GLOBAL, CapabilityService.GLOBAL_CONTEXT_ID)
-        }
-
+        ensureRole(userId, "OWNER")
+        ensureRole(userId, "COORDINATOR")
         ensureFixtureBranch()
-        for (code in DEV_FIXTURE_BRANCH_CAPABILITIES) {
-            ensureCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
-        }
         ensureAssignment(userId, DEV_FIXTURE_BRANCH_ID, DEV_USER_SLOT)
         ensureSessionBaseRates(userId)
-
-        logger.info {
-            "[DEV-SEED] Ensured dev user '${credentials.username}' with" +
-                " $DEV_USER_ROLE_NAME role and ${DEV_CAPABILITIES.size} capabilities"
-        }
+        logger.info { "[DEV-SEED] Ensured dev user '${credentials.username}' as Owner and fixture-branch Coordinator" }
     }
 
+    /** The dev staff: a Coordinator member of the fixture branch, who grants and revokes its relief. */
     private fun seedScopedUser(credentials: Credentials) {
-        // #880 — same reconcile pattern as the global path, plus base rates: a
-        // scoped-only seed must leave session create working on the fixture branch.
         val userId = ensureUser(credentials)
+        ensureRole(userId, "COORDINATOR")
         ensureFixtureBranch()
-        for (code in DEV_FIXTURE_BRANCH_CAPABILITIES) {
-            ensureCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
-        }
         ensureAssignment(userId, DEV_FIXTURE_BRANCH_ID, SCOPED_USER_SLOT)
         ensureSessionBaseRates(userId)
-
-        logger.info {
-            "[DEV-SEED] Ensured branch-scoped dev user '${credentials.username}' with" +
-                " ${DEV_FIXTURE_BRANCH_CAPABILITIES.size} capabilities at the fixture branch"
-        }
+        logger.info { "[DEV-SEED] Ensured dev staff '${credentials.username}' as fixture-branch Coordinator" }
     }
 
     /**
-     * #413 — the relief requester seat: holds BRANCH-scoped EDIT_BRANCH_DATA at the
-     * fixture branch but deliberately NO home assignment. requestReliefAccess excludes
-     * assigned users ("relief duty does not apply") while grant/deny/invite authority
-     * requires an active assignment, so no two-principal cast can reach the relief
-     * flows — this user requests relief and accepts invites; the scoped principal
-     * grants and revokes.
+     * The relief worker: a Practitioner with no home assignment. Someone assigned to a branch cannot
+     * request relief there, and the fixture branch's invite is addressed to this person.
      */
     private fun seedReliefUser(credentials: Credentials) {
-        // #880 — reconcile-or-skip like the other paths (still deliberately no home
-        // assignment), plus base rates since this path also ensures the branch.
         val userId = ensureUser(credentials)
+        ensureRole(userId, "PRACTITIONER")
         ensureFixtureBranch()
-        for (code in RELIEF_USER_CAPABILITIES) {
-            ensureCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
-        }
         ensureSessionBaseRates(userId)
-
-        logger.info {
-            "[DEV-SEED] Ensured branch-scoped relief dev user '${credentials.username}' with" +
-                " ${RELIEF_USER_CAPABILITIES.size} capability and no home assignment"
-        }
+        logger.info { "[DEV-SEED] Ensured relief worker '${credentials.username}' as a Practitioner with no branch" }
     }
 
     private fun ensureFixtureBranch() {
@@ -234,36 +145,14 @@ object DevSeeder {
         UserRepository.findByUsername(credentials.username)?.let { UUID.fromString(it.id) }
             ?: createUser(credentials)
 
-    // #880 — fills gaps only: a missing grant row is inserted, but an explicitly
-    // revoked grant is never resurrected and existing rows are never duplicated
-    // (user_capability carries no uniqueness guard, so the check precedes the insert).
-    private fun ensureCapability(
+    private fun ensureRole(
         userId: UUID,
-        code: String,
-        contextType: CapabilityContextType,
-        contextId: UUID,
+        roleName: String,
     ) {
-        val capabilityId =
-            CapabilityRepository.findIdByCode(code)
-                ?: error("Capability '$code' not found in database")
-        val exists =
-            UserCapabilityTable
-                .selectAll()
-                .where {
-                    (UserCapabilityTable.userId eq userId) and
-                        (UserCapabilityTable.capabilityId eq capabilityId) and
-                        (UserCapabilityTable.contextType eq contextType) and
-                        (UserCapabilityTable.contextId eq contextId)
-                }.empty()
-                .not()
-        if (exists) return
-        UserCapabilityTable.insert {
-            it[UserCapabilityTable.userId] = userId
-            it[UserCapabilityTable.capabilityId] = capabilityId
-            it[UserCapabilityTable.contextType] = contextType
-            it[UserCapabilityTable.contextId] = contextId
-            it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-            it[UserCapabilityTable.sourceId] = contextId
+        val roleId = RoleTable.selectAll().where { RoleTable.name eq roleName }.single()[RoleTable.id]
+        UserRoleTable.insertIgnore {
+            it[UserRoleTable.userId] = userId
+            it[UserRoleTable.roleId] = roleId
         }
     }
 

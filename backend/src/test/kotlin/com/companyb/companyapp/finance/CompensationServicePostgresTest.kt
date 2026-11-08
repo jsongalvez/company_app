@@ -30,7 +30,6 @@ import kotlin.test.assertTrue
 class CompensationServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var workBranchDayId: UUID
@@ -42,7 +41,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Compensation Branch")
         workBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         payingBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
     }
 
     @Test
@@ -214,8 +212,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val compId = TestFixtures.uuid()
         val comp =
             CompensationService.create(
@@ -436,8 +432,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("1500.00"),
             note = null,
         )
-
-        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val updated =
             CompensationService.update(

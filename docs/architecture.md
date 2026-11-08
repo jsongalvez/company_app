@@ -252,42 +252,22 @@ it is not a GLOBAL role-derived capability because role membership alone cannot 
 
 `MEDICAL_MISSION` and `PROVINCIAL_TOUR` values in `capability_context_type` are reserved for future differentiation only. Current BRANCH grants use the relevant `branch.id` as `context_id`; GLOBAL grants use the nil UUID.
 
-### 9.5 Medical Mission Delegate Hook
+### 9.5 Medical Mission Delegate
 
-Implemented as a service-layer hook, not a trigger. Both the delegate record and the capability row are written in a single transaction.
-The grant is `EDIT_BRANCH_DATA` at the branch. View leg (a2) adds `VIEW_BRANCH_DATA`, `VOID_SESSION` and `VIEW_COMMISSION` to it, so a helper has relief's rights with no end day until removed (V23, owed #28, [ADR-0025](adr/0025-commission-is-private-to-the-branch.md)).
-
-```
-assignDelegate(targetUserId, branchId, assignedById):
-  BEGIN
-    INSERT medical_mission_delegate → delegate_id
-    INSERT user_capability (
-      source_type = MEDICAL_MISSION_DELEGATE,
-      source_id   = delegate_id,
-      context_type = BRANCH,
-      context_id   = branchId,
-      priority    = 20,
-      valid_to    = NULL
-    )
-  COMMIT
-```
-
-The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) handles expiry. No separate revocation step needed.
+A helper seat is the open `medical_mission_delegate` row (target user, branch, role). Nothing else is written:
+`CapabilityRepository.factsOf` reads the seat, and `Policy.HELPER` maps its role to rights at that branch.
+Ending the seat (`ended_at`) ends the rights.
 
 ### 9.6 Inactive User Revocation
 
-`active_user_capabilities` joins `app_user` and filters `status = 'ACTIVE'`. Setting a user to `INACTIVE` immediately revokes all capability checks. The session token itself is rejected by the persisted revocation check in `UserRepository.authorize`: logout, password reset, and deactivation advance `app_user.jwt_revoked_at`, and a token verifies only when its `iat` is strictly later than that boundary (#492). Reactivate never clears the boundary, so old JWTs stay dead.
+`Policy.grants` gives an inactive user nothing. Setting a user to `INACTIVE` immediately revokes all capability checks. The session token itself is rejected by the persisted revocation check in `UserRepository.authorize`: logout, password reset, and deactivation advance `app_user.jwt_revoked_at`, and a token verifies only when its `iat` is strictly later than that boundary (#492). Reactivate never clears the boundary, so old JWTs stay dead.
 
 ### 9.7 Relief Access Grant Flow
 
 1. Relief user clocks into a non-home branch → `branch_day_assignment` row with `is_relief = true`. View-only access is implicit.
 2. Relief user selects a target checked-in user → `grant_relief_access` row with status `PENDING`.
-3. Target user grants → status `GRANTED`. Service layer writes `user_capability` row:
-   ```
-   source_type = RELIEF_ACCESS, context_type = BRANCH_DAY
-   valid_to = (branch_day.date + 1 day) at 04:00 Asia/Manila
-   priority = 10
-   ```
+3. Target user grants → status `GRANTED`. `GrantStore` writes a `relief_day` row (user, branch day, source,
+   `valid_to` = the day after at 04:00 Asia/Manila); `Policy.grants` gives that day a member's rights.
 4. Partial unique index `idx_one_grant_per_day` prevents a second GRANTED row for the same `(requested_by, branch_day_id)`.
 5. Access expires naturally via `valid_to`. No cleanup job needed.
 
@@ -370,7 +350,7 @@ records set `is_flagged = true` and require a `reason`; coordinators triage
 
 Mechanism/derived writes stay unaudited at their own tables when the domain
 event is audited where it happens (`commission_split` recalculation output,
-relief/delegate `user_capability` grant rows, lazy `branch_day` bootstrap,
+`relief_day` rows, lazy `branch_day` bootstrap,
 attendance-created `branch_day_assignment`, sale-generated movements);
 notification writes carry an explicit ADR-0024 exception.
 

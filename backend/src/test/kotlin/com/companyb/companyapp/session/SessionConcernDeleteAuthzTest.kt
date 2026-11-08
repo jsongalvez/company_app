@@ -78,13 +78,7 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
         insertSessionConcern(sessionId, concernId)
 
         // editorUser: BRANCH grant at the session's branch.
-        IdentityFixtures.grantCapability(
-            userId = editorUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(editorUser, branchId)
         // reliefUser: BRANCH_DAY grant for the session's exact day (the #157 relief form).
         IdentityFixtures.reliefDay(
             userId = reliefUser,
@@ -92,13 +86,7 @@ class SessionConcernDeleteAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // wrongBranchUser: BRANCH grant at a different branch.
-        IdentityFixtures.grantCapability(
-            userId = wrongBranchUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = otherBranchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(wrongBranchUser, otherBranchId)
         // noGrantUser: deliberately no grant.
     }
 

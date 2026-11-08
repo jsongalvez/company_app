@@ -1,9 +1,8 @@
 package com.companyb.companyapp.testsupport.fixtures
 
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.test.TestFixtures
@@ -111,19 +110,12 @@ object BranchWorkforceFixtures {
             }
         }
 
-    /** Grants EDIT_PAST_DAY at [branchId] — the capability that permits writes on PAST/REMITTED days. */
+    /** Makes [userId] a Coordinator member of [branchId], who may write on PAST and REMITTED days there. */
     fun grantEditPastDay(
         userId: UUID,
         branchId: UUID,
-        sourceId: UUID,
     ) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(userId, branchId, Role.COORDINATOR)
     }
 
     fun insertTestAttendance(

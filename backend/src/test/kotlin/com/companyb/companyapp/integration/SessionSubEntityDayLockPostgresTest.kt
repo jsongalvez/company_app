@@ -42,7 +42,6 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val systemConcernId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
@@ -103,7 +102,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `practitioner add on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         val result =
             SessionPractitionerService.addPractitioner(
@@ -132,7 +131,7 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `concern add on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         SessionConcernService.addToSession(callerId, sessionId, systemConcernId, "Coordinator correction")
 

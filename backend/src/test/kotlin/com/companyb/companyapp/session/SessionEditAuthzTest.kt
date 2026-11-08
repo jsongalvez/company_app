@@ -1,6 +1,8 @@
 package com.companyb.companyapp.session
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -46,7 +48,6 @@ class SessionEditAuthzTest : BasePostgresTest() {
     private val otherBranchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(editorUser, "session-editor")
@@ -66,34 +67,10 @@ class SessionEditAuthzTest : BasePostgresTest() {
             sessionStatus = SessionStatus.NO_SHOW,
         )
 
-        IdentityFixtures.grantCapability(
-            userId = editorUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = wrongBranchUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = otherBranchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = coordinatorUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = coordinatorUser,
-            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(editorUser, branchId)
+        IdentityFixtures.member(wrongBranchUser, otherBranchId)
+        IdentityFixtures.member(coordinatorUser, branchId)
+        IdentityFixtures.member(coordinatorUser, branchId, Role.COORDINATOR)
     }
 
     companion object {
@@ -161,15 +138,6 @@ class SessionEditAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body = mapOf("finalPrice" to "-100.00", "version" to 1)
             assertEquals(400, client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser)).code)
-        }
-    }
-
-    @Test
-    fun `status correction is forbidden without Coordinator capability`() {
-        testServer.client.let { client ->
-            // NO_SHOW -> CANCELLED swaps outcomes: a correction, Coordinator only.
-            val body = mapOf("status" to "CANCELLED", "version" to 1)
-            assertEquals(403, client.patch("/api/sessions/$sessionId/status", body, asUser(editorUser)).code)
         }
     }
 

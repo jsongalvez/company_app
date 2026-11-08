@@ -1,6 +1,7 @@
 package com.companyb.companyapp.integration
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.branchday.DayStatus
@@ -39,7 +40,6 @@ import kotlin.test.assertTrue
 class AllowanceDayLockPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
@@ -49,7 +49,7 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(targetUserId, "allowance-lock-target")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Allowance Lock Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.hold(callerId, Role.OWNER)
     }
 
     @Test
@@ -78,7 +78,7 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `create on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         val allowanceId = TestFixtures.uuid()
         val allowance =
@@ -170,7 +170,6 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
 
         val otherCaller = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(otherCaller, "allowance-lock-other")
-        IdentityFixtures.grantAssignCompensation(otherCaller, sourceId)
 
         assertFailsWith<ConflictException> {
             AllowanceService.create(

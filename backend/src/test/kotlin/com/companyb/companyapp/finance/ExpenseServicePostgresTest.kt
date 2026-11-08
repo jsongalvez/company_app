@@ -44,7 +44,6 @@ import kotlin.test.assertTrue
 
 class ExpenseServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
@@ -53,7 +52,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "expense-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Expense Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        grantEditBranchData(callerId)
+        IdentityFixtures.member(callerId, branchId)
     }
 
     @Test
@@ -154,16 +153,8 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create rejects same UUID for another branch day`() {
         val otherBranchId = TestFixtures.uuid()
-        val otherSourceId = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Expense Branch")
         val otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = otherBranchId,
-            sourceId = otherSourceId,
-        )
         val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
@@ -191,7 +182,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     fun `create rejects same UUID for another creator`() {
         val otherCallerId = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(otherCallerId, "expense-other-caller")
-        grantEditBranchData(otherCallerId)
         val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
@@ -266,8 +256,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without EDIT_BRANCH_DATA is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val expense =
             ExpenseService.create(
                 callerId = callerId,
@@ -577,8 +565,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 notes = "Test",
             )
 
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val deleted =
             ExpenseService.softDelete(
                 callerId = callerId,
@@ -869,7 +855,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val expenseId = TestFixtures.uuid()
         val createdRemitted =
             ExpenseService.create(
@@ -903,7 +889,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val expenseId = TestFixtures.uuid()
         val createdRemittedWithReason =
             ExpenseService.create(
@@ -984,7 +970,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val auditsBefore = callerAuditCount()
 
         assertFailsWith<ValidationException> {
@@ -1007,7 +993,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val expenseId = TestFixtures.uuid()
 
         val expense =
@@ -1334,15 +1320,5 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 expectedVersion = 1,
             )
         }
-    }
-
-    private fun grantEditBranchData(userId: UUID) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
     }
 }

@@ -16,7 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-/** A helper seat is a `medical_mission_delegate` fact; `user_capability` can no longer hold one. */
+/** A helper seat is a `medical_mission_delegate` fact, read by the policy. */
 class MissionSeatFactPostgresTest : BasePostgresTest() {
     private val person = TestFixtures.uuid()
     private val mission = TestFixtures.uuid()
@@ -80,22 +80,5 @@ class MissionSeatFactPostgresTest : BasePostgresTest() {
             mapOf(mission to listOf(person)),
             transaction { CapabilityService.alertedByBranchInTransaction(listOf(mission)) },
         )
-    }
-
-    @Test
-    fun `a helper grant row is refused`() {
-        val edit = checkNotNull(CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA))
-        assertFailsWith<ExposedSQLException> {
-            transaction {
-                UserCapabilityTable.insert {
-                    it[userId] = person
-                    it[capabilityId] = edit
-                    it[contextType] = CapabilityContextType.BRANCH
-                    it[contextId] = mission
-                    it[sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-                    it[sourceId] = person
-                }
-            }
-        }
     }
 }

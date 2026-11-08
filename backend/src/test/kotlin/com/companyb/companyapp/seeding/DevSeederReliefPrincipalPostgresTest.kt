@@ -1,27 +1,25 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.authorization.CapabilityTable
-import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * Pins the relief k6 principal's seeded shape (#413): no role, no GLOBAL rows, exactly
@@ -47,7 +45,7 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `seeded relief principal holds capability without an assignment`() {
+    fun `seeded relief principal is a Practitioner with no assignment`() {
         DevSeeder.seed(
             config(reliefUsername = reliefUsername, reliefPassword = "relief-pass"),
         )
@@ -60,49 +58,19 @@ class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
                     .single()
             val userId = user[AppUserTable.id]
 
-            assertNoRole(userId)
-            assertBranchCapabilityShape(userId)
+            assertEquals(setOf("PRACTITIONER"), rolesOf(userId))
             assertNoAssignment(userId)
             assertNotNull(UserRepository.findByUsername(reliefUsername))
         }
     }
 
-    private fun assertNoRole(userId: UUID) {
-        assertEquals(
-            0,
-            UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-            "Relief principal must hold no role (roles derive GLOBAL capability bundles)",
-        )
-    }
-
-    private fun assertBranchCapabilityShape(userId: UUID) {
-        val grants =
-            UserCapabilityTable
-                .selectAll()
-                .where { UserCapabilityTable.userId eq userId }
-                .toList()
-
-        val codeById =
-            CapabilityTable
-                .selectAll()
-                .where { CapabilityTable.id inList grants.map { it[UserCapabilityTable.capabilityId] } }
-                .associate { it[CapabilityTable.id] to it[CapabilityTable.code] }
-
-        assertEquals(
-            setOf(CapabilityContextType.BRANCH),
-            grants.groupBy { it[UserCapabilityTable.contextType] }.keys,
-            "Every relief grant must be BRANCH-scoped — no GLOBAL rows",
-        )
-        assertEquals(
-            listOf("EDIT_BRANCH_DATA"),
-            grants.map { codeById.getValue(it[UserCapabilityTable.capabilityId]) },
-            "Relief principal holds exactly the requester capability (the #157 day-gate code)",
-        )
-        assertTrue(
-            grants.all { it[UserCapabilityTable.contextId] == DEV_FIXTURE_BRANCH_ID },
-            "Every grant must bind to the K6 Fixture Branch",
-        )
-    }
+    private fun rolesOf(userId: UUID): Set<String> =
+        UserRoleTable
+            .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+            .select(RoleTable.name)
+            .where { UserRoleTable.userId eq userId }
+            .map { it[RoleTable.name] }
+            .toSet()
 
     private fun assertNoAssignment(userId: UUID) {
         assertEquals(

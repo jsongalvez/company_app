@@ -1,8 +1,10 @@
 @file:Suppress("LargeClass") // #596
 
 package com.companyb.companyapp.api.routes
+
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -44,7 +46,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     private val targetUser2 = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
     private lateinit var otherBranchDayId: UUID
@@ -76,28 +77,10 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         otherBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(otherBranchId)
 
-        IdentityFixtures.grantCapability(
-            userId = assignUser,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        // An owner or manager with no branch assignment holds this at GLOBAL only (active_user_capabilities, part b).
-        IdentityFixtures.grantCapability(
-            userId = globalOnlyUser,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = editOnlyUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(assignUser, branchId, Role.COORDINATOR)
+        // An owner with no assignment pays everywhere but edits no branch day.
+        IdentityFixtures.hold(globalOnlyUser, Role.OWNER)
+        IdentityFixtures.member(editOnlyUser, branchId)
     }
 
     private fun seedCompensationsAndExpense() {
@@ -156,19 +139,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
-
-    private fun grantAssignOnBranch(
-        userId: UUID,
-        branchId: UUID,
-    ) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-    }
 
     // ──────────────────────────────────────────────
     // GET /api/compensations?branchDayId= → ASSIGN_COMPENSATION
@@ -248,7 +218,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET compensations returns 404 for missing branch day with grant`() {
         val missingBranchId = TestFixtures.uuid()
-        grantAssignOnBranch(assignUser, missingBranchId)
         testServer.client.let { client ->
             assertEquals(
                 404,
@@ -327,7 +296,6 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     @Test
     fun `GET branch-day users returns 404 for missing branch day with grant`() {
         val missingBranchId = TestFixtures.uuid()
-        grantAssignOnBranch(assignUser, missingBranchId)
         testServer.client.let { client ->
             assertEquals(
                 404,
@@ -365,7 +333,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `PATCH expense forbidden for ASSIGN_COMPENSATION-only user`() {
+    fun `PATCH expense forbidden for an owner with no assignment here`() {
         testServer.client.let { client ->
             val body =
                 mapOf(
@@ -376,7 +344,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                 )
             assertEquals(
                 403,
-                client.patch("/api/expenses/$expenseId", body, asUser(assignUser)).code,
+                client.patch("/api/expenses/$expenseId", body, asUser(globalOnlyUser)).code,
             )
         }
     }
@@ -558,7 +526,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `POST restore forbidden for ASSIGN_COMPENSATION-only user`() {
+    fun `POST restore forbidden for an owner with no assignment here`() {
         val deletedId = TestFixtures.uuid()
         val createdForbiddenAssign =
             ExpenseService.create(
@@ -582,7 +550,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/expenses/$deletedId/restore",
                         emptyMap<String, String>(),
-                        asUser(assignUser),
+                        asUser(globalOnlyUser),
                     ).code,
             )
         }

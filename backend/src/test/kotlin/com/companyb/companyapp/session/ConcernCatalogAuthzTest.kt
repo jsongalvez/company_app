@@ -50,14 +50,10 @@ class ConcernCatalogAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(reliefUser, "concern-relief")
         IdentityFixtures.insertTestUser(noneUser, "concern-none")
         BranchWorkforceFixtures.insertTestBranch(branchId)
-        IdentityFixtures.grantCapability(
-            userId = branchUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantEditBranchData(globalUser, sourceId)
+        IdentityFixtures.member(branchUser, branchId)
+        val elsewhere = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(elsewhere)
+        IdentityFixtures.member(globalUser, elsewhere)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         IdentityFixtures.reliefDay(
             userId = reliefUser,
@@ -113,7 +109,7 @@ class ConcernCatalogAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `GET concerns allowed for GLOBAL EDIT holder`() {
+    fun `GET concerns allowed for a member of another branch`() {
         assertEquals(200, testServer.client.get("/api/concerns", asUser(globalUser)).code)
     }
 
@@ -150,7 +146,7 @@ class ConcernCatalogAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `POST promote-concern forbidden for GLOBAL holder without a branch grant`() {
+    fun `POST promote-concern forbidden for a member of another branch`() {
         val response =
             testServer.client.post(
                 "/api/sessions/$sessionId/promote-concern",

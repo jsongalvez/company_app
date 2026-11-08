@@ -56,13 +56,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
             branchDayId = branchDayId,
             sessionStatus = SessionStatus.COMPLETED,
         )
-        IdentityFixtures.grantCapability(
-            userId = bearerUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(bearerUser, branchId)
     }
 
     companion object {

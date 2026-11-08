@@ -21,7 +21,6 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
     private val user = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranch = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(user, "read-once")
@@ -89,14 +88,7 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
     private fun edits(branch: java.util.UUID) =
         CapabilityRepository.hasCapability(user, CapabilityCodes.EDIT_BRANCH_DATA, CapabilityContextType.BRANCH, branch)
 
-    private fun grant(branch: java.util.UUID) =
-        IdentityFixtures.grantCapability(
-            userId = user,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branch,
-            sourceId = sourceId,
-        )
+    private fun grant(branch: java.util.UUID) = IdentityFixtures.member(user, branch)
 
     private fun <T> inRequest(block: () -> T): T {
         Database.connect(JdbcTiming.wrap(TestDatabaseLifecycle.requireTestDataSource()))

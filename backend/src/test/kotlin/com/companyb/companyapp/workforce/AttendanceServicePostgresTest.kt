@@ -1,8 +1,10 @@
 package com.companyb.companyapp.workforce
+
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commission.CommissionService
@@ -42,7 +44,6 @@ import kotlin.time.measureTimedValue
 class AttendanceServicePostgresTest : BasePostgresTest() {
     private val userId = TestFixtures.uuid()
     private val otherUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
 
@@ -178,7 +179,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockIn sets isRelief false when branch assignment exists`() {
-        IdentityFixtures.grantManageUsers(userId, sourceId)
+        IdentityFixtures.hold(userId, Role.MANAGER)
         val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(userId, assignmentId, branchId, userId, 1)
 

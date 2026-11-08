@@ -37,7 +37,7 @@ Rules for app wording:
 | View as | A superuser seeing the app as another person, with that person's permissions. Look-only unless "Allow changes" is on. | `X-View-As` header |
 | New (no access yet) | Someone who joined with an invite code but hasn't been given a role. They can sign in but see nothing. | `ONBOARDING` |
 | Role | A job title that decides what someone can do. A user can have several. | `role` |
-| Access | What a user is allowed to do where. The app hides what you can't do. The code calls each single permission a "capability". | capability, `user_capability` |
+| Access | What a user is allowed to do where. The app hides what you can't do. The code calls each single permission a "capability". | capability |
 | Home branch | A branch a user is assigned to. | branch assignment |
 | Order | Where a person appears in staff lists at a branch (1 is first). | slot |
 | Invite code | A one-time code a manager gives a new user so they can set their password. | invite |

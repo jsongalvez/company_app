@@ -36,7 +36,6 @@ import kotlin.test.assertNull
  */
 class RemittanceSubmitCoveragePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
 
@@ -48,7 +47,6 @@ class RemittanceSubmitCoveragePostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "remittance-coverage-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Coverage Branch ${TestFixtures.uuid()}")
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
         SessionClientFixtures.insertTestClient(clientId)
     }
 

@@ -35,7 +35,6 @@ import kotlin.test.assertTrue
  */
 class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private val dayDateA = LocalDate.of(2026, 7, 10)
@@ -45,7 +44,6 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "remittance-cross-undo")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Cross Undo Branch ${TestFixtures.uuid()}")
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test

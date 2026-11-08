@@ -58,7 +58,6 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
     private val bookedClientId = TestFixtures.uuid()
     private val walkInClientId = TestFixtures.uuid()
     private val rateId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "session-server-time")
@@ -75,20 +74,7 @@ class SessionCreateServerTimeTest : BasePostgresTest() {
                 it[AttendanceTable.markedBy] = callerId
             }
         }
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(callerId, branchId)
         SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
     }
 

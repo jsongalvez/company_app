@@ -1,8 +1,10 @@
 @file:Suppress("LargeClass") // #600
 
 package com.companyb.companyapp.audit
+
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
 import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
@@ -52,7 +54,6 @@ class AuditLogAuthzTest : BasePostgresTest() {
     private val ownerUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private val json =
         Json {
@@ -100,41 +101,11 @@ class AuditLogAuthzTest : BasePostgresTest() {
     }
 
     private fun seedGrants() {
-        IdentityFixtures.grantCapability(
-            userId = editorA,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = editorB,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchB,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = manageUsersUser,
-            capabilityCode = CapabilityCodes.MANAGE_USERS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = manageProductsUser,
-            capabilityCode = CapabilityCodes.MANAGE_CATALOG,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = globalViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = com.companyb.companyapp.authorization.CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(editorA, branchA)
+        IdentityFixtures.member(editorB, branchB)
+        IdentityFixtures.hold(manageUsersUser, Role.MANAGER)
+        IdentityFixtures.hold(manageProductsUser, Role.PRACTITIONER)
+        IdentityFixtures.hold(globalViewUser, Role.ACCOUNTANT)
     }
 
     private fun seedAuditRows() {
@@ -298,7 +269,8 @@ class AuditLogAuthzTest : BasePostgresTest() {
         assertTrue("session" in tableNames)
         assertTrue("client" in tableNames)
         assertTrue("mystery_table" !in tableNames)
-        assertEquals(5, body.entries.size)
+        // A Practitioner also manages the catalog, so its two rows show.
+        assertEquals(7, body.entries.size)
     }
 
     @Test
@@ -310,13 +282,13 @@ class AuditLogAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `browse MANAGE_USERS holder sees app_user and branch rows but not client`() {
+    fun `browse a Manager sees user and catalog rows but not client`() {
         val (_, body) = browse(manageUsersUser)
         val tableNames = body.entries.map { it.tableName }.toSet()
         assertTrue("app_user" in tableNames)
         assertTrue("client" !in tableNames)
         assertTrue("session" !in tableNames)
-        assertEquals(1, body.entries.size)
+        assertEquals(setOf("app_user", "product", "product_category"), tableNames)
     }
 
     @Test
@@ -401,13 +373,13 @@ class AuditLogAuthzTest : BasePostgresTest() {
     fun `browse filters by action`() {
         val (_, body) = browse(editorA, "?action=INSERT")
         val tableNames = body.entries.map { it.tableName }.toSet()
-        assertEquals(setOf("client", "concern"), tableNames)
+        assertEquals(setOf("client", "concern", "product", "product_category"), tableNames)
     }
 
     @Test
     fun `browse filters by caller name ILIKE`() {
         val (_, body) = browse(editorA, "?callerName=EDITOR-A")
-        assertEquals(5, body.entries.size)
+        assertEquals(7, body.entries.size)
         body.entries.forEach { assertEquals("Test editor-a", it.changedByName) }
     }
 

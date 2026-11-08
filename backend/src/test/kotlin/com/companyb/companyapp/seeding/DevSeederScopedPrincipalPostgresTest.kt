@@ -1,27 +1,25 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.authorization.CapabilityTable
-import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRepository
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * Pins the branch-scoped k6 principal's seeded shape (#411): no role, no GLOBAL rows,
@@ -44,7 +42,7 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `seeded scoped principal is branch-bound without global capabilities`() {
+    fun `seeded scoped principal is a Coordinator member of the fixture branch`() {
         DevSeeder.seed(
             config(scopedUsername = scopedUsername, scopedPassword = "scope-pass"),
         )
@@ -57,57 +55,19 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
                     .single()
             val userId = user[AppUserTable.id]
 
-            assertNoRole(userId)
-            assertBranchCapabilityShape(userId)
+            assertEquals(setOf("COORDINATOR"), rolesOf(userId))
             assertSingleActiveAssignment(userId)
             assertNotNull(UserRepository.findByUsername(scopedUsername))
         }
     }
 
-    private fun assertNoRole(userId: UUID) {
-        assertEquals(
-            0,
-            UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-            "Scoped principal must hold no role (roles derive GLOBAL capability bundles)",
-        )
-    }
-
-    private fun assertBranchCapabilityShape(userId: UUID) {
-        val grants =
-            UserCapabilityTable
-                .selectAll()
-                .where { UserCapabilityTable.userId eq userId }
-                .toList()
-
-        val codeById =
-            CapabilityTable
-                .selectAll()
-                .where { CapabilityTable.id inList grants.map { it[UserCapabilityTable.capabilityId] } }
-                .associate { it[CapabilityTable.id] to it[CapabilityTable.code] }
-
-        assertEquals(
-            setOf(CapabilityContextType.BRANCH),
-            grants.groupBy { it[UserCapabilityTable.contextType] }.keys,
-            "Every scoped grant must be BRANCH-scoped — no GLOBAL rows",
-        )
-        assertEquals(
-            listOf(
-                "ASSIGN_COMPENSATION",
-                "EDIT_BRANCH_DATA",
-                "EDIT_PAST_DAY",
-                "MANAGE_PRODUCTS",
-                "SUBMIT_REMITTANCE",
-                "VIEW_BRANCH_DATA",
-                "VOID_SESSION",
-            ),
-            grants.map { codeById.getValue(it[UserCapabilityTable.capabilityId]) }.sorted(),
-            "Scoped principal holds exactly the fixture-branch coordinator set",
-        )
-        assertTrue(
-            grants.all { it[UserCapabilityTable.contextId] == DEV_FIXTURE_BRANCH_ID },
-            "Every grant must bind to the K6 Fixture Branch",
-        )
-    }
+    private fun rolesOf(userId: UUID): Set<String> =
+        UserRoleTable
+            .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+            .select(RoleTable.name)
+            .where { UserRoleTable.userId eq userId }
+            .map { it[RoleTable.name] }
+            .toSet()
 
     private fun assertSingleActiveAssignment(userId: UUID) {
         val assignments =

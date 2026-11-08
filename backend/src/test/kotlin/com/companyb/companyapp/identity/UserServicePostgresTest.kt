@@ -37,7 +37,6 @@ import kotlin.test.assertTrue
 class UserServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "caller")
@@ -47,7 +46,6 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `deactivate persists inactive status, writes audit log, and rejects existing token`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
         val targetToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)

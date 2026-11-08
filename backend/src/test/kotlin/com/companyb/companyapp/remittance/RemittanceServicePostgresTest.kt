@@ -61,7 +61,6 @@ import kotlin.time.measureTimedValue
 @Suppress("LargeClass") // #595
 class RemittanceServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private var sessionId: UUID? = null
@@ -71,8 +70,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "remittance-caller")
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
-
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test
@@ -258,8 +255,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft without SUBMIT_REMITTANCE is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
@@ -277,7 +272,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create draft with non-existent branch returns not found`() {
         val nonexistentBranchId = TestFixtures.uuid()
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
 
         assertFailsWith<NotFoundException> {
             RemittanceService.createDraft(
@@ -534,7 +528,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         // #866 — submit now requires non-empty coverage; the authz intent stays the same.
         addDayBreakdown(remittanceId, TestFixtures.uuid(), resolveBranchDay())
-        IdentityFixtures.revokeAllCapabilities(callerId)
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
         val result = RemittanceService.submit(callerId, remittanceId, version)

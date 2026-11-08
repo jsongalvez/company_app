@@ -1,7 +1,6 @@
 package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.authorization.Policy
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.audit.AuditAction
@@ -44,7 +43,6 @@ import kotlin.test.assertTrue
 class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val branchName = "Mission-${branchId.toString().take(8)}"
 
@@ -70,7 +68,6 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                     RoleTable.selectAll().where { RoleTable.name eq "MANAGER" }.single()[RoleTable.id]
             }
         }
-        IdentityFixtures.grantAssignDelegate(callerId, sourceId)
         insertBranch()
     }
 

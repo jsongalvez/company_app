@@ -24,7 +24,6 @@ import kotlin.test.assertTrue
 
 class ProductServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
     private val productId2 = TestFixtures.uuid()
@@ -36,8 +35,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create persists product and writes audit row`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
-
         val result =
             ProductService.create(
                 callerId = callerId,
@@ -61,7 +58,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing product without extra audit`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         val first =
             ProductService.create(
                 callerId = callerId,
@@ -91,7 +87,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list returns active products`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -118,7 +113,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findAll includes deactivated row while findAllActive omits it`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -156,7 +150,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id returns persisted product`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -172,7 +165,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update persists changes and writes audit row`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -244,7 +236,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
         val newProductId = TestFixtures.uuid()
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = newProductId,
@@ -263,8 +254,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent category returns not found with zero audit`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
-
         assertFailsWith<NotFoundException> {
             ProductService.create(
                 callerId = callerId,
@@ -280,7 +269,6 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update with non-existent category returns not found with zero audit`() {
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,

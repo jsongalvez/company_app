@@ -1,5 +1,7 @@
 package com.companyb.companyapp.session.dashboard
+
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionUpsertParams
@@ -284,13 +286,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getSessionDetail allows global view holder with bearer`() {
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
         seedNotification(sessionId, callerId, branchId)
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.hold(callerId, Role.ACCOUNTANT)
 
         val data = DashboardService.getSessionDetail(callerId, sessionId)
 
@@ -306,7 +302,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         val before = DashboardService.getSessionDetail(callerId, sessionId)
         assertEquals(sessionId, before.session.id)
 
-        IdentityFixtures.revokeAllCapabilities(callerId)
+        IdentityFixtures.revokeAll(callerId)
 
         assertFailsWith<NotFoundException> {
             DashboardService.getSessionDetail(callerId, sessionId)
@@ -367,13 +363,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(userId, branchId)
     }
 
     private fun assignRole(

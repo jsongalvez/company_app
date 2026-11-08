@@ -39,7 +39,6 @@ import kotlin.test.assertTrue
 
 class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private val dayDate = LocalDate.of(2026, 7, 10)
@@ -48,8 +47,6 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "remittance-undo-caller")
 
         BranchWorkforceFixtures.insertTestBranch(branchId, "Undo Branch ${TestFixtures.uuid()}")
-
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test

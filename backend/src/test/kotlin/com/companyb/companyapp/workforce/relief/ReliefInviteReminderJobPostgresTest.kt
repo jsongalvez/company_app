@@ -47,7 +47,7 @@ class ReliefInviteReminderJobPostgresTest : BasePostgresTest() {
                 ),
             )
         }
-        // Accept writes the invitee's day-scoped grant as a user_capability row.
+        // Accept writes the invitee's relief day.
         // Branch-keyed notification tracking covers every recipient (the #358 lesson).
         // Clock-in upserts a branch_day_assignment row — untracked it blocks user teardown.
     }

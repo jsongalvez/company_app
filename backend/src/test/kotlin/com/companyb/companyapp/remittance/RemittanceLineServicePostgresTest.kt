@@ -62,7 +62,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
     private val sessionId = TestFixtures.uuid()
@@ -78,10 +77,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "rl")
 
         BranchWorkforceFixtures.insertTestBranch(branchId)
-
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
-        IdentityFixtures.grantManageProducts(callerId, sourceId)
 
         SessionClientFixtures.insertTestClient(clientId)
 

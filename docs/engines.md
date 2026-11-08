@@ -113,30 +113,9 @@ VALUES (:target_user_id, :assigned_by_id)
 RETURNING id AS delegate_id
 ```
 
-**3.** Lookup `capability_id`:
-```sql
-SELECT id FROM capability WHERE code = 'EDIT_BRANCH_DATA'
-```
+**3.** No grant is written: the open seat is the helper's rights (`Policy.HELPER`).
 
-**4.** Insert capability grant:
-```sql
-INSERT INTO user_capability (
-    user_id, capability_id, context_type, context_id,
-    source_type, source_id, priority, valid_from, valid_to
-) VALUES (
-    :target_user_id,
-    :capability_id,
-    'BRANCH',
-    :branch_id,
-    'MEDICAL_MISSION_DELEGATE',
-    :delegate_id,
-    20,
-    now(),
-    NULL   -- permanent until revoked via removeDelegate
-)
-```
-
-**5.** Commit.
+**4.** Commit.
 
 ### Revoke Flow (`removeDelegate`)
 
@@ -151,14 +130,7 @@ SET ended_at = now()
 WHERE id = :delegate_id
 ```
 
-**3.** Expire the linked capability:
-```sql
-UPDATE user_capability
-SET valid_to = now()
-WHERE source_type = 'MEDICAL_MISSION_DELEGATE'
-  AND source_id   = :delegate_id
-  AND valid_to IS NULL
-```
+**3.** Nothing else: an ended seat gives no rights.
 
 **4.** Commit.
 

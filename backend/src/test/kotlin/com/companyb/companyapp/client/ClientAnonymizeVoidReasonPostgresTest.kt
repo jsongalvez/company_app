@@ -61,20 +61,7 @@ class ClientAnonymizeVoidReasonPostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "anon-void-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Anon Void Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(callerId, branchId)
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, callerId)
         SessionClientFixtures.insertTestBaseRate(
             TestFixtures.uuid(),

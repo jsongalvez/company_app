@@ -65,20 +65,7 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "anon-session-caller")
         IdentityFixtures.insertTestUser(practitionerId, "anon-session-practitioner")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Anon Session Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(callerId, branchId)
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, callerId)
         BranchWorkforceFixtures.insertTestAssignment(
             userId = practitionerId,

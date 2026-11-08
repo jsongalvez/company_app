@@ -174,7 +174,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     @Test
     fun `find by id returns persisted client`() {
         createClient(callerId, clientAId)
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val found = ClientService.findById(clientAId)
 
@@ -184,7 +183,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id throws not found for missing client`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         assertFailsWith<NotFoundException> {
             ClientService.findById(TestFixtures.uuid())
         }
@@ -204,7 +202,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search matches by first name`() {
         createClient(callerId, clientAId, firstName = "John")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("John")
 
@@ -216,7 +213,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search matches by last name`() {
         createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("Doe")
 
@@ -228,7 +224,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search matches by phone prefix`() {
         createClient(callerId, clientAId, phoneNumber = "1234567890")
         createClient(callerId, clientBId, phoneNumber = "9876543210")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("1234")
 
@@ -248,7 +243,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     @Test
     fun `search is case-insensitive`() {
         createClient(callerId, clientAId, firstName = "John")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("john")
 
@@ -259,7 +253,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search supports typo tolerance with trigram similarity`() {
         createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("Jhn")
 
@@ -271,7 +264,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search supports typo tolerance for multi-character typos`() {
         createClient(callerId, clientAId, firstName = "Maria", lastName = "Garcia")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("Mria")
 
@@ -283,7 +275,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search ranks exact matches above fuzzy matches`() {
         createClient(callerId, clientAId, firstName = "Jon", lastName = "Smith")
         createClient(callerId, clientBId, firstName = "John", lastName = "Bravo")
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("John")
 
@@ -339,7 +330,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client succeeds with EDIT_BRANCH_DATA capability`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
 
         val updated =
@@ -395,8 +385,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client returns 404 for non-existent client`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
-
         assertFailsWith<NotFoundException> {
             ClientService.update(
                 callerId = callerId,
@@ -418,7 +406,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client after anonymize returns 404 and keeps PII null`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         ClientService.anonymize(callerId, clientAId)
 
@@ -452,7 +439,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client writes audit log`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
 
         ClientService.update(
@@ -477,7 +463,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client nullifies PII and retains age and gender`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         val age = 35
         val gender = Gender.F
         createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang", age = age, gender = gender)
@@ -511,8 +496,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client returns 404 for non-existent client`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
-
         assertFailsWith<NotFoundException> {
             ClientService.anonymize(callerId, TestFixtures.uuid())
         }
@@ -520,7 +503,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client is excluded from search results`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId, firstName = "Searchable", lastName = "Client")
 
         ClientService.anonymize(callerId, clientAId)
@@ -531,7 +513,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client still returned by direct findById`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
 
         ClientService.anonymize(callerId, clientAId)
@@ -543,7 +524,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize already anonymized client returns 404`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         ClientService.anonymize(callerId, clientAId)
 
@@ -554,7 +534,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client with pending session throws conflict and keeps PII`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang")
         seedSession(pendingSessionId, clientAId, SessionStatus.PENDING)
 
@@ -571,7 +550,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client with only completed sessions succeeds`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         seedSession(completedSessionId, clientAId, SessionStatus.COMPLETED)
 
@@ -584,7 +562,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client with only cancelled and no-show sessions succeeds`() {
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         seedSession(noShowSessionId, clientAId, SessionStatus.NO_SHOW)
         seedSession(cancelledSessionId, clientAId, SessionStatus.CANCELLED)

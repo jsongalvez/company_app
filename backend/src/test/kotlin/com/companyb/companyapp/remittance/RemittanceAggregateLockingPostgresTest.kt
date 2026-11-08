@@ -42,7 +42,6 @@ import kotlin.test.assertTrue
  */
 class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private val rangeStart = LocalDate.of(2026, 7, 1)
@@ -53,7 +52,6 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "remittance-agg-lock")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Agg Lock Branch ${TestFixtures.uuid()}")
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @Test

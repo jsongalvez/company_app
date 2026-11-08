@@ -1,6 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -55,7 +56,7 @@ class InviteRoutesAuthzTest : BasePostgresTest() {
     fun `manager mints over http, the invitee accepts unauthenticated, then logs in`() {
         val caller = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(caller, "http-manager")
-        IdentityFixtures.grantManageUsers(caller, TestFixtures.uuid())
+        IdentityFixtures.hold(caller, Role.MANAGER)
         // The server-side mint authors its audit rows as the caller — they FK app_user.
 
         val mintResponse =

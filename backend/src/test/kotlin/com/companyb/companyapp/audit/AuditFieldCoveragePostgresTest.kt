@@ -56,22 +56,6 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "audit-coverage-caller")
         IdentityFixtures.insertTestUser(practitionerId, "audit-coverage-practitioner")
         BranchWorkforceFixtures.insertTestBranch(branchId)
-        IdentityFixtures.grantEditBranchData(callerId, TestFixtures.uuid())
-        IdentityFixtures.grantVoidSession(callerId, TestFixtures.uuid())
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = com.companyb.companyapp.contracts.authorization.CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = com.companyb.companyapp.contracts.authorization.CapabilityCodes.VOID_SESSION,
-            contextType = com.companyb.companyapp.contracts.authorization.CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
         transaction {
             UserBranchAssignmentRepository.createInTransaction(
                 UserBranchAssignmentCreateParams(

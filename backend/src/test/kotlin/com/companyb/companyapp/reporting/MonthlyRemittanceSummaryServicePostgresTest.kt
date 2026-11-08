@@ -1,6 +1,5 @@
 package com.companyb.companyapp.reporting
 import com.companyb.companyapp.authorization.CapabilityService
-import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -31,7 +30,6 @@ import kotlin.test.assertFailsWith
 class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     private val currentMonth = TestFixtures.currentMonth
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
 
@@ -39,20 +37,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(callerId, "summary-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
         SessionClientFixtures.insertTestClient(clientId)
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
     }
 
     @Test

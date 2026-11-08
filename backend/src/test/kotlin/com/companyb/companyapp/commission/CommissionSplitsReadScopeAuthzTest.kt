@@ -3,6 +3,7 @@ package com.companyb.companyapp.commission
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -34,43 +35,21 @@ import kotlin.test.assertEquals
  */
 class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
     private val memberUser = TestFixtures.uuid()
-    private val branchViewUser = TestFixtures.uuid()
     private val globalViewUser = TestFixtures.uuid()
     private val noneUser = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(memberUser, "commission-member")
-        IdentityFixtures.insertTestUser(branchViewUser, "commission-branch-view")
         IdentityFixtures.insertTestUser(globalViewUser, "commission-global-view")
         IdentityFixtures.insertTestUser(noneUser, "commission-no-caps")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Commission Read Scope Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
 
-        IdentityFixtures.grantCapability(
-            userId = memberUser,
-            capabilityCode = CapabilityCodes.VIEW_COMMISSION,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = branchViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = globalViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(memberUser, branchId)
+        IdentityFixtures.hold(globalViewUser, Role.ACCOUNTANT)
     }
 
     companion object {
@@ -123,11 +102,6 @@ class CommissionSplitsReadScopeAuthzTest : BasePostgresTest() {
     @Test
     fun `a member of the branch reads splits`() {
         assertEquals(200, getStatus(memberUser, "/api/commission-splits/$branchDayId"))
-    }
-
-    @Test
-    fun `seeing the branch is not enough`() {
-        assertEquals(403, getStatus(branchViewUser, "/api/commission-splits/$branchDayId"))
     }
 
     @Test

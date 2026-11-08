@@ -1,6 +1,7 @@
 package com.companyb.companyapp.reporting
 
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commission.CommissionSplitTable
@@ -76,13 +77,7 @@ abstract class ExportServicePostgresBase : BasePostgresTest() {
     }
 
     protected fun grantViewBranchData(userId: UUID) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.hold(userId, Role.ACCOUNTANT)
     }
 
     protected data class DayFinancials(

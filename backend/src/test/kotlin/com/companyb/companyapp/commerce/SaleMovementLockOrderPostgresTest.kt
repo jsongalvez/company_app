@@ -56,11 +56,9 @@ import kotlin.test.fail
  */
 class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "sale-movement-lock-caller")
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
     }
 
     @Test

@@ -63,13 +63,7 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(callerId, "anon-redact-caller")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Anon Redact Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(callerId, branchId)
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
     }
 

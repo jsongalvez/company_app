@@ -1,5 +1,7 @@
 package com.companyb.companyapp.identity
+
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.identity.UserSummaryResponse
@@ -60,7 +62,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         listOf(managerUser, noGrantUser, targetUser).forEach { id ->
             IdentityFixtures.insertTestUser(id, id.toString().take(6))
         }
-        IdentityFixtures.grantManageUsers(managerUser, managerUser)
+        IdentityFixtures.hold(managerUser, Role.MANAGER)
         BranchWorkforceFixtures.insertTestBranch(branchId, "Authz Branch")
         val targetUserId = this@UserManagementAuthzTest.targetUser
         val assignmentId = TestFixtures.uuid()

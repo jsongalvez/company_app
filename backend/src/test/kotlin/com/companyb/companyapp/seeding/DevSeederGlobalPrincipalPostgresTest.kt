@@ -3,13 +3,16 @@ package com.companyb.companyapp.seeding
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -36,7 +39,7 @@ class DevSeederGlobalPrincipalPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `seeded global principal keeps owner role with home assignment`() {
+    fun `seeded global principal is an Owner and a Coordinator member of the fixture branch`() {
         DevSeeder.seed(
             config(globalUsername = ownerUsername, globalPassword = "owner-pass"),
         )
@@ -48,11 +51,7 @@ class DevSeederGlobalPrincipalPostgresTest : BasePostgresTest() {
                     .where { AppUserTable.username eq ownerUsername }
                     .single()[AppUserTable.id]
 
-            assertEquals(
-                1,
-                UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-                "Dev owner must keep exactly one role row",
-            )
+            assertEquals(setOf("OWNER", "COORDINATOR"), rolesOf(userId))
             val assignments =
                 UserBranchAssignmentTable
                     .selectAll()
@@ -79,4 +78,12 @@ class DevSeederGlobalPrincipalPostgresTest : BasePostgresTest() {
         reliefUsername = null,
         reliefPassword = null,
     )
+
+    private fun rolesOf(userId: UUID): Set<String> =
+        UserRoleTable
+            .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+            .select(RoleTable.name)
+            .where { UserRoleTable.userId eq userId }
+            .map { it[RoleTable.name] }
+            .toSet()
 }

@@ -24,10 +24,10 @@ CREATE TEMP TABLE placed AS
   FROM generate_series(1, $N) g;
 INSERT INTO app_user (username, password_hash, display_name, email)
   SELECT p.username, s.password_hash, 'Load ' || p.n, p.username || '@example.com' FROM placed p, staff s ON CONFLICT DO NOTHING;
-INSERT INTO user_capability (user_id, capability_id, context_type, context_id, source_type, source_id)
-  SELECT u.id, c.capability_id, c.context_type, p.branch_id, c.source_type, p.branch_id
-  FROM placed p JOIN app_user u ON u.username = p.username, user_capability c, staff s
-  WHERE c.user_id = s.id AND NOT EXISTS (SELECT 1 FROM user_capability x WHERE x.user_id = u.id);
+INSERT INTO user_role (user_id, role_id)
+  SELECT u.id, r.role_id
+  FROM placed p JOIN app_user u ON u.username = p.username, user_role r, staff s
+  WHERE r.user_id = s.id AND NOT EXISTS (SELECT 1 FROM user_role x WHERE x.user_id = u.id);
 INSERT INTO user_branch_assignment (user_id, branch_id, slot, assigned_by)
   SELECT u.id, p.branch_id, 0, u.id FROM placed p JOIN app_user u ON u.username = p.username
   WHERE NOT EXISTS (SELECT 1 FROM user_branch_assignment x WHERE x.user_id = u.id);

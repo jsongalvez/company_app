@@ -1,7 +1,9 @@
 package com.companyb.companyapp.reporting
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -64,7 +66,6 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     private val noneUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private val json =
         Json {
@@ -94,29 +95,11 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         )
 
         // Branch-scoped VIEW_BRANCH_DATA at branchA only.
-        IdentityFixtures.grantCapability(
-            userId = viewA,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(viewA, branchA)
         // Non-view grant at branchB — readable in the picker window, NOT view-exportable.
-        IdentityFixtures.grantCapability(
-            userId = editB,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchB,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(editB, branchB)
         // GLOBAL VIEW_BRANCH_DATA with NO branch grants — the all-branches window.
-        IdentityFixtures.grantCapability(
-            userId = globalViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.hold(globalViewUser, Role.ACCOUNTANT)
         listOf(viewA, editB, globalViewUser).forEach {
         }
     }

@@ -16,7 +16,6 @@ internal object TestWorkerSchema {
     private const val MIN_IDLE = 3
     private const val CONNECTION_TIMEOUT_MS = 30_000L
     private const val SEED_ROLE = "role"
-    private const val SEED_CAPABILITY = "capability"
     private const val FLYWAY_HISTORY = "flyway_schema_history"
 
     private val ownedSchemaPattern = Regex("^test_w_[a-z0-9_]+$")
@@ -176,7 +175,7 @@ internal object TestWorkerSchema {
     /**
      * #494 — truncates every mutable table in the owned worker [schema] in one statement.
      * Discovers BASE TABLEs via database metadata, preserves seed reference rows
-     * (role/capability) and Flyway history, and uses RESTRICT so an
+     * (role) and Flyway history, and uses RESTRICT so an
      * unexpected FK from outside the owned schema fails instead of wiping external data.
      * TRUNCATE never fires the snapshot ON DELETE trigger, so no trigger toggle is needed.
      */
@@ -211,7 +210,7 @@ internal object TestWorkerSchema {
                     "SELECT tablename FROM pg_tables " +
                         "WHERE schemaname = '$schema' " +
                         "AND tablename NOT IN " +
-                        "('$SEED_ROLE', '$SEED_CAPABILITY', '$FLYWAY_HISTORY') " +
+                        "('$SEED_ROLE', '$FLYWAY_HISTORY') " +
                         "AND EXISTS (SELECT 1 FROM information_schema.tables t2 " +
                         "WHERE t2.table_schema = pg_tables.schemaname " +
                         "AND t2.table_name = pg_tables.tablename " +

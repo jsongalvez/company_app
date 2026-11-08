@@ -424,7 +424,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
-        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, TestFixtures.uuid())
+        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId)
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 

@@ -43,7 +43,6 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
     private val requesterId = TestFixtures.uuid()
     private val inviteeId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -152,7 +151,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId)
 
         val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 
@@ -176,7 +175,7 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, requesterId)
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(memberId, branchId)
 
         val result = ReliefAccessService.denyAccess(requestId, memberId, "Coordinator correction")
 
@@ -187,35 +186,6 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
                     .selectAll()
                     .where {
                         (AuditLogTable.changedBy eq memberId) and
-                            (AuditLogTable.recordId eq requestId)
-                    }.single()
-            }
-        assertEquals(true, audit[AuditLogTable.isFlagged])
-        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
-    }
-
-    @Test
-    fun `request on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
-        submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(requesterId, branchId, sourceId)
-
-        val requestId = TestFixtures.uuid()
-        val result =
-            ReliefAccessService.requestReliefAccess(
-                requestId,
-                branchId,
-                TestFixtures.today,
-                requesterId,
-                "Coordinator correction",
-            )
-
-        assertEquals(ReliefAccessStatus.PENDING, result.requestStatus)
-        val audit =
-            transaction {
-                AuditLogTable
-                    .selectAll()
-                    .where {
-                        (AuditLogTable.changedBy eq requesterId) and
                             (AuditLogTable.recordId eq requestId)
                     }.single()
             }

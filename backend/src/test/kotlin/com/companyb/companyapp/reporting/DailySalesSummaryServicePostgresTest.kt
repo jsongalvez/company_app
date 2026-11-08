@@ -1,5 +1,7 @@
 package com.companyb.companyapp.reporting
+
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.ProductCategoryTable
 import com.companyb.companyapp.commerce.ProductSaleTable
@@ -332,12 +334,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     private fun grantViewBranchData(userId: UUID) {
-        IdentityFixtures.grantCapability(
-            userId = userId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = userId,
-        )
+        IdentityFixtures.hold(userId, Role.ACCOUNTANT)
     }
 }

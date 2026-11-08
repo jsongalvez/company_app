@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -55,20 +56,8 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
             slot = 2,
             assignedBy = onDuty,
         )
-        IdentityFixtures.grantCapability(
-            userId = onDuty,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
-        IdentityFixtures.grantCapability(
-            userId = globalViewer,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(onDuty, branchId)
+        IdentityFixtures.hold(globalViewer, Role.ACCOUNTANT)
         AttendanceService.clockIn(TestFixtures.uuid(), branchId, onDuty)
         AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, elsewhere)
         val day = BranchWorkforceFixtures.createBranchDayForToday(branchId)

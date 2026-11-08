@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commerce.BranchInventoryTable
@@ -67,7 +68,6 @@ class OutboxReplayContractTest : BasePostgresTest() {
     private val clientId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -96,16 +96,10 @@ class OutboxReplayContractTest : BasePostgresTest() {
                 STOCK,
             )
         }
-        grant(staff, CapabilityCodes.EDIT_BRANCH_DATA)
-        grant(finance, CapabilityCodes.ASSIGN_COMPENSATION)
-        grant(finance, CapabilityCodes.EDIT_BRANCH_DATA)
+        IdentityFixtures.member(staff, branchId)
+        IdentityFixtures.member(finance, branchId, Role.COORDINATOR)
         SessionBaseRateService.setRate(staff, TestFixtures.uuid(), branchId, SessionType.REGULAR, BigDecimal("2500.00"))
     }
-
-    private fun grant(
-        user: UUID,
-        code: String,
-    ) = IdentityFixtures.grantCapability(user, code, CapabilityContextType.BRANCH, branchId, sourceId)
 
     private fun clockStaffIn() = BranchWorkforceFixtures.insertTestAttendance(branchDayId, staff)
 

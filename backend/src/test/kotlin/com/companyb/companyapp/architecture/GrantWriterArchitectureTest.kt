@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 
 class GrantWriterArchitectureTest {
     @Test
-    fun `only GrantStore writes grant rows and relief days`() {
+    fun `only GrantStore writes relief days`() {
         val files =
             BackendArchitectureOwners.discover().mapValues { (path, source) ->
                 BackendArchitectureOwners.parseKt(source, path)
@@ -16,13 +16,13 @@ class GrantWriterArchitectureTest {
                 .filter { (_, file) ->
                     BackendArchitectureOwners
                         .tableWriteOps(file, tables)
-                        .any { it.substringBefore('.') in setOf("UserCapabilityTable", "ReliefDayTable") }
+                        .any { it.substringBefore('.') == "ReliefDayTable" }
                 }.keys
                 .map { it.substringAfterLast("companyapp/") }
         assertEquals(
             listOf("authorization/GrantStore.kt"),
             writers,
-            "grant rows and relief days change only through GrantStore (reach it via AuthorizationGrants)",
+            "relief days change only through GrantStore (reach it via AuthorizationGrants)",
         )
     }
 }

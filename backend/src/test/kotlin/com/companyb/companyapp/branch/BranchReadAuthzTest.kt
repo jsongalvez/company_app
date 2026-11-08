@@ -2,6 +2,7 @@ package com.companyb.companyapp.branch
 
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
@@ -43,7 +44,6 @@ class BranchReadAuthzTest : BasePostgresTest() {
     private val noneUser = TestFixtures.uuid()
     private val branchA = TestFixtures.uuid()
     private val branchB = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         listOf(
@@ -57,20 +57,8 @@ class BranchReadAuthzTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchA, "Branch Read A")
         BranchWorkforceFixtures.insertTestBranch(branchB, "Branch Read B")
 
-        IdentityFixtures.grantCapability(
-            userId = branchViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
-        IdentityFixtures.grantCapability(
-            userId = globalViewUser,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = sourceId,
-        )
+        IdentityFixtures.member(branchViewUser, branchA)
+        IdentityFixtures.hold(globalViewUser, Role.ACCOUNTANT)
     }
 
     companion object {

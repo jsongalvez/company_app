@@ -42,7 +42,6 @@ import kotlin.test.assertTrue
 @Suppress("LargeClass") // #597
 class ProductSaleServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
@@ -61,7 +60,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.member(callerId, branchId)
         ensureInventoryCard(branchId, productId, 20)
     }
 
@@ -94,7 +93,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val saleId = TestFixtures.uuid()
 
         val sale =
@@ -132,7 +131,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val clockBase = TestFixtures.realNow().atOffset(ZoneOffset.UTC)
         transaction {
             AttendanceTable.insert {
@@ -394,8 +393,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell without EDIT_BRANCH_DATA is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,

@@ -1,7 +1,9 @@
 package com.companyb.companyapp.audit
+
 import com.companyb.companyapp.audit.AuditLogStore
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -26,7 +28,6 @@ import kotlin.test.assertTrue
 class AuditLogServicePostgresTest : BasePostgresTest() {
     private val editorId = TestFixtures.uuid()
     private val acknowledgerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val recordId = TestFixtures.uuid()
     private val tableName = "test_table"
 
@@ -36,13 +37,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         }
         // Global VIEW_BRANCH_DATA = the NULL-branch read fallback (AuditLogReadScope).
         listOf(editorId, acknowledgerId).forEach {
-            IdentityFixtures.grantCapability(
-                userId = it,
-                capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-                sourceId = sourceId,
-            )
+            IdentityFixtures.hold(it, Role.ACCOUNTANT)
         }
     }
 
@@ -200,13 +195,6 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         // Branch-scoped editor without the global view grant: window = branchA only.
         val windowedUser = TestFixtures.uuid()
         IdentityFixtures.insertTestUser(windowedUser, "audit-windowed")
-        IdentityFixtures.grantCapability(
-            userId = windowedUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchA,
-            sourceId = sourceId,
-        )
         val recId = recordId
         val tblName = tableName
         transaction {

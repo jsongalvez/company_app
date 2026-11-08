@@ -20,7 +20,6 @@ import kotlin.test.assertTrue
 
 class BranchServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val clinicId = TestFixtures.uuid()
     private val provincialTourId = TestFixtures.uuid()
     private val medicalMissionId = TestFixtures.uuid()
@@ -32,8 +31,6 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create persists all branch types and writes audit row`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
-
         val clinic = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         val tour = BranchService.create(callerId, provincialTourId, "Cebu Tour", BranchType.PROVINCIAL_TOUR)
         val mission = BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
@@ -55,8 +52,6 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate client generated id returns existing branch without extra audit`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
-
         val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         // #418 — branch creation seeds five default base rates as a side effect.
 
@@ -84,8 +79,6 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id and list return persisted branches`() {
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
-
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 
@@ -120,7 +113,6 @@ class BranchServicePostgresTest : BasePostgresTest() {
     @Test
     fun `findById without MANAGE_USERS is allowed at service layer`() {
         val newBranchId = TestFixtures.uuid()
-        IdentityFixtures.grantManageUsers(callerId, sourceId)
         BranchService.create(callerId, newBranchId, "Find Branch", BranchType.CLINIC)
         // #418 — branch creation seeds five default base rates as a side effect.
 

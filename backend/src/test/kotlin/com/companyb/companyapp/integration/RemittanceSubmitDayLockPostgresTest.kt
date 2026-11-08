@@ -32,7 +32,6 @@ import kotlin.test.assertTrue
  */
 class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
 
     override fun initTestData() {
@@ -45,7 +44,6 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
         repeat(RACE_ITERATIONS) { iteration ->
             val iterBranchId = TestFixtures.uuid()
             BranchWorkforceFixtures.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
-            IdentityFixtures.grantSubmitRemittance(callerId, sourceId, iterBranchId)
             val dayId = BranchWorkforceFixtures.createBranchDayForToday(iterBranchId)
             val remittanceId = createDraftCovering(iterBranchId, dayId)
             val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -87,7 +85,6 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
         repeat(RACE_ITERATIONS) { iteration ->
             val iterBranchId = TestFixtures.uuid()
             BranchWorkforceFixtures.insertTestBranch(iterBranchId, "Submit Race Branch ${TestFixtures.uuid()}")
-            IdentityFixtures.grantSubmitRemittance(callerId, sourceId, iterBranchId)
             val dayId = BranchWorkforceFixtures.createBranchDayForToday(iterBranchId)
             val remittanceId = createDraftCovering(iterBranchId, dayId)
             val version = RemittanceService.getRemittance(remittanceId).remittance.version

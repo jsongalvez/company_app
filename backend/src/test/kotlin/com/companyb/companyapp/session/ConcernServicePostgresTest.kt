@@ -39,7 +39,6 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     private val sessionId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val rateId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val systemConcernId = TestFixtures.uuid()
     private val promotedSessionId = TestFixtures.uuid()
     private val promotedClientId = TestFixtures.uuid()
@@ -49,7 +48,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId)
         SessionClientFixtures.insertTestClient(clientId)
         SessionClientFixtures.insertTestClient(promotedClientId)
-        IdentityFixtures.grantEditBranchData(callerId, sourceId)
+        IdentityFixtures.member(callerId, branchId)
         SessionClientFixtures.insertTestBaseRate(rateId, branchId, callerId)
         createSession(callerId, sessionId)
         createSession(callerId, promotedSessionId, clientId = promotedClientId)
@@ -131,7 +130,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val remittedSessionId = TestFixtures.uuid()
         val remittedClientId = SessionClientFixtures.insertTestClient()
         SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         SessionConcernService.addToSession(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
 
@@ -288,7 +287,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val remittedSessionId = TestFixtures.uuid()
         val remittedClientId = SessionClientFixtures.insertTestClient()
         SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         SessionConcernService.addToSession(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
 

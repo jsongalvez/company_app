@@ -37,7 +37,6 @@ import kotlin.test.assertTrue
 class CommissionDayLockPostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val categoryId = TestFixtures.uuid()
     private val productId = TestFixtures.uuid()
@@ -88,7 +87,7 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
     @Test
     fun `create on submit-REMITTED day with reason and EDIT_PAST_DAY succeeds flagged`() {
         submitRemittanceCoveringDay(branchDayId)
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         val inclusionId = TestFixtures.uuid()
         val inclusion =

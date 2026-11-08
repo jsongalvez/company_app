@@ -34,13 +34,6 @@ class VisitBookingAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(viewer, "booking-viewer")
         IdentityFixtures.insertTestUser(outsider, "booking-outsider")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Booking Branch $branchId")
-        IdentityFixtures.grantCapability(
-            userId = viewer,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            sourceId = TestFixtures.uuid(),
-        )
     }
 
     companion object {

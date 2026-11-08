@@ -43,13 +43,7 @@ class BranchPriceAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(outsider, "price-outsider")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Price Branch $branchId")
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Branch $otherBranchId")
-        IdentityFixtures.grantCapability(
-            userId = member,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            sourceId = TestFixtures.uuid(),
-        )
+        IdentityFixtures.member(member, branchId)
         CommerceFinanceFixtures.insertTestCategory(categoryId)
         CommerceFinanceFixtures.insertTestProduct(productId, categoryId = categoryId)
         CommerceFinanceFixtures.insertTestProduct(otherProductId, categoryId = categoryId)

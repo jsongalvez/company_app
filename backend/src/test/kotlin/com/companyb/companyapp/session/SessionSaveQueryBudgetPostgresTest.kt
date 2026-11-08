@@ -36,19 +36,12 @@ class SessionSaveQueryBudgetPostgresTest : BasePostgresTest() {
     private val staff = TestFixtures.uuid()
     private val notClockedIn = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         listOf(staff, notClockedIn).forEachIndexed { i, id -> IdentityFixtures.insertTestUser(id, "save-$i") }
         BranchWorkforceFixtures.insertTestBranch(branchId, "Save Branch $branchId")
         listOf(staff, notClockedIn).forEach {
-            IdentityFixtures.grantCapability(
-                userId = it,
-                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = branchId,
-                sourceId = sourceId,
-            )
+            IdentityFixtures.member(it, branchId)
         }
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, staff)
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, staff, SessionType.SECOND_SESSION)

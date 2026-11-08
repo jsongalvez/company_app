@@ -1,6 +1,5 @@
 package com.companyb.companyapp.testsupport.database
 
-import com.companyb.companyapp.authorization.CapabilityTable
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
@@ -70,14 +69,8 @@ class WorkerSchemaResetTest : BasePostgresTest() {
         assertUpdateBlocked(secondRemittance)
     }
 
-    private fun seedCounts(): Triple<Long, Long, Long> =
-        transaction {
-            Triple(
-                RoleTable.selectAll().count(),
-                CapabilityTable.selectAll().count(),
-                transactionSeedHistoryCount(),
-            )
-        }
+    private fun seedCounts(): Pair<Long, Long> =
+        transaction { RoleTable.selectAll().count() to transactionSeedHistoryCount() }
 
     private fun transactionSeedHistoryCount(): Long =
         transaction {

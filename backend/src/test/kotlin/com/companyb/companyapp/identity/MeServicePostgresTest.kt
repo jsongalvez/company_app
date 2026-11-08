@@ -1,10 +1,14 @@
 package com.companyb.companyapp.identity
+
+import com.companyb.companyapp.authorization.Policy
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
+import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import java.util.UUID
 import kotlin.test.Test
@@ -14,7 +18,6 @@ import kotlin.test.assertTrue
 
 class MeServicePostgresTest : BasePostgresTest() {
     private val userId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val inactiveUserId = TestFixtures.uuid()
 
     override fun initTestData() {
@@ -63,16 +66,15 @@ class MeServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getCapabilities returns capabilities for user with grants`() {
-        IdentityFixtures.grantEditBranchData(userId, sourceId)
-        IdentityFixtures.grantManageProducts(userId, sourceId)
+    fun `getCapabilities returns what a Coordinator member holds`() {
+        val branchId = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(branchId)
+        IdentityFixtures.member(userId, branchId, Role.COORDINATOR)
 
         val capabilities = MeService.getCapabilities(userId)
 
         val codes = capabilities.map { it.capabilityCode }.toSet()
-        assertEquals(2, capabilities.size)
-        assertTrue(CapabilityCodes.EDIT_BRANCH_DATA in codes)
-        assertTrue(CapabilityCodes.MANAGE_PRODUCTS in codes)
+        assertEquals(Role.COORDINATOR.codes + Policy.MEMBER, codes)
     }
 
     @Test
@@ -83,8 +85,6 @@ class MeServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getCapabilities excludes inactive users`() {
-        IdentityFixtures.grantEditBranchData(inactiveUserId, sourceId)
-
         val capabilities = MeService.getCapabilities(inactiveUserId)
         assertTrue(capabilities.isEmpty())
     }

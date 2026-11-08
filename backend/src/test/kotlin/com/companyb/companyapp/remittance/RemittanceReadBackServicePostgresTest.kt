@@ -49,7 +49,6 @@ import kotlin.test.assertTrue
 
 class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val otherBranchId = TestFixtures.uuid()
     private val clientId = TestFixtures.uuid()
@@ -68,8 +67,6 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
 
         BranchWorkforceFixtures.insertTestBranch(otherBranchId, "Other Remittance Branch ${TestFixtures.uuid()}")
-
-        IdentityFixtures.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     // ──────────────────────────────────────────────

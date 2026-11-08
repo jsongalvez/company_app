@@ -1,5 +1,7 @@
 package com.companyb.companyapp.finance
+
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -31,7 +33,6 @@ import kotlin.test.assertTrue
 class AllowanceServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
@@ -41,7 +42,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(targetUserId, "allowance-target")
         BranchWorkforceFixtures.insertTestBranch(branchId, "Test Allowance Branch")
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantAssignCompensation(callerId, sourceId)
+        IdentityFixtures.hold(callerId, Role.OWNER)
     }
 
     @Test
@@ -51,7 +52,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val allowanceId = TestFixtures.uuid()
 
         val allowance =
@@ -155,7 +156,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
         AllowanceService.create(callerId, allowanceId, branchDayId, targetUserId, BigDecimal("500.00"))
 
@@ -190,7 +191,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                 branchId,
                 TestFixtures.today.minusDays(3),
             )
-        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId, sourceId)
+        BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
         val start = CountDownLatch(1)
         val results = Collections.synchronizedList(mutableListOf<Throwable?>())
         val threads =
@@ -241,8 +242,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val allowanceId = TestFixtures.uuid()
         val allowance =
             AllowanceService.create(
@@ -334,8 +333,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranchDayId without capability is allowed at service layer`() {
-        IdentityFixtures.revokeAllCapabilities(callerId)
-
         val results = AllowanceService.findByBranchDayId(branchDayId)
 
         assertTrue(results.isEmpty())

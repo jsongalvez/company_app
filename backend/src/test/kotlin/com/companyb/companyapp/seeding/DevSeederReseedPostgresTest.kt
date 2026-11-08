@@ -1,10 +1,10 @@
 package com.companyb.companyapp.seeding
 
-import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.session.SessionBaseRateRepository
 import com.companyb.companyapp.session.SessionBaseRateTable
@@ -13,10 +13,12 @@ import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -40,7 +42,7 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `reseed heals scoped principal after capability and assignment wipe`() {
+    fun `reseed heals scoped principal after role and assignment wipe`() {
         val username = "k6heal-${UUID.randomUUID().toString().substring(0, 8)}"
         DevSeeder.seed(config(scoped = username to "scope-pass"))
 
@@ -49,7 +51,7 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
                 AppUserTable.selectAll().where { AppUserTable.username eq username }.single()[AppUserTable.id]
             }
         transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
+            UserRoleTable.deleteWhere { UserRoleTable.userId eq userId }
             UserBranchAssignmentTable.deleteWhere { UserBranchAssignmentTable.userId eq userId }
         }
 
@@ -58,11 +60,7 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
         DevSeeder.seed(config(scoped = username to "scope-pass"))
 
         transaction {
-            assertEquals(
-                7,
-                UserCapabilityTable.selectAll().where { UserCapabilityTable.userId eq userId }.count(),
-                "Reseed must restore exactly the 7 fixture-branch grants",
-            )
+            assertEquals(setOf("COORDINATOR"), rolesOf(userId), "Reseed must restore the Coordinator role")
             assertEquals(
                 1,
                 UserBranchAssignmentTable
@@ -72,11 +70,6 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
                             UserBranchAssignmentTable.endedAt.isNull()
                     }.count(),
                 "Reseed must restore the single active home assignment",
-            )
-            assertEquals(
-                0,
-                UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-                "Reseed must not attach a role to the scoped principal",
             )
             assertEquals(
                 4,
@@ -103,11 +96,7 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
             val rows = AppUserTable.selectAll().where { AppUserTable.username eq username }.toList()
             assertEquals(1, rows.size, "Reseed must reuse the pre-created user, not insert a second row")
             val userId = rows.single()[AppUserTable.id]
-            assertEquals(
-                7,
-                UserCapabilityTable.selectAll().where { UserCapabilityTable.userId eq userId }.count(),
-                "Reseed must grant the full 7-capability set to the bare user",
-            )
+            assertEquals(setOf("COORDINATOR"), rolesOf(userId), "Reseed must make the bare user a Coordinator")
             assertEquals(
                 1,
                 UserBranchAssignmentTable
@@ -144,11 +133,7 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
         transaction {
             val userId =
                 AppUserTable.selectAll().where { AppUserTable.username eq username }.single()[AppUserTable.id]
-            assertEquals(
-                1,
-                UserCapabilityTable.selectAll().where { UserCapabilityTable.userId eq userId }.count(),
-                "Relief reseed must keep exactly the single requester grant",
-            )
+            assertEquals(setOf("PRACTITIONER"), rolesOf(userId), "Relief reseed must keep the one Practitioner role")
             assertEquals(
                 0,
                 UserBranchAssignmentTable
@@ -178,7 +163,6 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
             }
         transaction {
             UserRoleTable.deleteWhere { UserRoleTable.userId eq userId }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
             UserBranchAssignmentTable.deleteWhere { UserBranchAssignmentTable.userId eq userId }
             SessionBaseRateTable.deleteWhere {
                 (SessionBaseRateTable.branchId eq DEV_FIXTURE_BRANCH_ID) and
@@ -194,16 +178,7 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
         DevSeeder.seed(config(global = username to "owner-pass"))
 
         transaction {
-            assertEquals(
-                1,
-                UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-                "Reseed must restore the OWNER role row",
-            )
-            assertEquals(
-                17,
-                UserCapabilityTable.selectAll().where { UserCapabilityTable.userId eq userId }.count(),
-                "Reseed must restore all 10 GLOBAL plus 7 branch grants",
-            )
+            assertEquals(setOf("OWNER", "COORDINATOR"), rolesOf(userId), "Reseed must restore both role rows once")
             assertEquals(
                 1,
                 UserBranchAssignmentTable
@@ -234,4 +209,12 @@ class DevSeederReseedPostgresTest : BasePostgresTest() {
         reliefUsername = relief?.first,
         reliefPassword = relief?.second,
     )
+
+    private fun rolesOf(userId: UUID): Set<String> =
+        UserRoleTable
+            .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
+            .select(RoleTable.name)
+            .where { UserRoleTable.userId eq userId }
+            .map { it[RoleTable.name] }
+            .toSet()
 }
