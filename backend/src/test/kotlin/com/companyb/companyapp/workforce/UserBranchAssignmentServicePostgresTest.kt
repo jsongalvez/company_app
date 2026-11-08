@@ -729,11 +729,9 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         IdentityFixtures.grantManageUsers(callerId, sourceId)
         UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
         val todayBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = nonManagerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = todayBranchDayId,
+            branchDayId = todayBranchDayId,
             sourceId = sourceId,
         )
 
@@ -788,11 +786,9 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val yesterdayBranchDayId =
             BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
         check(todayBranchDayId != yesterdayBranchDayId)
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = nonManagerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = yesterdayBranchDayId,
+            branchDayId = yesterdayBranchDayId,
             sourceId = sourceId,
         )
 

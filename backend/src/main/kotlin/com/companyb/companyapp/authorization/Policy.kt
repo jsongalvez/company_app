@@ -89,7 +89,8 @@ data class Grant(
 /**
  * What the database says about one person. [unassignedBranches] are the branches some role of
  * theirs works at without an assignment, with the roles that reach each. [rows] are their
- * `user_capability` rows in force now: relief days and helper seats.
+ * `user_capability` rows in force now (helper seats and direct grants), [reliefDays] the branch days they
+ * work as relief.
  */
 data class Facts(
     val active: Boolean,
@@ -97,6 +98,7 @@ data class Facts(
     val homes: Set<UUID>,
     val unassignedBranches: Map<UUID, Set<Role>>,
     val rows: List<Grant>,
+    val reliefDays: Set<UUID>,
 )
 
 object Policy {
@@ -108,7 +110,7 @@ object Policy {
 
     /**
      * Every grant [facts] give, one per code and context, the highest priority winning. An edit row
-     * at a branch or day carries a view there; a relief day or a helper seat carries a member's rights.
+     * at a branch carries a view there; a relief day or a helper seat carries a member's rights.
      */
     fun grants(facts: Facts): List<Grant> {
         if (!facts.active) return emptyList()
@@ -123,7 +125,8 @@ object Policy {
         val homes = facts.homes.flatMap { branch -> atBranch(facts.roles, branch) }
         val unassigned = facts.unassignedBranches.flatMap { (branch, roles) -> atBranch(roles, branch) }
         val carried = facts.rows.flatMap { carriedBy(it) }
-        return (facts.rows + carried + everywhere + homes + unassigned)
+        val relief = facts.reliefDays.flatMap { day -> MEMBER.map { reliefGrant(it, day) } }
+        return (facts.rows + carried + relief + everywhere + homes + unassigned)
             .groupBy { Triple(it.code, it.contextType, it.contextId) }
             .map { (_, same) -> same.maxBy { it.priority } }
     }
@@ -138,12 +141,20 @@ object Policy {
 
     private fun carriedBy(row: Grant): List<Grant> {
         if (row.code != EDIT || row.contextType == CapabilityContextType.GLOBAL) return emptyList()
-        val worksThere =
-            row.contextType == CapabilityContextType.BRANCH_DAY ||
-                row.sourceType == CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-        val codes = if (worksThere) MEMBER - EDIT else setOf(VIEW)
+        val codes = if (row.sourceType == CapabilitySourceType.MEDICAL_MISSION_DELEGATE) MEMBER - EDIT else setOf(VIEW)
         return codes.map { row.copy(code = it) }
     }
+
+    private fun reliefGrant(
+        code: String,
+        day: UUID,
+    ) = Grant(
+        code,
+        CapabilityContextType.BRANCH_DAY,
+        day,
+        CapabilitySourceType.RELIEF_ACCESS,
+        GrantPriorities.RELIEF_ACCESS,
+    )
 
     private fun roleGrant(
         code: String,

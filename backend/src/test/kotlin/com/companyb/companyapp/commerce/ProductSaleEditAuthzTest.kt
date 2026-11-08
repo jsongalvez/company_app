@@ -85,12 +85,10 @@ class ProductSaleEditAuthzTest : BasePostgresTest() {
         )
         IdentityFixtures.insertTestUser(relief, "relief")
         assignRole(relief, "PRACTITIONER")
-        IdentityFixtures.grantCapability(
-            relief,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH_DAY,
-            todayId,
-            TestFixtures.uuid(),
+        IdentityFixtures.reliefDay(
+            userId = relief,
+            branchDayId = todayId,
+            sourceId = TestFixtures.uuid(),
         )
         val category = TestFixtures.uuid()
         CommerceFinanceFixtures.insertTestCategory(category)

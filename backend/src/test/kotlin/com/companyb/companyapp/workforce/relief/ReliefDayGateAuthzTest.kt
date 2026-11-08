@@ -168,19 +168,15 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     private fun seedGrants() {
         // reliefUser: BRANCH_DAY grant for the granted day (open window).
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = reliefUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = grantedDay,
+            branchDayId = grantedDay,
             sourceId = sourceId,
         )
         // wrongDayUser: BRANCH_DAY grant for a DIFFERENT day at the same branch.
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = wrongDayUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = otherDaySameBranch,
+            branchDayId = otherDaySameBranch,
             sourceId = sourceId,
         )
         // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Windows
@@ -189,13 +185,10 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         // whenever the suite runs inside the seeded window (#412 — daily red span). The wide
         // margins absorb realistic same-host clock skew (the grant must stay expired regardless).
         val seededAt = OffsetDateTime.ofInstant(TestFixtures.realNow(), ZoneOffset.UTC)
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = expiredUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = grantedDay,
+            branchDayId = grantedDay,
             sourceId = sourceId,
-            validFrom = seededAt.minusHours(12),
             validTo = seededAt.minusHours(10),
         )
         // branchUser: ordinary BRANCH grant (the branch leg regression).

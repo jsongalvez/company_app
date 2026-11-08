@@ -67,9 +67,8 @@ class AccessMatrixTest : BasePostgresTest() {
             }
             relief(Who.RELIEF)
             relief(Who.RELIEF_ENDED)
-            UserCapabilityTable.update({ UserCapabilityTable.userId eq people.getValue(Who.RELIEF_ENDED) }) {
-                it[UserCapabilityTable.validFrom] = OffsetDateTime.now().minusDays(2)
-                it[UserCapabilityTable.validTo] = OffsetDateTime.now().minusDays(1)
+            ReliefDayTable.update({ ReliefDayTable.userId eq people.getValue(Who.RELIEF_ENDED) }) {
+                it[ReliefDayTable.validTo] = OffsetDateTime.now().minusDays(1)
             }
             helper(Who.HELPER, DelegateRole.PRACTITIONER)
             helper(Who.HELPER_COORDINATOR, DelegateRole.COORDINATOR)

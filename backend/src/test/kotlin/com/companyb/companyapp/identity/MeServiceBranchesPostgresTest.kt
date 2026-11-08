@@ -97,12 +97,10 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         val today = BranchDayService.resolveOrCreate(reliefBranch, TestFixtures.today)
         val tomorrow = BranchDayService.resolveOrCreate(branchB, TestFixtures.today.plusDays(1))
         for (day in listOf(today, tomorrow)) {
-            IdentityFixtures.grantCapability(
-                userId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH_DAY,
-                day.id,
-                TestFixtures.uuid(),
+            IdentityFixtures.reliefDay(
+                userId = userId,
+                branchDayId = day.id,
+                sourceId = TestFixtures.uuid(),
             )
         }
 

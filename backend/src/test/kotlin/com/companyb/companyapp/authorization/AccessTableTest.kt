@@ -115,12 +115,10 @@ class AccessTableTest : BasePostgresTest() {
         people.values.forEach { BranchWorkforceFixtures.insertTestAttendance(day(Day.TODAY), it) }
         seedPayees()
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), branchId, person(Who.COORDINATOR))
-        IdentityFixtures.grantCapability(
-            person(Who.RELIEF),
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH_DAY,
-            day(Day.TODAY),
-            TestFixtures.uuid(),
+        IdentityFixtures.reliefDay(
+            userId = person(Who.RELIEF),
+            branchDayId = day(Day.TODAY),
+            sourceId = TestFixtures.uuid(),
         )
         grantHelpers()
         val category = TestFixtures.uuid()
@@ -153,12 +151,10 @@ class AccessTableTest : BasePostgresTest() {
         reliefPayees.values.forEach { id ->
             IdentityFixtures.insertTestUser(id, "relief-payee")
             assignRole(id, "PRACTITIONER")
-            IdentityFixtures.grantCapability(
-                id,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH_DAY,
-                day(Day.TODAY),
-                TestFixtures.uuid(),
+            IdentityFixtures.reliefDay(
+                userId = id,
+                branchDayId = day(Day.TODAY),
+                sourceId = TestFixtures.uuid(),
             )
         }
         strangers.values.forEach { id ->

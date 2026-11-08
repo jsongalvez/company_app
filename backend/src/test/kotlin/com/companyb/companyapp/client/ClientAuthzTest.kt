@@ -93,11 +93,9 @@ class ClientAuthzTest : BasePostgresTest() {
             assignedBy = ownerUser,
         )
         branchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = reliefUser,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = branchDayId,
+            branchDayId = branchDayId,
             sourceId = sourceId,
         )
         SessionClientFixtures.insertTestClient(clientId)

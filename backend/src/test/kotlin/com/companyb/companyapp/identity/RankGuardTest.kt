@@ -72,12 +72,10 @@ class RankGuardTest : BasePostgresTest() {
             )
         }
         val elsewhereToday = BranchWorkforceFixtures.createBranchDayForDate(elsewhere, TestFixtures.today)
-        IdentityFixtures.grantCapability(
-            relief,
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH_DAY,
-            elsewhereToday,
-            TestFixtures.uuid(),
+        IdentityFixtures.reliefDay(
+            userId = relief,
+            branchDayId = elsewhereToday,
+            sourceId = TestFixtures.uuid(),
         )
     }
 

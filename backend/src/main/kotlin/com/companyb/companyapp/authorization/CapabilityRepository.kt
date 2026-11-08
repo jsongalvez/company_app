@@ -93,6 +93,13 @@ internal object CapabilityRepository {
                 UserCapabilityTable.userId,
                 additionalConstraint = ::inForce,
             ).join(CapabilityTable, JoinType.LEFT, UserCapabilityTable.capabilityId, CapabilityTable.id)
+            .join(
+                ReliefDayTable,
+                JoinType.LEFT,
+                AppUserTable.id,
+                ReliefDayTable.userId,
+                additionalConstraint = { reliefInForce() },
+            )
 
     /** The tables a person's grants come from: a write to one drops the request's copy. */
     internal val VIEW_READS: Set<String> = FACTS.columns.map { it.table.tableName }.toSet()
@@ -104,9 +111,12 @@ internal object CapabilityRepository {
                     (UserCapabilityTable.validTo greaterEq CurrentTimestampWithTimeZone)
             )
 
+    private fun reliefInForce(): Op<Boolean> =
+        ReliefDayTable.validTo.isNull() or (ReliefDayTable.validTo greaterEq CurrentTimestampWithTimeZone)
+
     /**
      * What [Policy] needs about [userId], in one statement: their roles, the branches those roles
-     * work at unassigned, their open assignments and their `user_capability` rows in force. The
+     * work at unassigned, their open assignments, their `user_capability` rows and their relief days in force. The
      * left joins multiply into a handful of rows, which costs less than a statement each.
      */
     private fun factsOf(userId: UUID): Facts {
@@ -122,6 +132,7 @@ internal object CapabilityRepository {
                     UserCapabilityTable.contextId,
                     UserCapabilityTable.sourceType,
                     UserCapabilityTable.priority,
+                    ReliefDayTable.branchDayId,
                 ).where { AppUserTable.id eq userId }
                 .toList()
         val unassigned = mutableMapOf<UUID, MutableSet<Role>>()
@@ -134,6 +145,7 @@ internal object CapabilityRepository {
             roles = rows.mapNotNull { row -> row.getOrNull(RoleTable.name)?.let(Role::parse) }.toSet(),
             homes = rows.mapNotNull { it.getOrNull(UserBranchAssignmentTable.branchId) }.toSet(),
             unassignedBranches = unassigned,
+            reliefDays = rows.mapNotNull { it.getOrNull(ReliefDayTable.branchDayId) }.toSet(),
             rows =
                 rows
                     .mapNotNull { row ->
@@ -202,27 +214,24 @@ internal object CapabilityRepository {
         }
 
     /**
-     * Active people whose relief for [branchDayId] is in force (an edit grant on that day),
+     * Active people whose relief day [branchDayId] is in force,
      * only [userId] when given. Runs on the caller's transaction.
      */
     fun reliefHoldersInTransaction(
         branchDayId: UUID,
         userId: UUID? = null,
     ): Set<UUID> =
-        UserCapabilityTable
-            .innerJoin(CapabilityTable, { UserCapabilityTable.capabilityId }, { CapabilityTable.id })
-            .innerJoin(AppUserTable, { UserCapabilityTable.userId }, { AppUserTable.id })
-            .select(UserCapabilityTable.userId)
+        ReliefDayTable
+            .innerJoin(AppUserTable, { ReliefDayTable.userId }, { AppUserTable.id })
+            .select(ReliefDayTable.userId)
             .where {
                 val onDay =
-                    (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
-                        (UserCapabilityTable.contextType eq CapabilityContextType.BRANCH_DAY) and
-                        (UserCapabilityTable.contextId eq branchDayId) and
+                    (ReliefDayTable.branchDayId eq branchDayId) and
                         (AppUserTable.status eq UserStatus.ACTIVE) and
-                        inForce()
-                if (userId == null) onDay else onDay and (UserCapabilityTable.userId eq userId)
+                        reliefInForce()
+                if (userId == null) onDay else onDay and (ReliefDayTable.userId eq userId)
             }.withDistinct()
-            .map { it[UserCapabilityTable.userId] }
+            .map { it[ReliefDayTable.userId] }
             .toSet()
 
     /**

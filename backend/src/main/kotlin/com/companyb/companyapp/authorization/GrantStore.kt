@@ -24,45 +24,23 @@ data class GrantReliefCapabilityParams(
 )
 
 internal object GrantStore {
-    /**
-     * The shared relief-grant writer (moved from the workforce relief store):
-     * inserts the day-scoped capability (EDIT_BRANCH_DATA, BRANCH_DAY, [params.branchDayId],
-     * source RELIEF_ACCESS, priority [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo =
-     * [GrantReliefCapabilityParams.validTo]) — the capability write used by BOTH the
-     * request flow's grant and the invite flow's accept. `insertIgnore` keeps a redundant
-     * grant harmless (the decision: capabilities ≠ assignments).
-     *
-     */
+    /** Writes [params] as a relief day; granting the same day from the same source twice is harmless. */
     fun grantReliefCapabilityInTransaction(params: GrantReliefCapabilityParams) {
-        UserCapabilityTable.insertIgnore {
-            it[UserCapabilityTable.userId] = params.userId
-            it[UserCapabilityTable.capabilityId] = capabilityId(CapabilityCodes.EDIT_BRANCH_DATA)
-            it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
-            it[UserCapabilityTable.contextId] = params.branchDayId
-            it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
-            it[UserCapabilityTable.sourceId] = params.sourceId
-            it[UserCapabilityTable.validFrom] = CurrentTimestampWithTimeZone
-            it[UserCapabilityTable.validTo] = params.validTo
-            it[UserCapabilityTable.priority] = GrantPriorities.RELIEF_ACCESS
+        ReliefDayTable.insertIgnore {
+            it[ReliefDayTable.userId] = params.userId
+            it[ReliefDayTable.branchDayId] = params.branchDayId
+            it[ReliefDayTable.sourceId] = params.sourceId
+            it[ReliefDayTable.validTo] = params.validTo
         }
     }
 
-    /**
-     * Grant removal keyed on the capability's sourceId (moved): deletes every
-     * RELIEF_ACCESS-sourced capability row minted from [sourceId] for [userId] (an
-     * invite id — accept writes exactly one row for the invitee; the user scope keeps a
-     * pathological id collision from ever deleting another holder's grant).
-     * In-transaction store operation (ADR-0024) — runs inside the revoke command's
-     * transaction so the status flip and grant removal commit or roll back together.
-     */
+    /** Removes the relief days [sourceId] granted [userId], in the revoking command's transaction. */
     fun deleteReliefGrantBySourceIdInTransaction(
         userId: UUID,
         sourceId: UUID,
     ) {
-        UserCapabilityTable.deleteWhere {
-            (UserCapabilityTable.userId eq userId) and
-                (UserCapabilityTable.sourceType eq CapabilitySourceType.RELIEF_ACCESS) and
-                (UserCapabilityTable.sourceId eq sourceId)
+        ReliefDayTable.deleteWhere {
+            (ReliefDayTable.userId eq userId) and (ReliefDayTable.sourceId eq sourceId)
         }
     }
 

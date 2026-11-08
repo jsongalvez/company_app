@@ -80,12 +80,10 @@ class BranchMemberEditAuthzTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(relief, "relief")
         assignRole(relief, "PRACTITIONER")
         for (day in listOf(todayId, yesterdayId)) {
-            IdentityFixtures.grantCapability(
-                relief,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH_DAY,
-                day,
-                TestFixtures.uuid(),
+            IdentityFixtures.reliefDay(
+                userId = relief,
+                branchDayId = day,
+                sourceId = TestFixtures.uuid(),
             )
         }
     }

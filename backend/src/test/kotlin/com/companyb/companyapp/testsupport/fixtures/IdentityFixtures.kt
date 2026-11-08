@@ -3,6 +3,7 @@ package com.companyb.companyapp.testsupport.fixtures
 import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.GrantPriorities
+import com.companyb.companyapp.authorization.ReliefDayTable
 import com.companyb.companyapp.authorization.UserCapabilityTable
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -164,6 +165,23 @@ object IdentityFixtures {
                 it[UserCapabilityTable.priority] = priority.toShort()
                 if (validFrom != null) it[UserCapabilityTable.validFrom] = validFrom
                 if (validTo != null) it[UserCapabilityTable.validTo] = validTo
+            }
+        }
+    }
+
+    /** [userId] works [branchDayId] as relief, granted by [sourceId], until [validTo] when given. */
+    fun reliefDay(
+        userId: UUID,
+        branchDayId: UUID,
+        sourceId: UUID,
+        validTo: OffsetDateTime? = null,
+    ) {
+        transaction {
+            ReliefDayTable.insert {
+                it[ReliefDayTable.userId] = userId
+                it[ReliefDayTable.branchDayId] = branchDayId
+                it[ReliefDayTable.sourceId] = sourceId
+                it[ReliefDayTable.validTo] = validTo
             }
         }
     }

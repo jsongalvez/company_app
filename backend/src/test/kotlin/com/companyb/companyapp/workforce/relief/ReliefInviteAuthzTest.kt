@@ -306,11 +306,9 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `invitee with an active grant for the day conflicts`() {
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = invitee,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = tomorrowDayId,
+            branchDayId = tomorrowDayId,
             sourceId = sourceId,
         )
         testServer.client.let { client ->
@@ -662,11 +660,9 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `candidates exclude self, live invitees and granted users`() {
-        IdentityFixtures.grantCapability(
+        IdentityFixtures.reliefDay(
             userId = otherInvitee,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH_DAY,
-            contextId = tomorrowDayId,
+            branchDayId = tomorrowDayId,
             sourceId = sourceId,
         )
         testServer.client.let { client ->

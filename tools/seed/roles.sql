@@ -126,7 +126,6 @@ WITH u AS (
   FROM d, product p, app_user h
   WHERE p.name = 'Role test oil' AND h.username = 'role-practitioner'
 )
-INSERT INTO user_capability (user_id, capability_id, context_type, context_id, source_type, source_id)
-SELECT u.id, c.id, 'BRANCH_DAY', d.id, 'RELIEF_ACCESS', u.id
-FROM u, d, capability c
-WHERE c.code = 'EDIT_BRANCH_DATA';
+INSERT INTO relief_day (user_id, branch_day_id, source_id)
+SELECT u.id, d.id, u.id
+FROM u, d;

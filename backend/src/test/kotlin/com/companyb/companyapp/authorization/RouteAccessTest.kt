@@ -94,12 +94,10 @@ class RouteAccessTest : BasePostgresTest() {
                 )
             }
         }
-        IdentityFixtures.grantCapability(
-            people.getValue(Who.REL),
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH_DAY,
-            today,
-            TestFixtures.uuid(),
+        IdentityFixtures.reliefDay(
+            userId = people.getValue(Who.REL),
+            branchDayId = today,
+            sourceId = TestFixtures.uuid(),
         )
     }
 

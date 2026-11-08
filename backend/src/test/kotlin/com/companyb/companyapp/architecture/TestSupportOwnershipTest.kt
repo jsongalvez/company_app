@@ -39,6 +39,7 @@ class TestSupportOwnershipTest {
         val identity = testSource("testsupport/fixtures/IdentityFixtures.kt")
         assertTrue("AppUserTable" in identity, "identity fixtures must own user rows")
         assertTrue("UserCapabilityTable" in identity, "identity fixtures must own grant rows")
+        assertTrue("ReliefDayTable" in identity, "identity fixtures must own relief days")
         assertTrue("BranchTable" !in identity, "branch rows belong to the branch/workforce family")
 
         val branchWorkforce = testSource("testsupport/fixtures/BranchWorkforceFixtures.kt")
