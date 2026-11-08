@@ -16,6 +16,7 @@ import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.identity.ViewAs
+import com.companyb.companyapp.logging.RequestLog
 import com.companyb.companyapp.logging.RequestQueryTally
 import com.companyb.companyapp.registerAllRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -163,9 +164,9 @@ class RouteAccessTest : BasePostgresTest() {
     ): Set<String> =
         send(HandlerType.GET, path, who)
             .headers()
-            .firstValue(CHANGED)
-            .map { it.split(",").toSet() }
-            .orElse(emptySet())
+            .firstValue(RequestLog.CHANGED_HEADER)
+            .map { header -> header.split(",").filter { it.isNotEmpty() }.toSet() }
+            .orElse(setOf(RequestQueryTally.UNNAMED_WRITE))
 
     private fun call(
         method: HandlerType,
@@ -222,7 +223,6 @@ class RouteAccessTest : BasePostgresTest() {
 
     companion object {
         const val FILE = "backend/src/test/resources/route-access.txt"
-        private const val CHANGED = "X-Test-Changed"
         private const val WEEK = 7L
         private const val LIMIT = 5
 
@@ -311,9 +311,7 @@ class RouteAccessTest : BasePostgresTest() {
                 }
                 registerAllRoutes(cfg)
                 cfg.routes.after { ctx ->
-                    RequestQueryTally.changed().takeIf { it.isNotEmpty() }?.let {
-                        ctx.header(CHANGED, it.sorted().joinToString(","))
-                    }
+                    RequestLog.sendChanged(ctx)
                     RequestQueryTally.endRequest()
                 }
             }

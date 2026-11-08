@@ -47,6 +47,9 @@ object RequestLog {
 
     private const val SERVER_TIMING_HEADER = "Server-Timing"
 
+    /** The tables the request changed, comma-separated, empty for none; `*` means any table. */
+    const val CHANGED_HEADER = "X-Changed"
+
     /** The exception behind a 500, set by the catch-all handler in `Main.kt`. */
     const val SERVER_ERROR_ATTRIBUTE = "serverError"
     private const val EVENT_COMPLETED = "request_completed"
@@ -54,6 +57,11 @@ object RequestLog {
     private const val STATUS_UNKNOWN = 0
 
     private val logger = KotlinLogging.logger {}
+
+    /** Sent even when empty, so a missing header means the server didn't say and the web marks every read stale. */
+    fun sendChanged(context: Context) {
+        context.header(CHANGED_HEADER, RequestQueryTally.changed().sorted().joinToString(","))
+    }
 
     /**
      * Logs the completed line exactly once per request: exception handlers
@@ -75,6 +83,7 @@ object RequestLog {
         // Signed-in calls only: the app's own telemetry reads it, and a stranger learns nothing from sign-in timings.
         if (context.attribute<String>("userId") != null) {
             context.header(SERVER_TIMING_HEADER, "db;dur=${db.dbMs}, app;dur=${(elapsedMs - db.dbMs).coerceAtLeast(0)}")
+            sendChanged(context)
         }
         val error = context.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE)
         val outcome =
