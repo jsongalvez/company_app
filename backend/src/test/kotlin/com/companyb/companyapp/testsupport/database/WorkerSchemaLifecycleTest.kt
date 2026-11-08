@@ -66,7 +66,6 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
         }
         insertEnumProbe()
         transaction {
-            exec("SELECT 1 FROM active_user_capabilities LIMIT 1")
             exec("SELECT 1 FROM active_session_voids LIMIT 1")
         }
     }
@@ -167,11 +166,10 @@ class WorkerSchemaLifecycleTest : BasePostgresTest() {
                     "SELECT count(*) FROM information_schema.views " +
                         "WHERE table_schema = '$owned' " +
                         "AND table_name IN (" +
-                        "'active_session_voids', 'active_user_capabilities', " +
-                        "'daily_sales_summary', 'monthly_remittance_summary')",
+                        "'active_session_voids', 'daily_sales_summary', 'monthly_remittance_summary')",
                 )
             rs.next()
-            assertEquals(4, rs.getInt(1))
+            assertEquals(3, rs.getInt(1))
         }
     }
 

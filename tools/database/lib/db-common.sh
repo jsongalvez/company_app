@@ -54,7 +54,7 @@ test_data_tables() {
         -t -A -c "
 SELECT count(*) FROM pg_tables
 WHERE schemaname = 'public'
-  AND tablename NOT IN ('role', 'capability', 'role_capability', 'flyway_schema_history')
+  AND tablename NOT IN ('role', 'capability', 'flyway_schema_history')
   AND (tablename ~ E'[\\r\\n|]' OR tablename <> btrim(tablename));
 "); then
         return 1
@@ -72,7 +72,7 @@ WHERE schemaname = 'public'
         -t -A -c "
 SELECT tablename FROM pg_tables
 WHERE schemaname = 'public'
-  AND tablename NOT IN ('role', 'capability', 'role_capability', 'flyway_schema_history')
+  AND tablename NOT IN ('role', 'capability', 'flyway_schema_history')
   AND EXISTS (
     SELECT 1 FROM information_schema.tables t2
     WHERE t2.table_schema = 'public'

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Truncate all user-data tables in the test database, preserving seed tables
-# (role, capability, role_capability) and Flyway metadata.
+# (role, capability) and Flyway metadata.
 # Run after k6 load tests to restore the cleanliness invariant verified by
 # tools/database/check-test-cleanliness.sh (asynchronous verification, map #329).
 set -euo pipefail
