@@ -94,7 +94,7 @@ internal object GrantStore {
     }
 
     /**
-     * EDIT_BRANCH_DATA carries a member's rights through active_user_capabilities; a
+     * EDIT_BRANCH_DATA carries a member's rights ([Policy.grants]); a
      * Coordinator's branch rights come on top.
      */
     private fun helperCodes(role: DelegateRole): List<String> =

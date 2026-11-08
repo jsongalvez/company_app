@@ -61,24 +61,6 @@ class CapabilityReadOncePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `the tables the grants are kept against are the ones the view reads`() {
-        val viewReads =
-            transaction {
-                exec(
-                    "SELECT DISTINCT cl.relname FROM pg_depend d JOIN pg_rewrite r ON d.objid = r.oid " +
-                        "JOIN pg_class cl ON d.refobjid = cl.oid " +
-                        "WHERE r.ev_class = 'active_user_capabilities'::regclass " +
-                        "AND cl.relname <> 'active_user_capabilities'",
-                ) { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toSet() }
-            }
-        assertEquals(
-            viewReads,
-            CapabilityRepository.VIEW_READS,
-            "Update CapabilityRepository.VIEW_READS to the view's tables",
-        )
-    }
-
-    @Test
     fun `the branch window names each branch once`() {
         assertEquals(listOf(branchId), CapabilityRepository.findBranchWindow(user))
     }

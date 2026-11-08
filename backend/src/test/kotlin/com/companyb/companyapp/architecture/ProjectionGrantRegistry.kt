@@ -9,6 +9,12 @@ import com.companyb.companyapp.architecture.BackendArchitectureOwners.Projection
 object ProjectionGrantRegistry {
     val grants: Set<ProjectionGrant> =
         setOf(
+            // Access derives each person's grants from these facts (Policy).
+            ProjectionGrant("authorization/CapabilityRepository.kt", "AppUserTable"),
+            ProjectionGrant("authorization/CapabilityRepository.kt", "BranchTable"),
+            ProjectionGrant("authorization/CapabilityRepository.kt", "RoleTable"),
+            ProjectionGrant("authorization/CapabilityRepository.kt", "UserRoleTable"),
+            ProjectionGrant("authorization/CapabilityRepository.kt", "UserBranchAssignmentTable"),
             ProjectionGrant("audit/AuditLogStore.kt", "AppUserTable"),
             ProjectionGrant("audit/AuditLogStore.kt", "BranchTable"),
             // A session's change history takes in its people and voids (owed #20).
@@ -32,15 +38,11 @@ object ProjectionGrantRegistry {
             ProjectionGrant("identity/MeRepository.kt", "BranchDayTable"),
             ProjectionGrant("identity/MeRepository.kt", "AttendanceTable"),
             ProjectionGrant("identity/MeRepository.kt", "UserBranchAssignmentTable"),
-            ProjectionGrant("identity/RoleRepository.kt", "CapabilityTable"),
             ProjectionGrant("identity/UserRepository.kt", "BranchTable"),
             ProjectionGrant("identity/UserRepository.kt", "UserBranchAssignmentTable"),
             ProjectionGrant("notification/NextAppointmentRepository.kt", "SessionTable"),
             ProjectionGrant("notification/NextAppointmentRepository.kt", "ActiveSessionVoidsView"),
             ProjectionGrant("notification/NextAppointmentRepository.kt", "BranchDayTable"),
-            ProjectionGrant("notification/NextAppointmentRepository.kt", "UserBranchAssignmentTable"),
-            ProjectionGrant("notification/NextAppointmentRepository.kt", "ActiveUserCapabilitiesView"),
-            ProjectionGrant("notification/NextAppointmentRepository.kt", "CapabilityTable"),
             ProjectionGrant("observability/UserFeedbackRepository.kt", "AppUserTable"),
             ProjectionGrant("remittance/RemittanceRepository.kt", "BranchDayTable"),
             ProjectionGrant("remittance/RemittanceRepository.kt", "ClientTable"),
@@ -96,7 +98,5 @@ object ProjectionGrantRegistry {
             ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "BranchTable"),
             ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "BranchDayTable"),
             ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "AppUserTable"),
-            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "ActiveUserCapabilitiesView"),
-            ProjectionGrant("workforce/relief/ReliefInviteRepository.kt", "CapabilityTable"),
         )
 }

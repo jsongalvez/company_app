@@ -1,7 +1,5 @@
 package com.companyb.companyapp.authorization
 
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import java.util.UUID
 
 /**
@@ -12,9 +10,8 @@ import java.util.UUID
  * Read window = the caller's branches with any active grant (union
  * pattern, sourced from [CapabilityService.findBranchWindow]); `null` = all
  * branches — the caller holds a GLOBAL `VIEW_BRANCH_DATA` grant (the
- * Accountant "read-only across all branches" shape, V2 seed; SUPERUSER/OWNER
- * derive it via ADR-0023 — derived and direct GLOBAL rows are
- * indistinguishable in `active_user_capabilities`).
+ * Accountant "read-only across all branches" shape; [Role.everywhere] in
+ * [Policy] gives it to Superuser, Owner and Accountant).
  */
 object BranchReadScope {
     /**

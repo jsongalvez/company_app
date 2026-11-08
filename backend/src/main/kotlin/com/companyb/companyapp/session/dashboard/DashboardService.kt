@@ -2,13 +2,10 @@ package com.companyb.companyapp.session.dashboard
 
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionService
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.session.Session
 import com.companyb.companyapp.session.SessionReads
@@ -126,8 +123,8 @@ object DashboardService {
      * `(sessionId, caller)` — any read state — AND the caller still holds
      * `VIEW_BRANCH_DATA` at the session's branch (BRANCH) or everywhere (GLOBAL, the
      * all-branches window). The bearer is a delivery event, not a durable grant: ending the
-     * branch assignment or removing the role revokes the BRANCH leg via the
-     * `active_user_capabilities` view, so the read fails closed. 404 for non-bearer, missing
+     * branch assignment or removing the role revokes the BRANCH grant
+     * ([Policy]), so the read fails closed. 404 for non-bearer, missing
      * sessions, missing days, and revoked readers alike — one UI fallback, UUIDs are not
      * guessable. No day-state gate: the `checkBranchDayReadable` rule governs
      * capability-gated browsing surfaces; notified sessions are COMPLETED with
@@ -181,9 +178,8 @@ object DashboardService {
     /**
      * current-read window for the bearer detail: BRANCH `VIEW_BRANCH_DATA` at
      * [branchId] OR GLOBAL `VIEW_BRANCH_DATA` (the all-branches window, e.g.
-     * Owner/Accountant). The `active_user_capabilities` view already excludes INACTIVE users
-     * and out-of-window grants, so assignment end / role removal revokes without a cleanup
-     * path and mailbox history stays intact.
+     * Owner/Accountant). Inactive users and grants out of force hold nothing ([Policy]), so
+     * assignment end / role removal revokes without a cleanup path and mailbox history stays intact.
      */
     private fun hasBranchView(
         callerId: UUID,

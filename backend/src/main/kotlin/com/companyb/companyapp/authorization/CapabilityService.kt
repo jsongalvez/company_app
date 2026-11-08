@@ -2,6 +2,8 @@ package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.observability.traced
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 /**
@@ -36,4 +38,20 @@ object CapabilityService {
         userId: UUID,
         capabilityCode: String,
     ): Boolean = CapabilityRepository.hasCapabilityAnyContext(userId, capabilityCode)
+
+    /** Active people whose relief for [branchDayId] is in force. */
+    fun reliefHolders(branchDayId: UUID): Set<UUID> =
+        traced("CapabilityService.reliefHolders") {
+            transaction { CapabilityRepository.reliefHoldersInTransaction(branchDayId) }
+        }
+
+    /** True when [userId]'s relief for [branchDayId] is in force. Runs on the caller's transaction. */
+    fun holdsReliefInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+    ): Boolean = userId in CapabilityRepository.reliefHoldersInTransaction(branchDayId, userId)
+
+    /** Per branch in [branchIds], who assigned there gets next-appointment alerts. On the caller's transaction. */
+    fun alertedByBranchInTransaction(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
+        CapabilityRepository.alertedByBranchInTransaction(branchIds)
 }

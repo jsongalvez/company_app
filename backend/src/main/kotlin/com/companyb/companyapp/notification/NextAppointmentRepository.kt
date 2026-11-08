@@ -1,23 +1,16 @@
 package com.companyb.companyapp.notification
 
-import com.companyb.companyapp.authorization.ActiveUserCapabilitiesView
-import com.companyb.companyapp.authorization.CapabilityTable
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.session.ActiveSessionVoidsView
 import com.companyb.companyapp.session.SessionTable
-import com.companyb.companyapp.workforce.UserBranchAssignmentTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
-import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -67,26 +60,5 @@ internal object NextAppointmentRepository {
         }
 
     fun findActiveCoordinatorsForBranchesInTransaction(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
-        UserBranchAssignmentTable
-            .innerJoin(
-                ActiveUserCapabilitiesView,
-                { UserBranchAssignmentTable.userId },
-                { ActiveUserCapabilitiesView.userId },
-            ).innerJoin(
-                CapabilityTable,
-                { ActiveUserCapabilitiesView.capabilityId },
-                { CapabilityTable.id },
-            ).select(
-                UserBranchAssignmentTable.userId,
-                UserBranchAssignmentTable.branchId,
-            ).where {
-                (UserBranchAssignmentTable.branchId inList branchIds) and
-                    (UserBranchAssignmentTable.endedAt.isNull()) and
-                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                    (ActiveUserCapabilitiesView.contextId eq UserBranchAssignmentTable.branchId) and
-                    (CapabilityTable.code eq CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS)
-            }.withDistinct()
-            .map { row ->
-                row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]
-            }.groupBy({ it.first }, { it.second })
+        CapabilityService.alertedByBranchInTransaction(branchIds)
 }

@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.RoleRepository
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
@@ -19,7 +20,7 @@ import kotlin.test.assertEquals
 
 /**
  * What [Access.allows] answers for every act, person and place, and the grants each person's
- * `/api/me/capabilities` lists, pinned in [FILE]. Rewrite it with
+ * `/api/me/capabilities` lists, and each role's codes as `/api/roles` lists them, pinned in [FILE]. Rewrite it with
  * `WRITE_ACCESS_MATRIX=1 ./gradlew :backend:test --tests '*AccessMatrixTest'` and read the diff:
  * a changed cell is a changed rule.
  */
@@ -122,6 +123,13 @@ class AccessMatrixTest : BasePostgresTest() {
                         "  ${g.capabilityCode} ${g.contextType} $at ${g.sourceType}"
                     }.sorted()
                     .forEach { appendLine(it) }
+            }
+            appendLine()
+            appendLine("## /api/roles")
+            RoleRepository.findAllWithCapabilities().forEach {
+                appendLine(
+                    "${it.name}: ${it.capabilities.joinToString(" ")}",
+                )
             }
         }
 

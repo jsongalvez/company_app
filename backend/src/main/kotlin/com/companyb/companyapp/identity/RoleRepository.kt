@@ -1,8 +1,7 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.authorization.CapabilityTable
+import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.identity.RoleCapabilityTable
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.observability.traced
@@ -37,19 +36,12 @@ internal object RoleRepository {
     fun findAllWithCapabilities(): List<RoleWithCapabilities> =
         traced("RoleRepository.findAllWithCapabilities") {
             transaction {
-                val capabilityCodesByRole =
-                    RoleTable
-                        .innerJoin(RoleCapabilityTable, { RoleTable.id }, { RoleCapabilityTable.roleId })
-                        .innerJoin(CapabilityTable, { RoleCapabilityTable.capabilityId }, { CapabilityTable.id })
-                        .selectAll()
-                        .orderBy(CapabilityTable.code to SortOrder.ASC)
-                        .groupBy({ it[RoleTable.id] }) { it[CapabilityTable.code] }
                 RoleTable.selectAll().orderBy(RoleTable.name to SortOrder.ASC).map { row ->
-                    val roleId = row[RoleTable.id]
+                    val name = row[RoleTable.name]
                     RoleWithCapabilities(
-                        id = roleId,
-                        name = row[RoleTable.name],
-                        capabilities = capabilityCodesByRole[roleId].orEmpty(),
+                        id = row[RoleTable.id],
+                        name = name,
+                        capabilities = Role.parse(name).codes.sorted(),
                     )
                 }
             }.also { logger.info { "[FIND-ALL-ROLES] Fetched ${it.size} role(s)" } }

@@ -1,11 +1,8 @@
 package com.companyb.companyapp.workforce.relief
 
-import com.companyb.companyapp.authorization.ActiveUserCapabilitiesView
-import com.companyb.companyapp.authorization.CapabilityTable
+import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.identity.AppUserTable
@@ -106,21 +103,7 @@ internal object ReliefInviteRepository {
         branchDayId: UUID,
     ): Boolean =
         traced("ReliefInviteRepository.hasActiveGrant") {
-            transaction {
-                ActiveUserCapabilitiesView
-                    .innerJoin(
-                        CapabilityTable,
-                        { ActiveUserCapabilitiesView.capabilityId },
-                        { CapabilityTable.id },
-                    ).selectAll()
-                    .where {
-                        (ActiveUserCapabilitiesView.userId eq userId) and
-                            (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
-                            (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
-                            (ActiveUserCapabilitiesView.contextId eq branchDayId)
-                    }.empty()
-                    .not()
-            }
+            transaction { CapabilityService.holdsReliefInTransaction(userId, branchDayId) }
         }
 
     /**
@@ -132,20 +115,7 @@ internal object ReliefInviteRepository {
     fun hasActiveGrantInTransaction(
         userId: UUID,
         branchDayId: UUID,
-    ): Boolean =
-        ActiveUserCapabilitiesView
-            .innerJoin(
-                CapabilityTable,
-                { ActiveUserCapabilitiesView.capabilityId },
-                { CapabilityTable.id },
-            ).selectAll()
-            .where {
-                (ActiveUserCapabilitiesView.userId eq userId) and
-                    (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
-                    (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
-                    (ActiveUserCapabilitiesView.contextId eq branchDayId)
-            }.empty()
-            .not()
+    ): Boolean = CapabilityService.holdsReliefInTransaction(userId, branchDayId)
 
     fun findAcceptedForDutyDate(dutyDate: java.time.LocalDate): List<AcceptedInviteWithBranch> =
         traced("ReliefInviteRepository.findAcceptedForDutyDate") {
@@ -194,23 +164,7 @@ internal object ReliefInviteRepository {
      * Users holding an ACTIVE day-scoped grant for the day — the GRANTED leg of the
      * candidate exclusion (view-served: inactive + expired excluded).
      */
-    fun findActiveGrantUserIds(branchDayId: UUID): Set<UUID> =
-        traced("ReliefInviteRepository.findActiveGrantUserIds") {
-            transaction {
-                ActiveUserCapabilitiesView
-                    .innerJoin(
-                        CapabilityTable,
-                        { ActiveUserCapabilitiesView.capabilityId },
-                        { CapabilityTable.id },
-                    ).select(ActiveUserCapabilitiesView.userId)
-                    .where {
-                        (CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA) and
-                            (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH_DAY) and
-                            (ActiveUserCapabilitiesView.contextId eq branchDayId)
-                    }.map { it[ActiveUserCapabilitiesView.userId] }
-                    .toSet()
-            }
-        }
+    fun findActiveGrantUserIds(branchDayId: UUID): Set<UUID> = CapabilityService.reliefHolders(branchDayId)
 
     /** ACTIVE users whose username or displayName starts with [prefix] (case-insensitive). */
     fun findActiveUsersWithPrefix(prefix: String): List<ReliefCandidate> =

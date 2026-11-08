@@ -1,6 +1,5 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.authorization.CapabilityTable
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 
@@ -19,11 +18,4 @@ internal object UserRoleTable : Table("user_role") {
     val roleId = javaUUID("role_id").references(RoleTable.id)
 
     override val primaryKey = PrimaryKey(userId, roleId)
-}
-
-internal object RoleCapabilityTable : Table("role_capability") {
-    val roleId = javaUUID("role_id").references(RoleTable.id)
-    val capabilityId = javaUUID("capability_id").references(CapabilityTable.id)
-
-    override val primaryKey = PrimaryKey(roleId, capabilityId)
 }
