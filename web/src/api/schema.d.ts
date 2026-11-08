@@ -2132,6 +2132,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["telemetry_send_signed_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2167,13 +2183,19 @@ export interface components {
             tableName: string;
             label: string;
         };
-        UserCapabilityResponse: {
-            capabilityCode: string;
-            /** @enum {string} */
-            contextType: "GLOBAL" | "BRANCH" | "BRANCH_DAY" | "MEDICAL_MISSION" | "PROVINCIAL_TOUR";
-            contextId: string;
-            /** @enum {string} */
-            sourceType: "RELIEF_ACCESS" | "MEDICAL_MISSION_DELEGATE" | "MANUAL_OVERRIDE" | "SYSTEM" | "ROLE";
+        ActsResponse: {
+            may: ("SEE_BRANCH" | "SEE_EVERY_BRANCH" | "SEE_DAY" | "SEE_ANYWHERE" | "WORK_DAY" | "WORK_HOME_BRANCH" | "WORK_ANYWHERE" | "VOID" | "SEE_COMMISSION" | "CHANGE_CLOSED_DAY" | "PAY" | "SUBMIT_REMITTANCE" | "MANAGE_STOCK" | "MANAGE_CATALOG" | "MANAGE_USERS" | "ERASE_CLIENT" | "ASSIGN_DELEGATE")[];
+            reads: ("SEE_BRANCH" | "SEE_EVERY_BRANCH" | "SEE_DAY" | "SEE_ANYWHERE" | "WORK_DAY" | "WORK_HOME_BRANCH" | "WORK_ANYWHERE" | "VOID" | "SEE_COMMISSION" | "CHANGE_CLOSED_DAY" | "PAY" | "SUBMIT_REMITTANCE" | "MANAGE_STOCK" | "MANAGE_CATALOG" | "MANAGE_USERS" | "ERASE_CLIENT" | "ASSIGN_DELEGATE")[];
+        };
+        PlaceActsResponse: {
+            id: string;
+            may: ("SEE_BRANCH" | "SEE_EVERY_BRANCH" | "SEE_DAY" | "SEE_ANYWHERE" | "WORK_DAY" | "WORK_HOME_BRANCH" | "WORK_ANYWHERE" | "VOID" | "SEE_COMMISSION" | "CHANGE_CLOSED_DAY" | "PAY" | "SUBMIT_REMITTANCE" | "MANAGE_STOCK" | "MANAGE_CATALOG" | "MANAGE_USERS" | "ERASE_CLIENT" | "ASSIGN_DELEGATE")[];
+            reads: ("SEE_BRANCH" | "SEE_EVERY_BRANCH" | "SEE_DAY" | "SEE_ANYWHERE" | "WORK_DAY" | "WORK_HOME_BRANCH" | "WORK_ANYWHERE" | "VOID" | "SEE_COMMISSION" | "CHANGE_CLOSED_DAY" | "PAY" | "SUBMIT_REMITTANCE" | "MANAGE_STOCK" | "MANAGE_CATALOG" | "MANAGE_USERS" | "ERASE_CLIENT" | "ASSIGN_DELEGATE")[];
+        };
+        RightsResponse: {
+            everywhere: components["schemas"]["ActsResponse"];
+            branches: components["schemas"]["PlaceActsResponse"][];
+            days: components["schemas"]["PlaceActsResponse"][];
         };
         BranchResponse: {
             id: string;
@@ -2522,7 +2544,7 @@ export interface components {
             token: string;
             start?: {
                 me: components["schemas"]["MeResponse"];
-                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                rights: components["schemas"]["RightsResponse"];
                 branches: components["schemas"]["MeBranchResponse"][];
                 accessible: components["schemas"]["BranchResponse"][];
                 branchId: string | null;
@@ -2572,7 +2594,7 @@ export interface components {
         };
         StartResponse: {
             me: components["schemas"]["MeResponse"];
-            capabilities: components["schemas"]["UserCapabilityResponse"][];
+            rights: components["schemas"]["RightsResponse"];
             branches: components["schemas"]["MeBranchResponse"][];
             accessible: components["schemas"]["BranchResponse"][];
             branchId: string | null;
@@ -3217,7 +3239,7 @@ export interface components {
                 isRelief: boolean;
                 start?: {
                     me: components["schemas"]["MeResponse"];
-                    capabilities: components["schemas"]["UserCapabilityResponse"][];
+                    rights: components["schemas"]["RightsResponse"];
                     branches: components["schemas"]["MeBranchResponse"][];
                     accessible: components["schemas"]["BranchResponse"][];
                     branchId: string | null;
@@ -3249,7 +3271,7 @@ export interface components {
             } | null;
             start?: {
                 me: components["schemas"]["MeResponse"];
-                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                rights: components["schemas"]["RightsResponse"];
                 branches: components["schemas"]["MeBranchResponse"][];
                 accessible: components["schemas"]["BranchResponse"][];
                 branchId: string | null;
@@ -3297,7 +3319,7 @@ export interface components {
             isRelief: boolean;
             start?: {
                 me: components["schemas"]["MeResponse"];
-                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                rights: components["schemas"]["RightsResponse"];
                 branches: components["schemas"]["MeBranchResponse"][];
                 accessible: components["schemas"]["BranchResponse"][];
                 branchId: string | null;
@@ -3340,7 +3362,7 @@ export interface components {
             isRelief: boolean;
             start?: {
                 me: components["schemas"]["MeResponse"];
-                capabilities: components["schemas"]["UserCapabilityResponse"][];
+                rights: components["schemas"]["RightsResponse"];
                 branches: components["schemas"]["MeBranchResponse"][];
                 accessible: components["schemas"]["BranchResponse"][];
                 branchId: string | null;
@@ -7346,7 +7368,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserCapabilityResponse"][];
+                    "application/json": components["schemas"]["RightsResponse"];
                 };
             };
             /** @description Unauthorized */
@@ -10615,6 +10637,44 @@ export interface operations {
                         error?: string;
                     };
                 };
+            };
+        };
+    };
+    telemetry_send_signed_out: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TelemetryBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

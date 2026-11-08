@@ -5,17 +5,14 @@ import { wrote, clearCache, peek, restoreCache, seed } from "./cache.svelte";
 import { allowDirectory, refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { SENT } from "./outbox.svelte";
-import { allows, reads, type Place } from "./grants";
-import type { Act } from "./access.gen";
+import { allows, reads, NO_RIGHTS, type Act, type Place, type Rights } from "./rights";
 import { today, takeDay, takeLists, restoreDay, resetDay, catchUpDay } from "./today.svelte";
-
-type Cap = S["UserCapabilityResponse"];
 
 export const app = $state({
     ready: false,
     signedIn: !!getToken(),
     me: null as S["MeResponse"] | null,
-    caps: [] as Cap[],
+    rights: NO_RIGHTS as Rights,
     roles: [] as string[],
     branches: [] as S["MeBranchResponse"][],
     accessible: [] as S["BranchResponse"][],
@@ -102,7 +99,7 @@ export async function signOut(callServer = true) {
         signedIn: false,
         ready: true,
         me: null,
-        caps: [],
+        rights: NO_RIGHTS,
         branches: [],
         accessible: [],
         unread: 0,
@@ -114,9 +111,9 @@ export const onToday = () => ["", "#", "#/", "#/today"].includes(location.hash);
 
 /** Take in the start bundle: who, rights, branches, the branch and its day, the open shift, unread alerts, Today's lists. */
 export function takeStart(s: S["StartResponse"], withToday: boolean) {
-    Object.assign(app, { me: s.me, caps: s.capabilities, branches: s.branches, accessible: s.accessible });
+    Object.assign(app, { me: s.me, rights: s.rights, branches: s.branches, accessible: s.accessible });
     seed(key.boot("me"), s.me);
-    seed(key.boot("caps"), s.capabilities);
+    seed(key.boot("rights"), s.rights);
     seed(key.boot("branches"), s.branches);
     seed(key.boot("accessible"), s.accessible);
     if (s.branchId && s.branchId !== app.branchId) {
@@ -129,16 +126,16 @@ export function takeStart(s: S["StartResponse"], withToday: boolean) {
     void refreshDirectory();
 }
 
-/** Load identity, capabilities and branches; pick a branch. What the phone saved shows at once. */
+/** Load identity, rights and branches; pick a branch. What the phone saved shows at once. */
 export async function boot() {
     if (!getToken()) {
         app.ready = true;
         return;
     }
     restoreCache();
-    const saved = [peek(key.boot("me")), peek(key.boot("caps")), peek(key.boot("branches")), peek(key.boot("accessible"))];
+    const saved = [peek(key.boot("me")), peek(key.boot("rights")), peek(key.boot("branches")), peek(key.boot("accessible"))];
     if (saved.every((x) => x !== undefined)) {
-        Object.assign(app, { me: saved[0], caps: saved[1], branches: saved[2], accessible: saved[3] });
+        Object.assign(app, { me: saved[0], rights: saved[1], branches: saved[2], accessible: saved[3] });
         restoreDay();
         app.ready = true;
     }
@@ -188,8 +185,8 @@ export async function refreshBranchNames() {
     app.accessible = accessible;
 }
 
-export async function refreshCaps() {
-    [app.caps, app.branches] = await Promise.all([ok(api.GET("/api/me/capabilities")), ok(api.GET("/api/me/branches"))]);
+export async function refreshRights() {
+    [app.rights, app.branches] = await Promise.all([ok(api.GET("/api/me/capabilities")), ok(api.GET("/api/me/branches"))]);
     wrote("rights");
 }
 
@@ -207,11 +204,11 @@ export function at(branch: string = app.branchId): Place {
 }
 /** Would the server let the user do `act` at `place` (default: here, today)? Screens show a control only when it would. */
 export function can(act: Act, place: Place = at()): boolean {
-    return allows(app.caps, act, place);
+    return allows(app.rights, act, place);
 }
 /** Would the server answer a GET of `act`'s routes (doers, plus whoever may do its reading Act)? */
 export function canRead(act: Act, place: Place = at()): boolean {
-    return reads(app.caps, act, place);
+    return reads(app.rights, act, place);
 }
 
 export function branchName(id: string): string {

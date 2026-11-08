@@ -1,5 +1,6 @@
 package com.companyb.companyapp.contracts.authorization
 
+import com.companyb.companyapp.authorization.Act
 import kotlinx.serialization.Serializable
 
 object CapabilityCodes {
@@ -22,7 +23,7 @@ object CapabilityCodes {
 enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
 
 @Serializable
-enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
+enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, ROLE }
 
 @Serializable
 data class UserCapabilityResponse(
@@ -30,4 +31,30 @@ data class UserCapabilityResponse(
     val contextType: CapabilityContextType,
     val contextId: String,
     val sourceType: CapabilitySourceType,
+)
+
+/** What a person [may] do at a place, and which acts' routes they may [reads] (GET) there. */
+@Serializable
+data class ActsResponse(
+    val may: List<Act>,
+    val reads: List<Act>,
+)
+
+/** The acts a person gains at one branch or one branch day, on top of what they hold everywhere. */
+@Serializable
+data class PlaceActsResponse(
+    val id: String,
+    val may: List<Act>,
+    val reads: List<Act>,
+)
+
+/**
+ * Who may do what, as the server decides it. At a place, a person holds [everywhere], plus the
+ * place's branch in [branches], plus its day in [days]. A branch or day not listed adds nothing.
+ */
+@Serializable
+data class RightsResponse(
+    val everywhere: ActsResponse,
+    val branches: List<PlaceActsResponse>,
+    val days: List<PlaceActsResponse>,
 )

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
-    import { app, branchName, refreshCaps } from "../lib/app.svelte";
+    import { app, branchName, refreshRights } from "../lib/app.svelte";
     import { Query, wrote, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
@@ -49,7 +49,7 @@
         const path = yes ? "/api/relief-invites/{inviteId}/accept" : "/api/relief-invites/{inviteId}/decline";
         if (await act(() => ok(api.POST(path, { params: { path: { inviteId: i.id } } })), yes ? "Invite accepted" : "Invite declined")) {
             refresh();
-            if (yes) void refreshCaps();
+            if (yes) void refreshRights();
         }
     }
 

@@ -137,9 +137,9 @@ tasks.test {
     workingDir = rootProject.projectDir
     // Each test JVM owns its own test_w_* schema (#493), so forks don't share rows.
     maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-    // WebAccessTableTest reads (and on WRITE_WEB_ACCESS=1 rewrites) the web's copy of the access table.
-    inputs.file(rootProject.file("web/src/lib/access.gen.ts"))
-    inputs.property("writeWebAccess", providers.environmentVariable("WRITE_WEB_ACCESS").orElse(""))
+    // WebRightsVectorsTest reads (and on WRITE_WEB_RIGHTS=1 rewrites) the web's copy of the rights vectors.
+    inputs.files(rootProject.file("web/tests/unit/rights.vectors.json"))
+    inputs.property("writeWebRights", providers.environmentVariable("WRITE_WEB_RIGHTS").orElse(""))
 }
 
 jmh {

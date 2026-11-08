@@ -12,7 +12,7 @@ on:
       - master
     paths:
       - 'backend/**'
-      - 'web/src/lib/access.gen.ts'
+      - 'web/tests/unit/rights.vectors.json'
       - 'detekt-rules/**'
       - 'gradle/**'
       - 'gradlew'
@@ -37,7 +37,7 @@ on:
   pull_request:
     paths:
       - 'backend/**'
-      - 'web/src/lib/access.gen.ts'
+      - 'web/tests/unit/rights.vectors.json'
       - 'detekt-rules/**'
       - 'gradle/**'
       - 'gradlew'

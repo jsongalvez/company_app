@@ -1,8 +1,11 @@
 package com.companyb.companyapp.identity
 
-import com.companyb.companyapp.authorization.Policy
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.authorization.Role
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
+import com.companyb.companyapp.contracts.authorization.ActsResponse
+import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -66,26 +69,28 @@ class MeServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getCapabilities returns what a Coordinator member holds`() {
+    fun `getRights gives a Coordinator member what Access allows at their branch`() {
         val branchId = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(branchId)
         IdentityFixtures.member(userId, branchId, Role.COORDINATOR)
 
-        val capabilities = MeService.getCapabilities(userId)
+        val rights = MeService.getRights(userId)
 
-        val codes = capabilities.map { it.capabilityCode }.toSet()
-        assertEquals(Role.COORDINATOR.codes + Policy.MEMBER, codes)
+        val here = rights.branches.single { it.id == branchId.toString() }
+        val looked = Act.entries.filter { it in rights.everywhere.may || it in here.may }
+        assertEquals(Act.entries.filter { Access.allows(userId, it, Place.Branch(branchId)) }, looked)
+        assertTrue(Act.CHANGE_CLOSED_DAY in here.may)
     }
 
     @Test
-    fun `getCapabilities returns empty list for user with no grants`() {
-        val capabilities = MeService.getCapabilities(userId)
-        assertTrue(capabilities.isEmpty())
+    fun `getRights gives nothing to a user with no roles`() {
+        assertEquals(noRights, MeService.getRights(userId))
     }
 
     @Test
-    fun `getCapabilities excludes inactive users`() {
-        val capabilities = MeService.getCapabilities(inactiveUserId)
-        assertTrue(capabilities.isEmpty())
+    fun `getRights gives nothing to inactive users`() {
+        assertEquals(noRights, MeService.getRights(inactiveUserId))
     }
+
+    private val noRights = RightsResponse(ActsResponse(emptyList(), emptyList()), emptyList(), emptyList())
 }

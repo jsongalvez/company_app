@@ -1,6 +1,6 @@
 package com.companyb.companyapp.contracts.identity
 
-import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class StartResponse(
     val me: MeResponse,
-    val capabilities: List<UserCapabilityResponse>,
+    val rights: RightsResponse,
     val branches: List<MeBranchResponse>,
     val accessible: List<BranchResponse>,
     /** The branch to open on: the one asked for if usable, else where the person is clocked in, else their first. */

@@ -3,7 +3,9 @@ package com.companyb.companyapp.http.openapi
 import com.companyb.companyapp.contracts.audit.AuditLogBrowseResponse
 import com.companyb.companyapp.contracts.audit.AuditLogEntryResponse
 import com.companyb.companyapp.contracts.audit.AuditLogTableResponse
-import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.ActsResponse
+import com.companyb.companyapp.contracts.authorization.PlaceActsResponse
+import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.branch.BranchResponse
 import com.companyb.companyapp.contracts.branch.CreateBranchRequest
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
@@ -314,7 +316,9 @@ internal object DtoSchemaProjector {
             "UpdateSessionStatusRequest" to UpdateSessionStatusRequest.serializer(),
             "UpdateSlotRequest" to UpdateSlotRequest.serializer(),
             "UserAssignmentResponse" to UserAssignmentResponse.serializer(),
-            "UserCapabilityResponse" to UserCapabilityResponse.serializer(),
+            "RightsResponse" to RightsResponse.serializer(),
+            "ActsResponse" to ActsResponse.serializer(),
+            "PlaceActsResponse" to PlaceActsResponse.serializer(),
             "UserRoleReplaceRequest" to UserRoleReplaceRequest.serializer(),
             "UserSummaryResponse" to UserSummaryResponse.serializer(),
             "VoidSessionRequest" to VoidSessionRequest.serializer(),

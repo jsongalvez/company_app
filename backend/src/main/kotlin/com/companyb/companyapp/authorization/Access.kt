@@ -111,11 +111,8 @@ sealed interface Place {
 
 /** The only way the server asks whether someone may do something. */
 object Access {
-    /**
-     * The grant rows that count for [reach] at [place], or null when a grant of the code anywhere counts.
-     * The web mirrors this (`web/src/lib/grants.ts`); `WebAccessTableTest` renders its outcomes for the web's test.
-     */
-    fun contextsFor(
+    /** The grant rows that count for [reach] at [place], or null when a grant of the code anywhere counts. */
+    private fun contextsFor(
         reach: Reach,
         place: Place,
     ): List<Pair<CapabilityContextType, UUID>>? {
@@ -136,10 +133,16 @@ object Access {
         userId: UUID,
         act: Act,
         place: Place = Place.Everywhere,
+    ): Boolean = allows(CapabilityRepository.grantsOf(userId), act, place)
+
+    /** Whether [grants] let their holder do [act] at [place]; [Rights] answers the web with this. */
+    fun allows(
+        grants: List<Grant>,
+        act: Act,
+        place: Place,
     ): Boolean {
-        val contexts =
-            contextsFor(act.reach, place) ?: return CapabilityRepository.hasCapabilityAnyContext(userId, act.code)
-        return CapabilityRepository.holdsIn(userId, act.code, contexts)
+        val contexts = contextsFor(act.reach, place)
+        return grants.any { it.code == act.code && (contexts == null || (it.contextType to it.contextId) in contexts) }
     }
 
     fun require(

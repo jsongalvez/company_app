@@ -110,6 +110,6 @@ export const key = {
     auditTables: () => k("audit", "tables"),
     auditFlagged: () => k("audit", "flagged"),
     /** What the start bundle carried, kept so the app opens with it. */
-    boot: (what: "me" | "caps" | "branches" | "accessible" | "shift") => k("boot", what),
+    boot: (what: "me" | "rights" | "branches" | "accessible" | "shift") => k("boot", what),
     bootToday: (branchId: string, date: string) => k("boot", "today", branchId, date),
 };

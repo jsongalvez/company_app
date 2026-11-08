@@ -11,6 +11,7 @@ import { operationalDate } from "./format";
 import { seedTodayScreen } from "./data";
 import { act } from "./act.svelte";
 import { app, branchName, onToday, takeStart, toast } from "./app.svelte";
+import { worksAt } from "./rights";
 
 type Day = S["BranchDayTodayResponse"];
 type Shift = S["ActiveShiftResponse"];
@@ -85,9 +86,8 @@ export function selectBranch(id: string) {
 export async function refreshDay() {
     if (!app.branchId) return;
     const id = app.branchId;
-    // The server shows a branch's day only to its staff (or a relief grant for a day);
-    // skip the request for branches the person merely oversees.
-    if (!app.caps.some((c) => c.contextType === "BRANCH_DAY" || (c.contextType !== "GLOBAL" && c.contextId === id))) {
+    // Skip the request for branches the person merely oversees.
+    if (!worksAt(app.rights, id)) {
         s.day = null;
         return;
     }

@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const SRC = join(process.cwd(), "src");
-const GENERATED = new Set(["api/schema.d.ts", "lib/access.gen.ts"]);
+const GENERATED = new Set(["api/schema.d.ts"]);
 const RULES: [RegExp, string][] = [
     [/\b[0-9a-f]{8}\b/, "history lives in git: drop the commit or feedback id (tools/quality/kill-comments.py web/src)"],
     [/\bprecedent\b/i, 'name the code it copies, or let the code show it; "precedent" stories rot'],

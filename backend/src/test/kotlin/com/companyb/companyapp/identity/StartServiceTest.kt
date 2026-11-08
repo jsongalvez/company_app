@@ -53,7 +53,7 @@ class StartServiceTest : BasePostgresTest() {
     fun `carries the same people, rights and branches as the separate reads`() {
         val s = start(onDuty)
         assertEquals(MeService.getMe(onDuty), s.me)
-        assertEquals(MeService.getCapabilities(onDuty), s.capabilities)
+        assertEquals(MeService.getRights(onDuty), s.rights)
         assertEquals(MeService.getBranches(onDuty), s.branches)
         assertEquals(MeService.getActiveAttendance(onDuty).shift, s.shift)
     }

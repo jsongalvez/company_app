@@ -3,7 +3,7 @@
 import re, sys, pathlib, collections
 
 ROOTS = ["backend/src/main", "web/src"]
-SKIP = {"web/src/api/schema.d.ts", "web/src/lib/access.gen.ts"}
+SKIP = {"web/src/api/schema.d.ts"}
 CONSTRAINT = re.compile(r"\b(must|never|always|keep in sync|do not|don't|IMPORTANT|only place|single (source|owner))\b", re.I)
 CODEISH = re.compile(r"^\s*//\s*(val |var |fun |if \(|return |import |const |let |await |\}|[a-zA-Z_.]+\(.*\);?$)")
 SUPPRESS = re.compile(r"@Suppress|eslint-disable|@ts-ignore|@ts-expect-error|svelte-ignore")

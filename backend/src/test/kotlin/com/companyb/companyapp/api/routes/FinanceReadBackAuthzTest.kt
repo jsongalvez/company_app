@@ -186,7 +186,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     // Owed #25: the Owner pays members at every branch, so a GLOBAL pay grant counts everywhere.
-    // The web's pay controls follow this (web/tests/unit/grants.test.ts).
+    // The web's pay controls look this answer up (web/tests/unit/rights.test.ts).
     @Test
     fun `GET compensations and branch-day users allowed for a GLOBAL-only ASSIGN_COMPENSATION holder`() {
         testServer.client.let { client ->

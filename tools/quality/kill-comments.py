@@ -14,7 +14,7 @@ KILL = re.compile(
     r"|stays whole"             # sermons defending a @Suppress
 )
 MAX_DOC = 4
-SKIP = {"web/src/api/schema.d.ts", "web/src/lib/access.gen.ts"}
+SKIP = {"web/src/api/schema.d.ts"}
 
 
 def edit(path, dry):

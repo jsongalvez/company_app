@@ -47,7 +47,7 @@ internal object CapabilityRepository {
     ) : RequestQueryTally.ReadKey
 
     /** Every grant of [userId] under [Policy], read once per request and dropped by a write to [VIEW_READS]. */
-    private fun grantsOf(userId: UUID): List<Grant> =
+    fun grantsOf(userId: UUID): List<Grant> =
         traced("CapabilityRepository.grantsOf") {
             RequestQueryTally
                 .untilWrite(GrantsKey(userId), Grants::class, VIEW_READS) {

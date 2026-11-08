@@ -1,0 +1,2266 @@
+{
+    "acts": [
+        "SEE_BRANCH",
+        "SEE_EVERY_BRANCH",
+        "SEE_DAY",
+        "SEE_ANYWHERE",
+        "WORK_DAY",
+        "WORK_HOME_BRANCH",
+        "WORK_ANYWHERE",
+        "VOID",
+        "SEE_COMMISSION",
+        "CHANGE_CLOSED_DAY",
+        "PAY",
+        "SUBMIT_REMITTANCE",
+        "MANAGE_STOCK",
+        "MANAGE_CATALOG",
+        "MANAGE_USERS",
+        "ERASE_CLIENT",
+        "ASSIGN_DELEGATE"
+    ],
+    "places": {
+        "everywhere": {},
+        "b1": {
+            "branch": "b1"
+        },
+        "b2": {
+            "branch": "b2"
+        },
+        "b1/d1": {
+            "branch": "b1",
+            "day": "d1"
+        },
+        "b1/d2": {
+            "branch": "b1",
+            "day": "d2"
+        },
+        "b2/d1": {
+            "branch": "b2",
+            "day": "d1"
+        }
+    },
+    "vectors": [
+        {
+            "who": "superuser of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b1",
+                        "may": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ],
+                        "reads": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "owner of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b1",
+                        "may": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "MANAGE_STOCK"
+                        ],
+                        "reads": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "MANAGE_STOCK"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "manager of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b1",
+                        "may": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "PAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ],
+                        "reads": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "PAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "coordinator of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b1",
+                        "may": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "PAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ],
+                        "reads": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "PAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG",
+                        "ERASE_CLIENT"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "practitioner of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b1",
+                        "may": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ],
+                        "reads": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "accountant of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b1",
+                        "may": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ],
+                        "reads": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "SUBMIT_REMITTANCE"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "onboarding of b1",
+            "rights": {
+                "everywhere": {
+                    "may": [],
+                    "reads": []
+                },
+                "branches": [],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [],
+                    "reads": []
+                },
+                "b1": {
+                    "may": [],
+                    "reads": []
+                },
+                "b2": {
+                    "may": [],
+                    "reads": []
+                },
+                "b1/d1": {
+                    "may": [],
+                    "reads": []
+                },
+                "b1/d2": {
+                    "may": [],
+                    "reads": []
+                },
+                "b2/d1": {
+                    "may": [],
+                    "reads": []
+                }
+            }
+        },
+        {
+            "who": "owner of no branch, reaching mission b2",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b2",
+                        "may": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "MANAGE_STOCK"
+                        ],
+                        "reads": [
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "MANAGE_STOCK"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "superuser of no branch",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "branches": [],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "PAY",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_EVERY_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_CATALOG",
+                        "MANAGE_USERS",
+                        "ERASE_CLIENT",
+                        "ASSIGN_DELEGATE"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "practitioner of b2, relief on d1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b2",
+                        "may": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ],
+                        "reads": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ]
+                    }
+                ],
+                "days": [
+                    {
+                        "id": "d1",
+                        "may": [
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ],
+                        "reads": [
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ]
+                    }
+                ]
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "MANAGE_CATALOG"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "onboarding, relief on d1",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ]
+                },
+                "branches": [],
+                "days": [
+                    {
+                        "id": "d1",
+                        "may": [
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ],
+                        "reads": [
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "VOID",
+                            "SEE_COMMISSION"
+                        ]
+                    }
+                ]
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ],
+                    "reads": [
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ],
+                    "reads": [
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "practitioner of no branch, coordinator helper at b2",
+            "rights": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "branches": [
+                    {
+                        "id": "b2",
+                        "may": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "PAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ],
+                        "reads": [
+                            "SEE_BRANCH",
+                            "SEE_DAY",
+                            "WORK_DAY",
+                            "WORK_HOME_BRANCH",
+                            "VOID",
+                            "SEE_COMMISSION",
+                            "CHANGE_CLOSED_DAY",
+                            "PAY",
+                            "SUBMIT_REMITTANCE",
+                            "MANAGE_STOCK"
+                        ]
+                    }
+                ],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b2": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1/d1": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b1/d2": {
+                    "may": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_ANYWHERE",
+                        "WORK_ANYWHERE",
+                        "MANAGE_CATALOG"
+                    ]
+                },
+                "b2/d1": {
+                    "may": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG"
+                    ],
+                    "reads": [
+                        "SEE_BRANCH",
+                        "SEE_DAY",
+                        "SEE_ANYWHERE",
+                        "WORK_DAY",
+                        "WORK_HOME_BRANCH",
+                        "WORK_ANYWHERE",
+                        "VOID",
+                        "SEE_COMMISSION",
+                        "CHANGE_CLOSED_DAY",
+                        "PAY",
+                        "SUBMIT_REMITTANCE",
+                        "MANAGE_STOCK",
+                        "MANAGE_CATALOG"
+                    ]
+                }
+            }
+        },
+        {
+            "who": "accountant of b1, inactive",
+            "rights": {
+                "everywhere": {
+                    "may": [],
+                    "reads": []
+                },
+                "branches": [],
+                "days": []
+            },
+            "answers": {
+                "everywhere": {
+                    "may": [],
+                    "reads": []
+                },
+                "b1": {
+                    "may": [],
+                    "reads": []
+                },
+                "b2": {
+                    "may": [],
+                    "reads": []
+                },
+                "b1/d1": {
+                    "may": [],
+                    "reads": []
+                },
+                "b1/d2": {
+                    "may": [],
+                    "reads": []
+                },
+                "b2/d1": {
+                    "may": [],
+                    "reads": []
+                }
+            }
+        }
+    ]
+}

@@ -1,8 +1,8 @@
 package com.companyb.companyapp.authorization
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.branch.BranchRoutes
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.ActsResponse
+import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -37,7 +37,7 @@ import kotlin.test.assertTrue
  * #132 route-level proof: a role-derived GLOBAL grant now passes
  * Access.require (pre-#132 these routes 403'd for
  * every user — the dead-grant class). GET /api/branches gates GLOBAL
- * MANAGE_USERS; GET /api/me/capabilities reports the derived rows.
+ * MANAGE_USERS; GET /api/me/capabilities reports the rights they give.
  */
 class GrantPathAuthzTest : BasePostgresTest() {
     private val ownerUser = TestFixtures.uuid()
@@ -130,18 +130,12 @@ class GrantPathAuthzTest : BasePostgresTest() {
         return status
     }
 
-    private fun getCapabilities(user: UUID): List<UserCapabilityResponse> {
-        var body: List<UserCapabilityResponse> = emptyList()
+    private fun getRights(user: UUID): RightsResponse {
+        var body: RightsResponse? = null
         testServer.client.let { client ->
-            val response = client.get("/api/me/capabilities", asUser(user))
-            body =
-                response.body
-                    .string()
-                    .takeIf { it.isNotBlank() }
-                    ?.let { json.decodeFromString<List<UserCapabilityResponse>>(it) }
-                    ?: emptyList()
+            body = json.decodeFromString<RightsResponse>(client.get("/api/me/capabilities", asUser(user)).body.string())
         }
-        return body
+        return body!!
     }
 
     @Test
@@ -164,50 +158,26 @@ class GrantPathAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `me-capabilities reports role-derived rows`() {
-        val ownerCaps = getCapabilities(ownerUser)
-        val codes = ownerCaps.map { it.capabilityCode }.toSet()
-        assertTrue(
-            codes.contains(CapabilityCodes.MANAGE_USERS),
-            "owner /api/me/capabilities must include role-derived MANAGE_USERS",
-        )
-        assertTrue(
-            codes.contains(CapabilityCodes.ASSIGN_COMPENSATION),
-            "owner /api/me/capabilities must include role-derived ASSIGN_COMPENSATION",
-        )
-        assertTrue(
-            codes.contains(CapabilityCodes.ASSIGN_DELEGATE),
-            "owner /api/me/capabilities must include role-derived ASSIGN_DELEGATE",
-        )
-        assertTrue(
-            ownerCaps.filter { it.capabilityCode == CapabilityCodes.MANAGE_USERS }.all { it.sourceType.name == "ROLE" },
-            "derived rows must carry sourceType ROLE",
-        )
-        assertTrue(
-            ownerCaps.any {
-                it.capabilityCode == CapabilityCodes.VIEW_BRANCH_DATA &&
-                    it.contextType.name == "GLOBAL" &&
-                    it.contextId == "00000000-0000-0000-0000-000000000000"
-            },
-            "OWNER must see role-derived GLOBAL VIEW_BRANCH_DATA for all-branches read",
-        )
+    fun `me-capabilities reports what an owner's role gives everywhere`() {
+        val everywhere = getRights(ownerUser).everywhere.may
+        for (act in listOf(Act.MANAGE_USERS, Act.PAY, Act.ASSIGN_DELEGATE, Act.SEE_EVERY_BRANCH)) {
+            assertTrue(act in everywhere, "owner /api/me/capabilities must allow $act everywhere")
+        }
     }
 
     @Test
     fun `me-capabilities shows ACCOUNTANT all-branches read`() {
-        val accountantCaps = getCapabilities(accountantUser)
         assertTrue(
-            accountantCaps.any {
-                it.capabilityCode == CapabilityCodes.VIEW_BRANCH_DATA &&
-                    it.contextType.name == "GLOBAL" &&
-                    it.contextId == "00000000-0000-0000-0000-000000000000"
-            },
-            "ACCOUNTANT must see GLOBAL VIEW_BRANCH_DATA (all-branches read, #131 window semantics)",
+            Act.SEE_EVERY_BRANCH in getRights(accountantUser).everywhere.may,
+            "ACCOUNTANT must see every branch (all-branches read, #131 window semantics)",
         )
     }
 
     @Test
-    fun `zero-role user gets an empty capabilities list`() {
-        assertTrue(getCapabilities(noRoleUser).isEmpty())
+    fun `zero-role user gets no rights`() {
+        assertEquals(
+            RightsResponse(ActsResponse(emptyList(), emptyList()), emptyList(), emptyList()),
+            getRights(noRoleUser),
+        )
     }
 }

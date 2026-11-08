@@ -9,7 +9,7 @@ detekt RequireSafetyComment and SuppressRequiresTicket demand one there.
 import pathlib, re, sys
 
 REF = re.compile(r"#\d{2,4}\b|\bmessage \d{4,5}\b|\b[Oo]wed #\d+|\b[Aa]udit [HML]\d\b")
-SKIP = {"web/src/api/schema.d.ts", "web/src/lib/access.gen.ts"}
+SKIP = {"web/src/api/schema.d.ts"}
 COMMENT_LINE = re.compile(r"^\s*(//|\*|/\*\*?|<!--)")
 TRAILING = re.compile(r"[;)}\w\"]\s+//\s")
 STRIP = [

@@ -5,7 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branchday.BranchDayService
-import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
+import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.branch.BranchClockInStatus
 import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
@@ -117,7 +117,7 @@ object MeService {
         }
     }
 
-    fun getCapabilities(userId: UUID): List<UserCapabilityResponse> = CapabilityService.getCapabilitiesForUser(userId)
+    fun getRights(userId: UUID): RightsResponse = CapabilityService.rightsOf(userId)
 
     /**
      * the caller's authoritative active shift for the current operational day.

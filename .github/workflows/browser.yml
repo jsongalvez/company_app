@@ -84,6 +84,9 @@ jobs:
         working-directory: web
         run: tests/unit/run.sh
 
+      - name: The web's API types match the server (tools/quality/check-api-types.sh)
+        run: tools/quality/check-api-types.sh
+
       - name: Install the test browser
         working-directory: web
         run: npx @e2e-dev/web install chromium --with-deps

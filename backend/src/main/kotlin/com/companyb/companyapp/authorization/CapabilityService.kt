@@ -1,6 +1,7 @@
 package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -24,6 +25,9 @@ object CapabilityService {
         contextType: CapabilityContextType,
         contextId: UUID,
     ): Boolean = CapabilityRepository.hasCapability(userId, capabilityCode, contextType, contextId)
+
+    /** Every act [userId] may do, at each place they stand at. */
+    fun rightsOf(userId: UUID): RightsResponse = Rights.of(CapabilityRepository.grantsOf(userId))
 
     fun getCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         CapabilityRepository.findCapabilitiesForUser(userId)

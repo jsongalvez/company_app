@@ -48,7 +48,7 @@ object StartService {
                 val today = branchId?.let { dayAt(callerId, it) }
                 StartResponse(
                     me = MeService.getMe(callerId),
-                    capabilities = MeService.getCapabilities(callerId),
+                    rights = MeService.getRights(callerId),
                     branches = branches,
                     accessible = accessible,
                     branchId = branchId?.toString(),
