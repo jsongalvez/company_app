@@ -3,22 +3,17 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.Role
-import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductRoutes
 import com.companyb.companyapp.commerce.ProductSaleRoutes
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
 import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
 import com.companyb.companyapp.contracts.notification.NotificationUnreadCountResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
-import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.ConflictException
@@ -39,7 +34,6 @@ import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.remittance.RemittanceTable
 import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
 import com.companyb.companyapp.reporting.ExportRoutes
-import com.companyb.companyapp.reporting.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.dashboard.DashboardRoutes
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -147,114 +141,209 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    private fun uuid() = TestFixtures.uuid().toString()
+
+    private fun assertPost(
+        code: Int,
+        path: String,
+        body: Map<String, Any?>? = null,
+    ) {
+        val response = body?.let { testServer.client.post(path, it) } ?: testServer.client.post(path)
+        assertEquals(code, response.code, "POST $path $body")
+    }
+
+    private fun assertPatch(
+        code: Int,
+        path: String,
+        body: Map<String, Any?>? = null,
+    ) {
+        val response = body?.let { testServer.client.patch(path, it) } ?: testServer.client.patch(path)
+        assertEquals(code, response.code, "PATCH $path $body")
+    }
+
+    private fun assertDelete(
+        code: Int,
+        path: String,
+        body: Map<String, Any?>? = null,
+    ) {
+        val response = body?.let { testServer.client.delete(path, it) } ?: testServer.client.delete(path)
+        assertEquals(code, response.code, "DELETE $path $body")
+    }
+
+    private fun assertGet(
+        code: Int,
+        path: String,
+    ) = assertEquals(code, testServer.client.get(path).code, "GET $path")
+
+    private fun allowance(
+        amount: String = "100.00",
+        branchDayId: String = testBranchDayId.toString(),
+    ) = mapOf(
+        "id" to uuid(),
+        "branchDayId" to branchDayId,
+        "userId" to uuid(),
+        "amount" to amount,
+    )
+
+    private fun compensation(amount: String = "100.00") =
+        mapOf(
+            "id" to uuid(),
+            "workBranchDayId" to testBranchDayId.toString(),
+            "payingBranchDayId" to testBranchDayId.toString(),
+            "userId" to uuid(),
+            "amount" to amount,
+        )
+
+    private fun sessionBody(
+        finalPrice: String = "100.00",
+        clientId: String = uuid(),
+    ) = mapOf(
+        "id" to uuid(),
+        "clientId" to clientId,
+        "branchId" to testBranchId.toString(),
+        "isWalkIn" to false,
+        "finalPrice" to finalPrice,
+    )
+
+    private fun clientBody(vararg overrides: Pair<String, Any?>) =
+        mapOf(
+            "id" to uuid(),
+            "firstName" to "John",
+            "lastName" to "Doe",
+            "gender" to "M",
+            "age" to 25,
+        ) + overrides
+
+    private fun product(
+        name: String = "Test Product",
+        unitPrice: String = "100.00",
+        commissionAmount: String = "10.00",
+    ) = mapOf(
+        "id" to uuid(),
+        "name" to name,
+        "productCategoryId" to testCategoryId.toString(),
+        "unitPrice" to unitPrice,
+        "commissionAmount" to commissionAmount,
+    )
+
+    private fun restock(quantity: Int) =
+        mapOf("id" to uuid(), "quantity" to quantity, "branchDayId" to testBranchDayId.toString())
+
+    private fun movement(
+        reason: String,
+        quantityChange: Int = -1,
+        notes: String? = null,
+    ) = buildMap<String, Any?> {
+        put("movementId", uuid())
+        put("reason", reason)
+        put("quantityChange", quantityChange)
+        notes?.let { put("notes", it) }
+        put("branchDayId", testBranchDayId.toString())
+        put("expectedVersion", 0)
+    }
+
+    private fun productSale(
+        quantity: Int = 1,
+        isWalkIn: Boolean = true,
+        sessionId: String? = null,
+        clientId: String? = null,
+    ) = buildMap<String, Any?> {
+        put("id", uuid())
+        put("branchDayId", testBranchDayId.toString())
+        sessionId?.let { put("sessionId", it) }
+        clientId?.let { put("clientId", it) }
+        put("isWalkIn", isWalkIn)
+        put("productId", testProductId.toString())
+        put("quantity", quantity)
+        put("expectedVersion", 0)
+    }
+
+    private fun remittance(remittanceId: UUID = TestFixtures.uuid()): UUID {
+        transaction {
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = remittanceId
+                it[RemittanceTable.type] = RemittanceType.SESSION
+                it[RemittanceTable.branchId] = testBranchId
+                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
+                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
+                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.submittedBy] = testUserId
+            }
+        }
+        return remittanceId
+    }
+
+    private fun remittanceLine(
+        type: String,
+        amount: String = "100.00",
+        sessionId: String? = null,
+    ) = buildMap<String, Any?> {
+        put("id", uuid())
+        put("type", type)
+        sessionId?.let { put("sessionId", it) }
+        put("amount", amount)
+    }
+
+    private fun expense(
+        amount: String = "100.00",
+        category: String = "MISCELLANEOUS",
+    ) = mapOf(
+        "id" to uuid(),
+        "branchDayId" to testBranchDayId.toString(),
+        "amount" to amount,
+        "category" to category,
+    )
+
+    private fun notification(): UUID {
+        val notificationId = TestFixtures.uuid()
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = notificationId
+                it[NotificationTable.sessionId] = testSessionId
+                it[NotificationTable.userId] = testUserId
+                it[NotificationTable.branchId] = testBranchId
+                it[NotificationTable.message] = "Test notification"
+                it[NotificationTable.dedupKey] = "APPT:$testSessionId:$notificationId"
+            }
+        }
+        return notificationId
+    }
+
     // ──────────────────────────────────────────────
     // AllowanceRoutes
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST allowance negative amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "-1.00",
-                )
-            assertEquals(400, client.post("/api/allowances", body).code)
-        }
-    }
+    fun `POST allowance negative amount returns 400`() = assertPost(400, "/api/allowances", allowance(amount = "-1.00"))
 
     @Test
-    fun `POST allowance invalid amount string returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "not-a-number",
-                )
-            assertEquals(400, client.post("/api/allowances", body).code)
-        }
-    }
+    fun `POST allowance invalid amount string returns 400`() =
+        assertPost(400, "/api/allowances", allowance(amount = "not-a-number"))
 
     @Test
-    fun `POST allowance overflowing amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "9999999999.99",
-                )
-            assertEquals(400, client.post("/api/allowances", body).code)
-        }
-    }
+    fun `POST allowance overflowing amount returns 400`() =
+        assertPost(400, "/api/allowances", allowance(amount = "9999999999.99"))
 
     @Test
-    fun `POST allowance invalid branchDayId UUID returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to "not-a-uuid",
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "100.00",
-                )
-            assertEquals(400, client.post("/api/allowances", body).code)
-        }
-    }
+    fun `POST allowance invalid branchDayId UUID returns 400`() =
+        assertPost(400, "/api/allowances", allowance(branchDayId = "not-a-uuid"))
 
     // ──────────────────────────────────────────────
     // CompensationRoutes
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST compensation negative amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "workBranchDayId" to testBranchDayId.toString(),
-                    "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "-50.00",
-                )
-            assertEquals(400, client.post("/api/compensation", body).code)
-        }
-    }
+    fun `POST compensation negative amount returns 400`() =
+        assertPost(400, "/api/compensation", compensation(amount = "-50.00"))
 
     @Test
-    fun `POST compensation invalid amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "workBranchDayId" to testBranchDayId.toString(),
-                    "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "abc",
-                )
-            assertEquals(400, client.post("/api/compensation", body).code)
-        }
-    }
+    fun `POST compensation invalid amount returns 400`() =
+        assertPost(400, "/api/compensation", compensation(amount = "abc"))
 
     @Test
-    fun `POST compensation overflowing amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "workBranchDayId" to testBranchDayId.toString(),
-                    "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "amount" to "9999999999.99",
-                )
-            assertEquals(400, client.post("/api/compensation", body).code)
-        }
-    }
+    fun `POST compensation overflowing amount returns 400`() =
+        assertPost(400, "/api/compensation", compensation(amount = "9999999999.99"))
 
     @Test
     fun `PATCH compensation negative amount returns 400`() {
@@ -269,16 +358,7 @@ class RouteValidationTest : BasePostgresTest() {
                 it[CompensationTable.assignedBy] = testUserId
             }
         }
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .patch(
-                        "/api/compensation/$compId",
-                        mapOf("amount" to "-10.00", "expectedVersion" to 0),
-                    ).code,
-            )
-        }
+        assertPatch(400, "/api/compensation/$compId", mapOf("amount" to "-10.00", "expectedVersion" to 0))
     }
 
     // ──────────────────────────────────────────────
@@ -286,34 +366,12 @@ class RouteValidationTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST session negative finalPrice returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "clientId" to TestFixtures.uuid().toString(),
-                    "branchId" to testBranchId.toString(),
-                    "isWalkIn" to false,
-                    "finalPrice" to "-100.00",
-                )
-            assertEquals(400, client.post("/api/sessions", body).code)
-        }
-    }
+    fun `POST session negative finalPrice returns 400`() =
+        assertPost(400, "/api/sessions", sessionBody(finalPrice = "-100.00"))
 
     @Test
-    fun `POST session invalid finalPrice string returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "clientId" to TestFixtures.uuid().toString(),
-                    "branchId" to testBranchId.toString(),
-                    "isWalkIn" to false,
-                    "finalPrice" to "abc",
-                )
-            assertEquals(400, client.post("/api/sessions", body).code)
-        }
-    }
+    fun `POST session invalid finalPrice string returns 400`() =
+        assertPost(400, "/api/sessions", sessionBody(finalPrice = "abc"))
 
     @Test
     fun `POST session overflowing finalPrice returns 400`() {
@@ -321,49 +379,32 @@ class RouteValidationTest : BasePostgresTest() {
         // instead of failing earlier on the missing rate; the route pre-gate 400s first.
         SessionClientFixtures.insertTestBaseRate(TestFixtures.uuid(), testBranchId, testUserId)
         val freshClientId = SessionClientFixtures.insertTestClient()
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "clientId" to freshClientId.toString(),
-                    "branchId" to testBranchId.toString(),
-                    "isWalkIn" to false,
-                    "finalPrice" to "9999999999.99",
-                )
-            assertEquals(400, client.post("/api/sessions", body).code)
-        }
+        assertPost(
+            400,
+            "/api/sessions",
+            sessionBody(finalPrice = "9999999999.99", clientId = freshClientId.toString()),
+        )
     }
 
     @Test
-    fun `PATCH session final-price overflowing returns 400`() {
-        testServer.client.let { client ->
-            val body = mapOf("finalPrice" to "9999999999.99", "version" to 1)
-            assertEquals(400, client.patch("/api/sessions/$testSessionId/final-price", body).code)
-        }
-    }
+    fun `PATCH session final-price overflowing returns 400`() =
+        assertPatch(
+            400,
+            "/api/sessions/$testSessionId/final-price",
+            mapOf("finalPrice" to "9999999999.99", "version" to 1),
+        )
 
     @Test
-    fun `POST void session blank voidReason returns 400`() {
-        testServer.client.let { client ->
-            val body = mapOf("id" to TestFixtures.uuid().toString(), "voidReason" to "  ")
-            assertEquals(400, client.post("/api/sessions/$testSessionId/void", body).code)
-        }
-    }
+    fun `POST void session blank voidReason returns 400`() =
+        assertPost(400, "/api/sessions/$testSessionId/void", mapOf("id" to uuid(), "voidReason" to "  "))
 
     @Test
-    fun `POST unvoid session blank unvoidedReason returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.post("/api/sessions/$testSessionId/unvoid", mapOf("unvoidedReason" to "  ")).code)
-        }
-    }
+    fun `POST unvoid session blank unvoidedReason returns 400`() =
+        assertPost(400, "/api/sessions/$testSessionId/unvoid", mapOf("unvoidedReason" to "  "))
 
     @Test
-    fun `POST promote concern blank label returns 400`() {
-        testServer.client.let { client ->
-            val body = mapOf("id" to TestFixtures.uuid().toString(), "label" to "  ")
-            assertEquals(400, client.post("/api/sessions/$testSessionId/promote-concern", body).code)
-        }
-    }
+    fun `POST promote concern blank label returns 400`() =
+        assertPost(400, "/api/sessions/$testSessionId/promote-concern", mapOf("id" to uuid(), "label" to "  "))
 
     @Test
     fun `GET session concerns on REMITTED day returns 200 with EDIT_PAST_DAY`() {
@@ -375,10 +416,7 @@ class RouteValidationTest : BasePostgresTest() {
         val remittedClientId = SessionClientFixtures.insertTestClient()
         val remittedSessionId = TestFixtures.uuid()
         SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
-
-        testServer.client.let { client ->
-            assertEquals(200, client.get("/api/sessions/$remittedSessionId/concerns").code)
-        }
+        assertGet(200, "/api/sessions/$remittedSessionId/concerns")
     }
 
     // ──────────────────────────────────────────────
@@ -386,308 +424,155 @@ class RouteValidationTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST client blank firstName returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "  ",
-                    "lastName" to "Doe",
-                    "gender" to "M",
-                    "age" to 25,
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client blank firstName returns 400`() = assertPost(400, "/api/clients", clientBody("firstName" to "  "))
 
     @Test
-    fun `POST client blank lastName returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "John",
-                    "lastName" to "  ",
-                    "gender" to "M",
-                    "age" to 25,
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client blank lastName returns 400`() = assertPost(400, "/api/clients", clientBody("lastName" to "  "))
 
     @Test
-    fun `POST client partial BP systolic only returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "John",
-                    "lastName" to "Doe",
-                    "gender" to "M",
-                    "age" to 25,
-                    "systolicBp" to 120,
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client partial BP systolic only returns 400`() =
+        assertPost(400, "/api/clients", clientBody("systolicBp" to 120))
 
     @Test
-    fun `POST client partial BP diastolic only returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "John",
-                    "lastName" to "Doe",
-                    "gender" to "M",
-                    "age" to 25,
-                    "diastolicBp" to 80,
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client partial BP diastolic only returns 400`() =
+        assertPost(400, "/api/clients", clientBody("diastolicBp" to 80))
 
     @Test
-    fun `POST client out-of-range age returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "John",
-                    "lastName" to "Doe",
-                    "gender" to "M",
-                    "age" to 999,
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client out-of-range age returns 400`() = assertPost(400, "/api/clients", clientBody("age" to 999))
 
     @Test
-    fun `POST client out-of-range BP returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "John",
-                    "lastName" to "Doe",
-                    "gender" to "M",
-                    "age" to 25,
-                    "systolicBp" to 10,
-                    "diastolicBp" to 80,
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client out-of-range BP returns 400`() =
+        assertPost(400, "/api/clients", clientBody("systolicBp" to 10, "diastolicBp" to 80))
 
     @Test
-    fun `POST client overlong phone returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "firstName" to "John",
-                    "lastName" to "Doe",
-                    "gender" to "M",
-                    "age" to 25,
-                    "phoneNumber" to "123456789012345678901",
-                )
-            assertEquals(400, client.post("/api/clients", body).code)
-        }
-    }
+    fun `POST client overlong phone returns 400`() =
+        assertPost(400, "/api/clients", clientBody("phoneNumber" to "123456789012345678901"))
 
     @Test
-    fun `GET clients blank search query returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/clients?q=%20%20").code)
-        }
-    }
+    fun `GET clients blank search query returns 400`() = assertGet(400, "/api/clients?q=%20%20")
 
     @Test
-    fun `GET clients missing search query returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/clients").code)
-        }
-    }
+    fun `GET clients missing search query returns 400`() = assertGet(400, "/api/clients")
 
     @Test
     fun `GET clients includes authoritative session count`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/clients?q=Test")
-            val clients = json.decodeFromString<List<ClientResponse>>(response.body.string())
+        val response = testServer.client.get("/api/clients?q=Test")
+        val clients = json.decodeFromString<List<ClientResponse>>(response.body.string())
 
-            assertEquals(200, response.code)
-            assertEquals(1, clients.single { it.id == testClientId.toString() }.sessionCount)
-            assertEquals(0, clients.single { it.id == testClientNoSessionsId.toString() }.sessionCount)
-        }
+        assertEquals(200, response.code)
+        assertEquals(1, clients.single { it.id == testClientId.toString() }.sessionCount)
+        assertEquals(0, clients.single { it.id == testClientNoSessionsId.toString() }.sessionCount)
     }
 
     @Test
-    fun `PATCH client blank firstName returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("firstName" to "  ")).code)
-        }
-    }
+    fun `PATCH client blank firstName returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("firstName" to "  "))
 
     @Test
-    fun `PATCH client blank lastName returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("lastName" to "  ")).code)
-        }
-    }
+    fun `PATCH client blank lastName returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("lastName" to "  "))
 
     @Test
-    fun `PATCH client partial BP returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("systolicBp" to 120)).code)
-        }
-    }
+    fun `PATCH client partial BP returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("systolicBp" to 120))
 
     @Test
-    fun `PATCH client out-of-range age returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("age" to 999)).code)
-        }
-    }
+    fun `PATCH client out-of-range age returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("age" to 999))
 
     @Test
-    fun `PATCH client out-of-range BP returns 400`() {
-        testServer.client.let { client ->
-            val body = mapOf("systolicBp" to 120, "diastolicBp" to 10)
-            assertEquals(400, client.patch("/api/clients/$testClientId", body).code)
-        }
-    }
+    fun `PATCH client out-of-range BP returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("systolicBp" to 120, "diastolicBp" to 10))
 
     @Test
-    fun `PATCH client overlong phone returns 400`() {
-        testServer.client.let { client ->
-            val body = mapOf("phoneNumber" to "123456789012345678901")
-            assertEquals(400, client.patch("/api/clients/$testClientId", body).code)
-        }
-    }
+    fun `PATCH client overlong phone returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("phoneNumber" to "123456789012345678901"))
 
     @Test
     fun `PATCH client clear phone persists null`() {
-        testServer.client.let { client ->
-            assertEquals(
-                200,
-                client.patch("/api/clients/$testClientId", mapOf("phoneNumber" to "09171234567")).code,
+        assertEquals(
+            200,
+            testServer.client.patch("/api/clients/$testClientId", mapOf("phoneNumber" to "09171234567")).code,
+        )
+        val response =
+            testServer.client.patch(
+                "/api/clients/$testClientId",
+                mapOf("clearFields" to listOf("phoneNumber")),
             )
-            val response =
-                client.patch(
-                    "/api/clients/$testClientId",
-                    mapOf("clearFields" to listOf("phoneNumber")),
-                )
-            assertEquals(200, response.code)
-            val updated = json.decodeFromString<ClientResponse>(response.body.string())
-            assertNull(updated.phoneNumber)
-            assertEquals("Test", updated.firstName)
-        }
+        assertEquals(200, response.code)
+        val updated = json.decodeFromString<ClientResponse>(response.body.string())
+        assertNull(updated.phoneNumber)
+        assertEquals("Test", updated.firstName)
     }
 
     @Test
     fun `PATCH client clear BP pair persists nulls`() {
-        testServer.client.let { client ->
-            val seeded =
-                client.patch(
-                    "/api/clients/$testClientId",
-                    mapOf("systolicBp" to 120, "diastolicBp" to 80),
-                )
-            assertEquals(200, seeded.code)
-            val response =
-                client.patch(
-                    "/api/clients/$testClientId",
-                    mapOf("clearFields" to listOf("systolicBp", "diastolicBp")),
-                )
-            assertEquals(200, response.code)
-            val updated = json.decodeFromString<ClientResponse>(response.body.string())
-            assertNull(updated.systolicBp)
-            assertNull(updated.diastolicBp)
-        }
+        val seeded =
+            testServer.client.patch(
+                "/api/clients/$testClientId",
+                mapOf("systolicBp" to 120, "diastolicBp" to 80),
+            )
+        assertEquals(200, seeded.code)
+        val response =
+            testServer.client.patch(
+                "/api/clients/$testClientId",
+                mapOf("clearFields" to listOf("systolicBp", "diastolicBp")),
+            )
+        assertEquals(200, response.code)
+        val updated = json.decodeFromString<ClientResponse>(response.body.string())
+        assertNull(updated.systolicBp)
+        assertNull(updated.diastolicBp)
     }
 
     @Test
-    fun `PATCH client unknown clear field returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("nickname"))).code,
-            )
-        }
-    }
+    fun `PATCH client unknown clear field returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("nickname")))
 
     @Test
     fun `PATCH client clear required field returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("firstName"))).code,
-            )
-            assertEquals(
-                400,
-                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("age"))).code,
-            )
-        }
+        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("firstName")))
+        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("age")))
     }
 
     @Test
-    fun `PATCH client half BP clear returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.patch("/api/clients/$testClientId", mapOf("clearFields" to listOf("systolicBp"))).code,
-            )
-        }
-    }
+    fun `PATCH client half BP clear returns 400`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("systolicBp")))
 
     @Test
-    fun `PATCH client set and clear on the same field returns 400`() {
-        testServer.client.let { client ->
-            val response =
-                client.patch(
-                    "/api/clients/$testClientId",
-                    mapOf("phoneNumber" to "0917", "clearFields" to listOf("phoneNumber")),
-                )
-            assertEquals(400, response.code)
-        }
-    }
+    fun `PATCH client set and clear on the same field returns 400`() =
+        assertPatch(
+            400,
+            "/api/clients/$testClientId",
+            mapOf("phoneNumber" to "0917", "clearFields" to listOf("phoneNumber")),
+        )
 
     @Test
-    fun `PATCH client blank optional returns 400 without storing whitespace`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.patch("/api/clients/$testClientId", mapOf("phoneNumber" to "   ")).code,
-            )
-        }
-    }
+    fun `PATCH client blank optional returns 400 without storing whitespace`() =
+        assertPatch(400, "/api/clients/$testClientId", mapOf("phoneNumber" to "   "))
 
     @Test
     fun `POST anonymize client with pending session returns 409 and keeps PII`() {
-        testServer.client.let { client ->
-            val response = client.post("/api/clients/$testClientId/anonymize")
+        val response = testServer.client.post("/api/clients/$testClientId/anonymize")
 
-            assertEquals(409, response.code)
-            transaction {
-                val row = ClientTable.selectAll().where { ClientTable.id eq testClientId }.single()
-                assertEquals("Test", row[ClientTable.firstName])
-                assertEquals("Client", row[ClientTable.lastName])
-                assertNull(row[ClientTable.deletedAt])
-            }
+        assertEquals(409, response.code)
+        transaction {
+            val row = ClientTable.selectAll().where { ClientTable.id eq testClientId }.single()
+            assertEquals("Test", row[ClientTable.firstName])
+            assertEquals("Client", row[ClientTable.lastName])
+            assertNull(row[ClientTable.deletedAt])
         }
     }
 
     @Test
     fun `POST anonymize client without sessions returns 204`() {
-        testServer.client.let { client ->
-            val response = client.post("/api/clients/$testClientNoSessionsId/anonymize")
+        val response = testServer.client.post("/api/clients/$testClientNoSessionsId/anonymize")
 
-            assertEquals(204, response.code)
-            transaction {
-                val row =
-                    ClientTable.selectAll().where { ClientTable.id eq testClientNoSessionsId }.single()
-                assertNull(row[ClientTable.firstName])
-                assertNull(row[ClientTable.lastName])
-            }
+        assertEquals(204, response.code)
+        transaction {
+            val row =
+                ClientTable.selectAll().where { ClientTable.id eq testClientNoSessionsId }.single()
+            assertNull(row[ClientTable.firstName])
+            assertNull(row[ClientTable.lastName])
         }
     }
 
@@ -696,403 +581,158 @@ class RouteValidationTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST product blank name returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "name" to "  ",
-                    "productCategoryId" to testCategoryId.toString(),
-                    "unitPrice" to "100.00",
-                    "commissionAmount" to "10.00",
-                )
-            assertEquals(400, client.post("/api/products", body).code)
-        }
-    }
+    fun `POST product blank name returns 400`() = assertPost(400, "/api/products", product(name = "  "))
 
     @Test
-    fun `POST product negative price returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "name" to "Test Product",
-                    "productCategoryId" to testCategoryId.toString(),
-                    "unitPrice" to "-1.00",
-                    "commissionAmount" to "10.00",
-                )
-            assertEquals(400, client.post("/api/products", body).code)
-        }
-    }
+    fun `POST product negative price returns 400`() = assertPost(400, "/api/products", product(unitPrice = "-1.00"))
 
     @Test
-    fun `POST product negative commission returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "name" to "Test Product",
-                    "productCategoryId" to testCategoryId.toString(),
-                    "unitPrice" to "100.00",
-                    "commissionAmount" to "-5.00",
-                )
-            assertEquals(400, client.post("/api/products", body).code)
-        }
-    }
+    fun `POST product negative commission returns 400`() =
+        assertPost(400, "/api/products", product(commissionAmount = "-5.00"))
 
     @Test
-    fun `POST product overflowing price returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "name" to "Test Product",
-                    "productCategoryId" to testCategoryId.toString(),
-                    "unitPrice" to "9999999999.99",
-                    "commissionAmount" to "10.00",
-                )
-            assertEquals(400, client.post("/api/products", body).code)
-        }
-    }
+    fun `POST product overflowing price returns 400`() =
+        assertPost(400, "/api/products", product(unitPrice = "9999999999.99"))
 
     // ──────────────────────────────────────────────
     // BranchInventoryRoutes
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST restock zero quantity returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "quantity" to 0,
-                    "branchDayId" to testBranchDayId.toString(),
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/restock", body).code)
-        }
-    }
+    fun `POST restock zero quantity returns 400`() =
+        assertPost(400, "/api/branches/$testBranchId/inventory/$testProductId/restock", restock(quantity = 0))
 
     @Test
-    fun `POST restock negative quantity returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "quantity" to -1,
-                    "branchDayId" to testBranchDayId.toString(),
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/restock", body).code)
-        }
-    }
+    fun `POST restock negative quantity returns 400`() =
+        assertPost(400, "/api/branches/$testBranchId/inventory/$testProductId/restock", restock(quantity = -1))
 
     @Test
-    fun `POST movement invalid reason returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "movementId" to TestFixtures.uuid().toString(),
-                    "reason" to "INVALID_REASON",
-                    "quantityChange" to -1,
-                    "branchDayId" to testBranchDayId.toString(),
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/movement", body).code)
-        }
-    }
+    fun `POST movement invalid reason returns 400`() =
+        assertPost(
+            400,
+            "/api/branches/$testBranchId/inventory/$testProductId/movement",
+            movement(reason = "INVALID_REASON"),
+        )
 
     @Test
-    fun `POST movement RESTOCK reason is rejected by endpoint restriction`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "movementId" to TestFixtures.uuid().toString(),
-                    "reason" to "RESTOCK",
-                    "quantityChange" to 1,
-                    "branchDayId" to testBranchDayId.toString(),
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/movement", body).code)
-        }
-    }
+    fun `POST movement RESTOCK reason is rejected by endpoint restriction`() =
+        assertPost(
+            400,
+            "/api/branches/$testBranchId/inventory/$testProductId/movement",
+            movement(reason = "RESTOCK", quantityChange = 1),
+        )
 
     @Test
-    fun `POST movement MISSING without notes returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "movementId" to TestFixtures.uuid().toString(),
-                    "reason" to "MISSING",
-                    "quantityChange" to -1,
-                    "branchDayId" to testBranchDayId.toString(),
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/movement", body).code)
-        }
-    }
+    fun `POST movement MISSING without notes returns 400`() =
+        assertPost(
+            400,
+            "/api/branches/$testBranchId/inventory/$testProductId/movement",
+            movement(reason = "MISSING"),
+        )
 
     @Test
-    fun `POST movement MISSING with blank notes returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "movementId" to TestFixtures.uuid().toString(),
-                    "reason" to "MISSING",
-                    "quantityChange" to -1,
-                    "notes" to "  ",
-                    "branchDayId" to testBranchDayId.toString(),
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/movement", body).code)
-        }
-    }
+    fun `POST movement MISSING with blank notes returns 400`() =
+        assertPost(
+            400,
+            "/api/branches/$testBranchId/inventory/$testProductId/movement",
+            movement(reason = "MISSING", notes = "  "),
+        )
 
     // ──────────────────────────────────────────────
     // ProductSaleRoutes
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST product sale zero quantity returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "isWalkIn" to true,
-                    "productId" to testProductId.toString(),
-                    "quantity" to 0,
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/product-sales", body).code)
-        }
-    }
+    fun `POST product sale zero quantity returns 400`() =
+        assertPost(400, "/api/product-sales", productSale(quantity = 0))
 
     @Test
-    fun `POST product sale quantity over smallint range returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "isWalkIn" to true,
-                    "productId" to testProductId.toString(),
-                    "quantity" to 40000,
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/product-sales", body).code)
-        }
-    }
+    fun `POST product sale quantity over smallint range returns 400`() =
+        assertPost(400, "/api/product-sales", productSale(quantity = 40000))
 
     @Test
-    fun `POST product sale sessionId plus clientId returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "sessionId" to TestFixtures.uuid().toString(),
-                    "clientId" to testClientId.toString(),
-                    "isWalkIn" to false,
-                    "productId" to testProductId.toString(),
-                    "quantity" to 1,
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/product-sales", body).code)
-        }
-    }
+    fun `POST product sale sessionId plus clientId returns 400`() =
+        assertPost(
+            400,
+            "/api/product-sales",
+            productSale(sessionId = uuid(), clientId = testClientId.toString(), isWalkIn = false),
+        )
 
     @Test
-    fun `POST product sale sessionId with walkIn true returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "sessionId" to TestFixtures.uuid().toString(),
-                    "isWalkIn" to true,
-                    "productId" to testProductId.toString(),
-                    "quantity" to 1,
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/product-sales", body).code)
-        }
-    }
+    fun `POST product sale sessionId with walkIn true returns 400`() =
+        assertPost(400, "/api/product-sales", productSale(sessionId = uuid(), isWalkIn = true))
 
     @Test
-    fun `POST product sale known client without walkIn returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "clientId" to testClientId.toString(),
-                    "isWalkIn" to false,
-                    "productId" to testProductId.toString(),
-                    "quantity" to 1,
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/product-sales", body).code)
-        }
-    }
+    fun `POST product sale known client without walkIn returns 400`() =
+        assertPost(
+            400,
+            "/api/product-sales",
+            productSale(clientId = testClientId.toString(), isWalkIn = false),
+        )
 
     @Test
-    fun `POST product sale anonymous without walkIn returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "isWalkIn" to false,
-                    "productId" to testProductId.toString(),
-                    "quantity" to 1,
-                    "expectedVersion" to 0,
-                )
-            assertEquals(400, client.post("/api/product-sales", body).code)
-        }
-    }
+    fun `POST product sale anonymous without walkIn returns 400`() =
+        assertPost(400, "/api/product-sales", productSale(isWalkIn = false))
 
     // ──────────────────────────────────────────────
     // UserBranchAssignmentRoutes
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST assignment slot less than 1 returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "userId" to TestFixtures.uuid().toString(),
-                    "slot" to 0,
-                )
-            assertEquals(400, client.post("/api/branches/$testBranchId/assignments", body).code)
-        }
-    }
+    fun `POST assignment slot less than 1 returns 400`() =
+        assertPost(
+            400,
+            "/api/branches/$testBranchId/assignments",
+            mapOf("id" to uuid(), "userId" to uuid(), "slot" to 0),
+        )
 
     @Test
-    fun `PATCH assignment slot less than 1 returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .patch(
-                        "/api/branches/$testBranchId/assignments/${TestFixtures.uuid()}/slot",
-                        mapOf("slot" to 0),
-                    ).code,
-            )
-        }
-    }
+    fun `PATCH assignment slot less than 1 returns 400`() =
+        assertPatch(
+            400,
+            "/api/branches/$testBranchId/assignments/${TestFixtures.uuid()}/slot",
+            mapOf("slot" to 0),
+        )
 
     // ──────────────────────────────────────────────
     // RemittanceRoutes
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST remittance draft reversed date range returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "type" to "SESSION",
-                    "branchId" to testBranchId.toString(),
-                    "method" to "BANK_TRANSFER",
-                    "dateRangeStart" to "2024-12-31",
-                    "dateRangeEnd" to "2024-01-01",
-                )
-            assertEquals(400, client.post("/api/remittances", body).code)
-        }
-    }
+    fun `POST remittance draft reversed date range returns 400`() =
+        assertPost(
+            400,
+            "/api/remittances",
+            mapOf(
+                "id" to uuid(),
+                "type" to "SESSION",
+                "branchId" to testBranchId.toString(),
+                "method" to "BANK_TRANSFER",
+                "dateRangeStart" to "2024-12-31",
+                "dateRangeEnd" to "2024-01-01",
+            ),
+        )
 
     @Test
     fun `POST remittance SESSION line without sessionId returns 400`() {
-        val remittanceId = TestFixtures.uuid()
-        transaction {
-            RemittanceTable.insert {
-                it[RemittanceTable.id] = remittanceId
-                it[RemittanceTable.type] = RemittanceType.SESSION
-                it[RemittanceTable.branchId] = testBranchId
-                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
-                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
-                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
-                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
-                it[RemittanceTable.submittedBy] = testUserId
-            }
-        }
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .post(
-                        "/api/remittances/$remittanceId/lines",
-                        mapOf(
-                            "id" to TestFixtures.uuid().toString(),
-                            "type" to "SESSION",
-                            "amount" to "100.00",
-                        ),
-                    ).code,
-            )
-        }
+        val remittanceId = remittance()
+        assertPost(400, "/api/remittances/$remittanceId/lines", remittanceLine(type = "SESSION"))
     }
 
     @Test
     fun `POST remittance SESSION line overflowing amount returns 400`() {
-        val remittanceId = TestFixtures.uuid()
-        transaction {
-            RemittanceTable.insert {
-                it[RemittanceTable.id] = remittanceId
-                it[RemittanceTable.type] = RemittanceType.SESSION
-                it[RemittanceTable.branchId] = testBranchId
-                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
-                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
-                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
-                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
-                it[RemittanceTable.submittedBy] = testUserId
-            }
-        }
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .post(
-                        "/api/remittances/$remittanceId/lines",
-                        mapOf(
-                            "id" to TestFixtures.uuid().toString(),
-                            "type" to "SESSION",
-                            "sessionId" to testSessionId.toString(),
-                            "amount" to "9999999999.99",
-                        ),
-                    ).code,
-            )
-        }
+        val remittanceId = remittance()
+        assertPost(
+            400,
+            "/api/remittances/$remittanceId/lines",
+            remittanceLine(type = "SESSION", amount = "9999999999.99", sessionId = testSessionId.toString()),
+        )
     }
 
     @Test
     fun `POST remittance PRODUCT_SALE line without productSaleId returns 400`() {
-        val remittanceId = TestFixtures.uuid()
-        transaction {
-            RemittanceTable.insert {
-                it[RemittanceTable.id] = remittanceId
-                it[RemittanceTable.type] = RemittanceType.SESSION
-                it[RemittanceTable.branchId] = testBranchId
-                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
-                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
-                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
-                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
-                it[RemittanceTable.submittedBy] = testUserId
-            }
-        }
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .post(
-                        "/api/remittances/$remittanceId/lines",
-                        mapOf(
-                            "id" to TestFixtures.uuid().toString(),
-                            "type" to "PRODUCT_SALE",
-                            "amount" to "100.00",
-                        ),
-                    ).code,
-            )
-        }
+        val remittanceId = remittance()
+        assertPost(400, "/api/remittances/$remittanceId/lines", remittanceLine(type = "PRODUCT_SALE"))
     }
 
     // ──────────────────────────────────────────────
@@ -1100,75 +740,36 @@ class RouteValidationTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `GET export report missing format returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16").code,
-            )
-        }
-    }
+    fun `GET export report missing format returns 400`() =
+        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16")
 
     @Test
-    fun `GET export report invalid format returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16&format=csv").code,
-            )
-        }
-    }
+    fun `GET export report invalid format returns 400`() =
+        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16&format=csv")
 
     @Test
-    fun `GET export report missing from returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/export/report?to=2024-01-15&format=xlsx").code)
-        }
-    }
+    fun `GET export report missing from returns 400`() =
+        assertGet(400, "/api/branches/$testBranchId/export/report?to=2024-01-15&format=xlsx")
 
     @Test
-    fun `GET export report missing to returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/export/report?from=2024-01-15&format=xlsx").code)
-        }
-    }
+    fun `GET export report missing to returns 400`() =
+        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-15&format=xlsx")
 
     @Test
-    fun `GET export report invalid date returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/$testBranchId/export/report?from=not-a-date&to=2024-01-15&format=xlsx").code,
-            )
-        }
-    }
+    fun `GET export report invalid date returns 400`() =
+        assertGet(400, "/api/branches/$testBranchId/export/report?from=not-a-date&to=2024-01-15&format=xlsx")
 
     @Test
-    fun `GET export report from after to returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/$testBranchId/export/report?from=2024-01-16&to=2024-01-15&format=xlsx").code,
-            )
-        }
-    }
+    fun `GET export report from after to returns 400`() =
+        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-16&to=2024-01-15&format=xlsx")
 
     @Test
-    fun `GET export report multi-branch unknown type returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/branches/export/report?from=2024-01-15&to=2024-01-16&format=xlsx&type=SPA").code,
-            )
-        }
-    }
+    fun `GET export report multi-branch unknown type returns 400`() =
+        assertGet(400, "/api/branches/export/report?from=2024-01-15&to=2024-01-16&format=xlsx&type=SPA")
 
     @Test
-    fun `GET export report multi-branch missing format returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/export/report?from=2024-01-15&to=2024-01-16").code)
-        }
-    }
+    fun `GET export report multi-branch missing format returns 400`() =
+        assertGet(400, "/api/branches/export/report?from=2024-01-15&to=2024-01-16")
 
     // ──────────────────────────────────────────────
     // DailySalesSummaryRoutes — paged daily-summaries feed
@@ -1176,101 +777,69 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `GET daily-summaries returns 200 with seeded day`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$testBranchId/daily-summaries")
-            assertEquals(200, response.code)
-            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
-            assertEquals(1, body.entries.size)
-            assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
-            assertEquals(TestFixtures.today.toString(), body.entries.single().date)
-            assertNull(body.nextCursor)
-        }
+        val response = testServer.client.get("/api/branches/$testBranchId/daily-summaries")
+        assertEquals(200, response.code)
+        val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+        assertEquals(1, body.entries.size)
+        assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
+        assertEquals(TestFixtures.today.toString(), body.entries.single().date)
+        assertNull(body.nextCursor)
     }
 
     @Test
     fun `GET daily-summaries returns 200 empty feed for branch without days`() {
         val noDaysBranchId = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(noDaysBranchId, "No-Days Branch")
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$noDaysBranchId/daily-summaries")
-            assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")
-            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
-            assertTrue(body.entries.isEmpty())
-            assertNull(body.nextCursor)
-        }
+        val response = testServer.client.get("/api/branches/$noDaysBranchId/daily-summaries")
+        assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")
+        val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+        assertTrue(body.entries.isEmpty())
+        assertNull(body.nextCursor)
     }
 
     @Test
-    fun `GET daily-summaries rejects limit zero`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=0").code)
-        }
-    }
+    fun `GET daily-summaries rejects limit zero`() =
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?limit=0")
 
     @Test
-    fun `GET daily-summaries rejects limit above max`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=101").code)
-        }
-    }
+    fun `GET daily-summaries rejects limit above max`() =
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?limit=101")
 
     @Test
-    fun `GET daily-summaries rejects non-numeric limit`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=abc").code)
-        }
-    }
+    fun `GET daily-summaries rejects non-numeric limit`() =
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?limit=abc")
 
     @Test
-    fun `GET daily-summaries rejects malformed cursor`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?cursor=not-a-cursor").code)
-        }
-    }
+    fun `GET daily-summaries rejects malformed cursor`() =
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?cursor=not-a-cursor")
 
     @Test
-    fun `GET daily-summaries rejects malformed from date`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?from=2026-13-99").code)
-        }
-    }
+    fun `GET daily-summaries rejects malformed from date`() =
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?from=2026-13-99")
 
     @Test
-    fun `GET daily-summaries rejects malformed to date`() {
-        testServer.client.let { client ->
-            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?to=not-a-date").code)
-        }
-    }
+    fun `GET daily-summaries rejects malformed to date`() =
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?to=not-a-date")
 
     @Test
     fun `GET daily-summaries rejects from after to`() {
-        testServer.client.let { client ->
-            val tomorrow = TestFixtures.today.plusDays(1)
-            val yesterday = TestFixtures.today.minusDays(1)
-            assertEquals(
-                400,
-                client
-                    .get(
-                        "/api/branches/$testBranchId/daily-summaries?from=$tomorrow&to=$yesterday",
-                    ).code,
-            )
-        }
+        val tomorrow = TestFixtures.today.plusDays(1)
+        val yesterday = TestFixtures.today.minusDays(1)
+        assertGet(400, "/api/branches/$testBranchId/daily-summaries?from=$tomorrow&to=$yesterday")
     }
 
     @Test
     fun `GET daily-summaries window filters the feed`() {
-        testServer.client.let { client ->
-            val today = TestFixtures.today
-            val yesterday = today.minusDays(1)
-            val response =
-                client.get(
-                    "/api/branches/$testBranchId/daily-summaries?from=$yesterday&to=$today",
-                )
-            assertEquals(200, response.code)
-            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
-            assertEquals(1, body.entries.size, "the window admits only the seeded day")
-            assertEquals(today.toString(), body.entries.single().date)
-        }
+        val today = TestFixtures.today
+        val yesterday = today.minusDays(1)
+        val response =
+            testServer.client.get(
+                "/api/branches/$testBranchId/daily-summaries?from=$yesterday&to=$today",
+            )
+        assertEquals(200, response.code)
+        val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+        assertEquals(1, body.entries.size, "the window admits only the seeded day")
+        assertEquals(today.toString(), body.entries.single().date)
     }
 
     // ──────────────────────────────────────────────
@@ -1279,22 +848,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST notifications read-all returns 200 and marks all unread as read`() {
-        val notificationId = TestFixtures.uuid()
-        transaction {
-            NotificationTable.insert {
-                it[NotificationTable.id] = notificationId
-                it[NotificationTable.sessionId] = testSessionId
-                it[NotificationTable.userId] = testUserId
-                it[NotificationTable.branchId] = testBranchId
-                it[NotificationTable.message] = "Test notification"
-                it[NotificationTable.dedupKey] = "APPT:$testSessionId:$notificationId"
-            }
-        }
-        testServer.client.let { client ->
-            val response = client.post("/api/notifications/read-all")
-            assertEquals(200, response.code)
-            assertTrue(response.body.string().contains("\"unreadCount\":0"))
-        }
+        val notificationId = notification()
+        val response = testServer.client.post("/api/notifications/read-all")
+        assertEquals(200, response.code)
+        assertTrue(response.body.string().contains("\"unreadCount\":0"))
         val isRead =
             transaction {
                 NotificationTable
@@ -1307,43 +864,27 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `PATCH notification read still matches param route when read-all literal registered first`() {
-        val notificationId = TestFixtures.uuid()
-        transaction {
-            NotificationTable.insert {
-                it[NotificationTable.id] = notificationId
-                it[NotificationTable.sessionId] = testSessionId
-                it[NotificationTable.userId] = testUserId
-                it[NotificationTable.branchId] = testBranchId
-                it[NotificationTable.message] = "Test notification"
-                it[NotificationTable.dedupKey] = "APPT:$testSessionId:$notificationId"
-            }
-        }
-        testServer.client.let { client ->
-            assertEquals(200, client.patch("/api/notifications/$notificationId/read").code)
-        }
+        val notificationId = notification()
+        assertPatch(200, "/api/notifications/$notificationId/read")
     }
 
     @Test
     fun `GET notifications unread-count returns count without rows`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/notifications/unread-count")
-            assertEquals(200, response.code)
-            val body = json.decodeFromString<NotificationUnreadCountResponse>(response.body.string())
-            assertEquals(0, body.unreadCount)
-        }
+        val response = testServer.client.get("/api/notifications/unread-count")
+        assertEquals(200, response.code)
+        val body = json.decodeFromString<NotificationUnreadCountResponse>(response.body.string())
+        assertEquals(0, body.unreadCount)
     }
 
     @Test
     fun `GET notifications history pages bounded entries with cursor`() {
-        testServer.client.let { client ->
-            val first = client.get("/api/notifications/history?limit=1")
-            assertEquals(200, first.code)
-            val firstBody = json.decodeFromString<NotificationHistoryResponse>(first.body.string())
-            assertTrue(firstBody.entries.size <= 1)
+        val first = testServer.client.get("/api/notifications/history?limit=1")
+        assertEquals(200, first.code)
+        val firstBody = json.decodeFromString<NotificationHistoryResponse>(first.body.string())
+        assertTrue(firstBody.entries.size <= 1)
 
-            val second = client.get("/api/notifications/history?cursor=bad-cursor&limit=1")
-            assertEquals(400, second.code)
-        }
+        val second = testServer.client.get("/api/notifications/history?cursor=bad-cursor&limit=1")
+        assertEquals(400, second.code)
     }
 
     // ──────────────────────────────────────────────
@@ -1351,60 +892,17 @@ class RouteValidationTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST expense non-positive amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "amount" to "-0.01",
-                    "category" to "MISCELLANEOUS",
-                )
-            assertEquals(400, client.post("/api/expenses", body).code)
-        }
-    }
+    fun `POST expense non-positive amount returns 400`() = assertPost(400, "/api/expenses", expense(amount = "-0.01"))
 
     @Test
-    fun `POST expense zero amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "amount" to "0.00",
-                    "category" to "MISCELLANEOUS",
-                )
-            assertEquals(400, client.post("/api/expenses", body).code)
-        }
-    }
+    fun `POST expense zero amount returns 400`() = assertPost(400, "/api/expenses", expense(amount = "0.00"))
 
     @Test
-    fun `POST expense overflowing amount returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "amount" to "9999999999.99",
-                    "category" to "MISCELLANEOUS",
-                )
-            assertEquals(400, client.post("/api/expenses", body).code)
-        }
-    }
+    fun `POST expense overflowing amount returns 400`() =
+        assertPost(400, "/api/expenses", expense(amount = "9999999999.99"))
 
     @Test
-    fun `POST expense invalid category returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to testBranchDayId.toString(),
-                    "amount" to "100.00",
-                    "category" to "INVALID",
-                )
-            assertEquals(400, client.post("/api/expenses", body).code)
-        }
-    }
+    fun `POST expense invalid category returns 400`() = assertPost(400, "/api/expenses", expense(category = "INVALID"))
 
     @Test
     fun `DELETE expense blank reason returns 400`() {
@@ -1419,11 +917,6 @@ class RouteValidationTest : BasePostgresTest() {
                 it[ExpenseTable.notes] = "Test expense"
             }
         }
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ", "expectedVersion" to 1)).code,
-            )
-        }
+        assertDelete(400, "/api/expenses/$expenseId", mapOf("reason" to "  ", "expectedVersion" to 1))
     }
 }
