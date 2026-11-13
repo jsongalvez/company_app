@@ -1,18 +1,15 @@
 @file:Suppress("LargeClass") // #598
 
 package com.companyb.companyapp.workforce.relief
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.authorization.CapabilityRepository
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.identity.UserStatus
-import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -27,9 +24,11 @@ import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
+import com.companyb.companyapp.testsupport.http.asUser
+import com.companyb.companyapp.testsupport.http.expectGet
+import com.companyb.companyapp.testsupport.http.expectPost
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -40,9 +39,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import org.junit.ClassRule
 import java.time.LocalDate
-import java.time.ZoneId
 import java.util.UUID
-import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -158,7 +155,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         }
     }
 
-    private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
+    private val noBody = emptyMap<String, String>()
 
     private fun createBody(
         inviteeUserId: UUID,
@@ -169,139 +166,119 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             "date" to date.toString(),
         )
 
+    private fun invite(
+        invitee: UUID = this.invitee,
+        date: LocalDate = tomorrow,
+        by: UUID = inviter,
+    ) = testServer.client.post("/api/branches/$branchA/relief-invites", createBody(invitee, date), asUser(by))
+
+    private fun createdInvite(
+        invitee: UUID = this.invitee,
+        date: LocalDate = tomorrow,
+        by: UUID = inviter,
+    ): String {
+        val response = invite(invitee, date, by)
+        assertEquals(201, response.code, response.body.string().orEmpty())
+        return TestFixtures.extractJsonField(response.body.string(), "id")
+    }
+
+    private fun inviteAction(
+        id: String,
+        action: String,
+        by: UUID,
+    ) = testServer.client.post("/api/relief-invites/$id/$action", noBody, asUser(by))
+
     // ─────────────────────────── create ───────────────────────────
 
     @Test
     fun `assigned inviter creates an invite for a future day`() {
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val body = response.body.string().orEmpty()
-            assertEquals(201, response.code, body)
-            assertTrue(body.contains("\"status\":\"PENDING\""), body)
-            assertTrue(body.contains(tomorrow.toString()), body)
-            assertTrue(body.contains("Branch A"), body)
-        }
+        val response = invite()
+        val body = response.body.string().orEmpty()
+        assertEquals(201, response.code, body)
+        assertTrue(body.contains("\"status\":\"PENDING\""), body)
+        assertTrue(body.contains(tomorrow.toString()), body)
+        assertTrue(body.contains("Branch A"), body)
     }
 
     @Test
     fun `assigned inviter invite resolves the day row when missing`() {
         val noDayDate = tomorrow.plusDays(2)
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, noDayDate),
-                    asUser(inviter),
-                )
-            assertEquals(201, response.code, response.body.string().orEmpty())
-            val dayCount =
-                transaction {
-                    BranchDayTable
-                        .selectAll()
-                        .where { (BranchDayTable.branchId eq branchA) and (BranchDayTable.date eq noDayDate) }
-                        .count()
-                }
-            assertEquals(1L, dayCount, "create must resolve-or-create the day (future-day planning)")
-        }
+        val response = invite(date = noDayDate)
+        assertEquals(201, response.code, response.body.string().orEmpty())
+        val dayCount =
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { (BranchDayTable.branchId eq branchA) and (BranchDayTable.date eq noDayDate) }
+                    .count()
+            }
+        assertEquals(1L, dayCount, "create must resolve-or-create the day (future-day planning)")
     }
 
     @Test
-    fun `non-assigned user cannot create an invite`() {
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(nonAssigned),
-                )
-            assertEquals(403, response.code)
-        }
-    }
+    fun `non-assigned user cannot create an invite`() =
+        testServer.client.expectPost(
+            403,
+            "/api/branches/$branchA/relief-invites",
+            createBody(invitee, tomorrow),
+            nonAssigned,
+        )
 
     @Test
     fun `create with unknown branch returns 404 without writing rows`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$unknownBranch/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(404, response.code, response.body.string().orEmpty())
-            val dayCount =
-                transaction {
-                    BranchDayTable
-                        .selectAll()
-                        .where { BranchDayTable.branchId eq unknownBranch }
-                        .count()
-                }
-            assertEquals(0L, dayCount, "unknown branch must 404 before resolve-or-create writes a day row")
-        }
+        testServer.client.expectPost(
+            404,
+            "/api/branches/$unknownBranch/relief-invites",
+            createBody(invitee, tomorrow),
+            inviter,
+        )
+        val dayCount =
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { BranchDayTable.branchId eq unknownBranch }
+                    .count()
+            }
+        assertEquals(0L, dayCount, "unknown branch must 404 before resolve-or-create writes a day row")
     }
 
     @Test
-    fun `inviter cannot invite themselves`() {
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(inviter, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(400, response.code)
-        }
-    }
+    fun `inviter cannot invite themselves`() =
+        testServer.client.expectPost(
+            400,
+            "/api/branches/$branchA/relief-invites",
+            createBody(inviter, tomorrow),
+            inviter,
+        )
 
     @Test
-    fun `inactive invitee is rejected`() {
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(inactiveUser, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(400, response.code)
-        }
-    }
+    fun `inactive invitee is rejected`() =
+        testServer.client.expectPost(
+            400,
+            "/api/branches/$branchA/relief-invites",
+            createBody(inactiveUser, tomorrow),
+            inviter,
+        )
 
     @Test
-    fun `create on a past day is forbidden`() {
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, yesterday),
-                    asUser(inviter),
-                )
-            assertEquals(403, response.code, response.body.string().orEmpty())
-        }
-    }
+    fun `create on a past day is forbidden`() =
+        testServer.client.expectPost(
+            403,
+            "/api/branches/$branchA/relief-invites",
+            createBody(invitee, yesterday),
+            inviter,
+        )
 
     @Test
     fun `duplicate invite for the same invitee and day conflicts`() {
-        testServer.client.let { client ->
-            val first =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, first.code)
-            val second =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(409, second.code, second.body.string().orEmpty())
-        }
+        createdInvite()
+        testServer.client.expectPost(
+            409,
+            "/api/branches/$branchA/relief-invites",
+            createBody(invitee, tomorrow),
+            inviter,
+        )
     }
 
     @Test
@@ -311,184 +288,100 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             branchDayId = tomorrowDayId,
             sourceId = sourceId,
         )
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(409, response.code)
-        }
+        testServer.client.expectPost(
+            409,
+            "/api/branches/$branchA/relief-invites",
+            createBody(invitee, tomorrow),
+            inviter,
+        )
     }
 
     @Test
     fun `two invitees can hold invites for the same day`() {
-        testServer.client.let { client ->
-            val first =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, first.code)
-            val second =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(otherInvitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, second.code, second.body.string().orEmpty())
-        }
+        createdInvite(invitee)
+        createdInvite(otherInvitee)
     }
 
     @Test
     fun `re-invite after decline succeeds`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, created.code)
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            val declined =
-                client.post(
-                    "/api/relief-invites/$inviteId/decline",
-                    emptyMap<String, String>(),
-                    asUser(invitee),
-                )
-            assertEquals(200, declined.code)
-
-            val again =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, again.code, again.body.string().orEmpty())
-        }
+        val inviteId = createdInvite()
+        val declined = inviteAction(inviteId, "decline", invitee)
+        assertEquals(200, declined.code)
+        createdInvite()
     }
 
     // ─────────────────────────── sent list ───────────────────────────
 
     @Test
     fun `sent list is scoped to the caller and branch`() {
-        testServer.client.let { client ->
-            client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
-            client.post(
-                "/api/branches/$branchA/relief-invites",
-                createBody(otherInvitee, tomorrow),
-                asUser(otherInviter),
-            )
+        invite()
+        invite(invitee = otherInvitee, by = otherInviter)
 
-            val response = client.get("/api/branches/$branchA/relief-invites", asUser(inviter))
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains(invitee.toString()), body)
-            assertTrue(!body.contains(otherInvitee.toString()), "other inviter's invites must not appear")
-        }
+        val response = testServer.client.get("/api/branches/$branchA/relief-invites", asUser(inviter))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains(invitee.toString()), body)
+        assertTrue(!body.contains(otherInvitee.toString()), "other inviter's invites must not appear")
     }
 
     @Test
-    fun `sent list requires the assignment gate`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$branchA/relief-invites", asUser(nonAssigned))
-            assertEquals(403, response.code)
-        }
-    }
+    fun `sent list requires the assignment gate`() =
+        testServer.client.expectGet(403, "/api/branches/$branchA/relief-invites", nonAssigned)
 
     @Test
     fun `sent list with unknown branch returns 404`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$unknownBranch/relief-invites", asUser(inviter))
-            assertEquals(404, response.code, response.body.string().orEmpty())
-        }
+        testServer.client.expectGet(404, "/api/branches/$unknownBranch/relief-invites", inviter)
     }
 
     @Test
     fun `accepted list with unknown branch returns 404`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$unknownBranch/relief-invites/accepted", asUser(inviter))
-            assertEquals(404, response.code, response.body.string().orEmpty())
-        }
+        testServer.client.expectGet(404, "/api/branches/$unknownBranch/relief-invites/accepted", inviter)
     }
 
     @Test
-    fun `accepted list requires the assignment gate`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$branchA/relief-invites/accepted", asUser(nonAssigned))
-            assertEquals(403, response.code)
-        }
-    }
+    fun `accepted list requires the assignment gate`() =
+        testServer.client.expectGet(403, "/api/branches/$branchA/relief-invites/accepted", nonAssigned)
 
     // ─────────────────────────── received list ───────────────────────────
 
     @Test
     fun `received list serves only the caller's invites`() {
-        testServer.client.let { client ->
-            client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
-            client.post("/api/branches/$branchA/relief-invites", createBody(otherInvitee, tomorrow), asUser(inviter))
+        invite(invitee)
+        invite(invitee = otherInvitee)
 
-            val response = client.get("/api/relief-invites", asUser(invitee))
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains(invitee.toString()), body)
-            assertTrue(!body.contains(otherInvitee.toString()), body)
-            assertTrue(body.contains("Branch A"), body)
-            assertTrue(body.contains(tomorrow.toString()), body)
-        }
+        val response = testServer.client.get("/api/relief-invites", asUser(invitee))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains(invitee.toString()), body)
+        assertTrue(!body.contains(otherInvitee.toString()), body)
+        assertTrue(body.contains("Branch A"), body)
+        assertTrue(body.contains(tomorrow.toString()), body)
     }
 
     @Test
     fun `received list serves only pending invites`() {
-        testServer.client.let { client ->
-            val first =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow.plusDays(3)),
-                    asUser(inviter),
-                )
-            val firstId = TestFixtures.extractJsonField(first.body.string(), "id")
-            client.post("/api/relief-invites/$firstId/decline", emptyMap<String, String>(), asUser(invitee))
-            client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
+        val firstId = createdInvite(date = tomorrow.plusDays(3))
+        inviteAction(firstId, "decline", invitee)
+        createdInvite()
 
-            val response = client.get("/api/relief-invites", asUser(invitee))
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains(tomorrow.toString()), "the pending invite must be served: $body")
-            assertTrue(!body.contains(tomorrow.plusDays(3).toString()), "resolved rows must leave the list: $body")
-        }
+        val response = testServer.client.get("/api/relief-invites", asUser(invitee))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains(tomorrow.toString()), "the pending invite must be served: $body")
+        assertTrue(!body.contains(tomorrow.plusDays(3).toString()), "resolved rows must leave the list: $body")
     }
 
     // ─────────────────────────── accept ───────────────────────────
 
     @Test
     fun `accept writes the day grant immediately`() {
-        var inviteId = ""
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, created.code)
-            inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-
-            val accepted =
-                client.post(
-                    "/api/relief-invites/$inviteId/accept",
-                    emptyMap<String, String>(),
-                    asUser(invitee),
-                )
-            val body = accepted.body.string()
-            assertEquals(200, accepted.code, body)
-            assertTrue(body.contains("\"status\":\"ACCEPTED\""))
-        }
+        val inviteId = createdInvite()
+        val accepted = inviteAction(inviteId, "accept", invitee)
+        val body = accepted.body.string()
+        assertEquals(200, accepted.code, body)
+        assertTrue(body.contains("\"status\":\"ACCEPTED\""))
         val granted =
             Access.allows(invitee, Act.WORK_DAY, Place.Day(tomorrowDayId, branchA))
         assertTrue(granted, "accept must write the day-scoped grant (the #157 enforcement surface)")
@@ -496,164 +389,68 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `accept by a non-invitee is forbidden`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            val response =
-                client.post(
-                    "/api/relief-invites/$inviteId/accept",
-                    emptyMap<String, String>(),
-                    asUser(otherInvitee),
-                )
-            assertEquals(403, response.code)
-        }
+        val inviteId = createdInvite()
+        val response = inviteAction(inviteId, "accept", otherInvitee)
+        assertEquals(403, response.code)
     }
 
     @Test
     fun `accept on a past day is rejected as expired`() {
-        testServer.client.let { client ->
-            // A past-day invite can only exist via a direct row (create 403s on past days).
-            val pastDayId = BranchDayService.resolveOrCreate(branchA, yesterday).id
-            val inviteId = TestFixtures.uuid()
-            // Locals only — inside `insert {}` the receiver is the table, so unqualified
-            // class fields would resolve to columns (the #118/#152 insert-lambda trap).
-            val invitedBy = inviter
-            val inviteeId = invitee
-            transaction {
-                ReliefInviteTable.insert {
-                    it[ReliefInviteTable.id] = inviteId
-                    it[ReliefInviteTable.branchDayId] = pastDayId
-                    it[ReliefInviteTable.invitedBy] = invitedBy
-                    it[ReliefInviteTable.invitee] = inviteeId
-                }
+        // A past-day invite can only exist via a direct row (create 403s on past days).
+        val pastDayId = BranchDayService.resolveOrCreate(branchA, yesterday).id
+        val inviteId = TestFixtures.uuid()
+        // Locals only — inside `insert {}` the receiver is the table, so unqualified
+        // class fields would resolve to columns (the #118/#152 insert-lambda trap).
+        val invitedBy = inviter
+        val inviteeId = invitee
+        transaction {
+            ReliefInviteTable.insert {
+                it[ReliefInviteTable.id] = inviteId
+                it[ReliefInviteTable.branchDayId] = pastDayId
+                it[ReliefInviteTable.invitedBy] = invitedBy
+                it[ReliefInviteTable.invitee] = inviteeId
             }
-            val response =
-                client.post(
-                    "/api/relief-invites/$inviteId/accept",
-                    emptyMap<String, String>(),
-                    asUser(invitee),
-                )
-            assertEquals(400, response.code, response.body.string().orEmpty())
         }
+        testServer.client.expectPost(400, "/api/relief-invites/$inviteId/accept", noBody, invitee)
     }
 
     @Test
     fun `double accept conflicts on the second attempt`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            val first = client.post("/api/relief-invites/$inviteId/accept", emptyMap<String, String>(), asUser(invitee))
-            assertEquals(200, first.code)
-            val second =
-                client.post(
-                    "/api/relief-invites/$inviteId/accept",
-                    emptyMap<String, String>(),
-                    asUser(invitee),
-                )
-            assertEquals(409, second.code)
-        }
+        val inviteId = createdInvite()
+        assertEquals(200, inviteAction(inviteId, "accept", invitee).code)
+        assertEquals(409, inviteAction(inviteId, "accept", invitee).code)
     }
 
     // ─────────────────────────── decline / retract ───────────────────────────
 
     @Test
     fun `decline sets DECLINED and frees the slot`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            val declined =
-                client.post(
-                    "/api/relief-invites/$inviteId/decline",
-                    emptyMap<String, String>(),
-                    asUser(invitee),
-                )
-            assertEquals(200, declined.code)
-            assertTrue(declined.body.string().contains("\"status\":\"DECLINED\""))
-            val again =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            assertEquals(201, again.code, "declined invites free the per-person slot")
-        }
+        val inviteId = createdInvite()
+        val declined = inviteAction(inviteId, "decline", invitee)
+        assertEquals(200, declined.code)
+        assertTrue(declined.body.string().contains("\"status\":\"DECLINED\""))
+        createdInvite()
     }
 
     @Test
     fun `retract by the inviter sets RETRACTED`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            val retracted =
-                client.post(
-                    "/api/relief-invites/$inviteId/retract",
-                    emptyMap<String, String>(),
-                    asUser(inviter),
-                )
-            assertEquals(200, retracted.code)
-            assertTrue(retracted.body.string().contains("\"status\":\"RETRACTED\""))
-        }
+        val inviteId = createdInvite()
+        val retracted = inviteAction(inviteId, "retract", inviter)
+        assertEquals(200, retracted.code)
+        assertTrue(retracted.body.string().contains("\"status\":\"RETRACTED\""))
     }
 
     @Test
     fun `retract by a non-inviter is forbidden`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            val response =
-                client.post(
-                    "/api/relief-invites/$inviteId/retract",
-                    emptyMap<String, String>(),
-                    asUser(otherInviter),
-                )
-            assertEquals(403, response.code)
-        }
+        val inviteId = createdInvite()
+        assertEquals(403, inviteAction(inviteId, "retract", otherInviter).code)
     }
 
     @Test
     fun `retract after accept conflicts`() {
-        testServer.client.let { client ->
-            val created =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow),
-                    asUser(inviter),
-                )
-            val inviteId = TestFixtures.extractJsonField(created.body.string(), "id")
-            client.post("/api/relief-invites/$inviteId/accept", emptyMap<String, String>(), asUser(invitee))
-            val response =
-                client.post(
-                    "/api/relief-invites/$inviteId/retract",
-                    emptyMap<String, String>(),
-                    asUser(inviter),
-                )
-            assertEquals(409, response.code)
-        }
+        val inviteId = createdInvite()
+        inviteAction(inviteId, "accept", invitee)
+        assertEquals(409, inviteAction(inviteId, "retract", inviter).code)
     }
 
     // ─────────────────────────── candidates ───────────────────────────
@@ -665,105 +462,86 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             branchDayId = tomorrowDayId,
             sourceId = sourceId,
         )
-        testServer.client.let { client ->
-            client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
+        invite()
 
-            val response = client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(inviter))
-            val body = response.body.string().orEmpty()
-            assertEquals(200, response.code, body)
-            assertTrue(!body.contains(inviter.toString()), "self must be excluded: $body")
-            assertTrue(!body.contains(invitee.toString()), "live invitee must be excluded: $body")
-            assertTrue(!body.contains(otherInvitee.toString()), "granted user must be excluded: $body")
-            assertTrue(body.contains(aliceUser.toString()), body)
-            assertTrue(body.contains(bobUser.toString()), body)
-        }
+        val response = testServer.client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(inviter))
+        val body = response.body.string().orEmpty()
+        assertEquals(200, response.code, body)
+        assertTrue(!body.contains(inviter.toString()), "self must be excluded: $body")
+        assertTrue(!body.contains(invitee.toString()), "live invitee must be excluded: $body")
+        assertTrue(!body.contains(otherInvitee.toString()), "granted user must be excluded: $body")
+        assertTrue(body.contains(aliceUser.toString()), body)
+        assertTrue(body.contains(bobUser.toString()), body)
     }
 
     @Test
     fun `candidates filter by username or display name prefix`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$branchA/relief-candidates?q=ali&date=$tomorrow", asUser(inviter))
-            val body = response.body.string().orEmpty()
-            assertEquals(200, response.code, body)
-            assertTrue(body.contains(aliceUser.toString()), body)
-            assertTrue(!body.contains(bobUser.toString()), body)
-        }
+        val response =
+            testServer.client.get("/api/branches/$branchA/relief-candidates?q=ali&date=$tomorrow", asUser(inviter))
+        val body = response.body.string().orEmpty()
+        assertEquals(200, response.code, body)
+        assertTrue(body.contains(aliceUser.toString()), body)
+        assertTrue(!body.contains(bobUser.toString()), body)
     }
 
     @Test
     fun `candidate search with no day row applies no exclusions and creates nothing`() {
         val noDayDate = tomorrow.plusDays(5)
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/branches/$branchA/relief-candidates?date=$noDayDate",
-                    asUser(inviter),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains(aliceUser.toString()), body)
-            assertTrue(!body.contains(inviter.toString()), body)
-            val dayCount =
-                transaction {
-                    BranchDayTable
-                        .selectAll()
-                        .where { (BranchDayTable.branchId eq branchA) and (BranchDayTable.date eq noDayDate) }
-                        .count()
-                }
-            assertEquals(0L, dayCount, "a search must never create a branch day row (the #158 find-only discipline)")
-        }
+        val response =
+            testServer.client.get("/api/branches/$branchA/relief-candidates?date=$noDayDate", asUser(inviter))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains(aliceUser.toString()), body)
+        assertTrue(!body.contains(inviter.toString()), body)
+        val dayCount =
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { (BranchDayTable.branchId eq branchA) and (BranchDayTable.date eq noDayDate) }
+                    .count()
+            }
+        assertEquals(0L, dayCount, "a search must never create a branch day row (the #158 find-only discipline)")
     }
 
     @Test
-    fun `candidates require the assignment gate`() {
-        testServer.client.let { client ->
-            val response = client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(nonAssigned))
-            assertEquals(403, response.code)
-        }
-    }
+    fun `candidates require the assignment gate`() =
+        testServer.client.expectGet(403, "/api/branches/$branchA/relief-candidates?date=$tomorrow", nonAssigned)
 
     @Test
     fun `candidates with unknown branch returns 404 without creating a day row`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/branches/$unknownBranch/relief-candidates?date=$tomorrow",
-                    asUser(inviter),
-                )
-            assertEquals(404, response.code, response.body.string().orEmpty())
-            val dayCount =
-                transaction {
-                    BranchDayTable
-                        .selectAll()
-                        .where { BranchDayTable.branchId eq unknownBranch }
-                        .count()
-                }
-            assertEquals(0L, dayCount, "unknown branch must 404 before any day resolution")
-        }
+        testServer.client.expectGet(404, "/api/branches/$unknownBranch/relief-candidates?date=$tomorrow", inviter)
+        val dayCount =
+            transaction {
+                BranchDayTable
+                    .selectAll()
+                    .where { BranchDayTable.branchId eq unknownBranch }
+                    .count()
+            }
+        assertEquals(0L, dayCount, "unknown branch must 404 before any day resolution")
     }
 
     @Test
-    fun `invalid date is a 400`() {
-        testServer.client.let { client ->
-            val response =
-                client.post(
-                    "/api/branches/$branchA/relief-invites",
-                    createBody(invitee, tomorrow).plus("date" to "not-a-date"),
-                    asUser(inviter),
-                )
-            assertEquals(400, response.code)
-        }
-    }
+    fun `invalid date is a 400`() =
+        testServer.client.expectPost(
+            400,
+            "/api/branches/$branchA/relief-invites",
+            createBody(invitee, tomorrow).plus("date" to "not-a-date"),
+            inviter,
+        )
 
     // ─────────────────────────── real-JWT 401 (the #128 harness) ───────────────────────────
 
     @Test
     fun `unauthenticated requests get 401`() {
-        testServer.client.let { client ->
-            assertEquals(401, client.get("/api/relief-invites").code)
-            assertEquals(401, client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow)).code)
-            assertEquals(401, client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow").code)
-        }
+        assertEquals(401, testServer.client.get("/api/relief-invites").code)
+        assertEquals(
+            401,
+            testServer.client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow)).code,
+        )
+        assertEquals(
+            401,
+            testServer.client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow").code,
+        )
     }
 }
