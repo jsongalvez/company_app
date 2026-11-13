@@ -3,10 +3,7 @@
 package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.Role
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceType
@@ -17,7 +14,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -217,104 +213,131 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
+    private fun assertGet(
+        code: Int,
+        path: String,
+        user: UUID = submitUser,
+    ) {
+        val response = testServer.client.get(path, asUser(user))
+        assertEquals(code, response.code, "GET $path as $user")
+    }
+
+    private fun assertPost(
+        code: Int,
+        path: String,
+        body: Any,
+        user: UUID = submitUser,
+    ) {
+        val response = testServer.client.post(path, body, asUser(user))
+        assertEquals(code, response.code, "POST $path as $user")
+    }
+
+    private fun assertPatch(
+        code: Int,
+        path: String,
+        body: Any,
+        user: UUID = submitUser,
+    ) {
+        val response = testServer.client.patch(path, body, asUser(user))
+        assertEquals(code, response.code, "PATCH $path as $user")
+    }
+
+    private fun assertDelete(
+        code: Int,
+        path: String,
+        user: UUID = submitUser,
+    ) {
+        val response = testServer.client.delete(path, "", asUser(user))
+        assertEquals(code, response.code, "DELETE $path as $user")
+    }
+
+    private fun lineBody(
+        sessionId: UUID = this.sessionId,
+        amount: String = "50.00",
+    ) = mapOf(
+        "id" to TestFixtures.uuid().toString(),
+        "type" to "SESSION",
+        "sessionId" to sessionId.toString(),
+        "amount" to amount,
+    )
+
+    private fun headerBody(
+        type: String = "SESSION",
+        start: LocalDate = rangeStart,
+        end: LocalDate = rangeEnd,
+        expectedVersion: Int,
+    ) = mapOf(
+        "type" to type,
+        "method" to "HANDED_TO_ACCOUNTANT",
+        "dateRangeStart" to start.toString(),
+        "dateRangeEnd" to end.toString(),
+        "expectedVersion" to expectedVersion,
+    )
+
+    private fun undoBody(
+        expectedVersion: Int,
+        reason: String = "wrong",
+    ) = mapOf("expectedVersion" to expectedVersion, "reason" to reason)
+
     // ──────────────────────────────────────────────
     // GET /api/remittances (G1 list)
     // ──────────────────────────────────────────────
 
     @Test
     fun `GET list allowed with net for granted user`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/remittances?branchId=$branchId",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"netIncome\":\"500.00\""))
-        }
+        val response = testServer.client.get("/api/remittances?branchId=$branchId", asUser(submitUser))
+        assertEquals(200, response.code)
+        assertTrue(
+            response.body
+                .string()
+                .orEmpty()
+                .contains("\"netIncome\":\"500.00\""),
+        )
     }
 
     @Test
     fun `GET list filtered by status`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/remittances?branchId=$branchId&status=SUBMITTED",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"status\":\"SUBMITTED\""))
-            assertTrue(!body.contains("\"id\":\"$draftRemittanceId\""))
-        }
+        val response =
+            testServer.client.get(
+                "/api/remittances?branchId=$branchId&status=SUBMITTED",
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"status\":\"SUBMITTED\""))
+        assertTrue(!body.contains("\"id\":\"$draftRemittanceId\""))
     }
 
     @Test
-    fun `GET list forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/remittances?branchId=$branchId", asUser(noneUser)).code,
-            )
-        }
-    }
+    fun `GET list forbidden for no-capability user`() = assertGet(403, "/api/remittances?branchId=$branchId", noneUser)
 
     @Test
-    fun `GET list forbidden on other branch`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/remittances?branchId=$otherBranchId", asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `GET list forbidden on other branch`() = assertGet(403, "/api/remittances?branchId=$otherBranchId")
 
     @Test
     fun `GET list returns 404 for missing branch with grant`() {
         val missingBranchId = TestFixtures.uuid()
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client.get("/api/remittances?branchId=$missingBranchId", asUser(submitUser)).code,
-            )
-        }
+        assertGet(404, "/api/remittances?branchId=$missingBranchId")
     }
 
     @Test
-    fun `GET list returns 400 without branchId`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/remittances", asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `GET list returns 400 without branchId`() = assertGet(400, "/api/remittances")
 
     @Test
     fun `GET list accepts ALL status`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/remittances?branchId=$branchId&status=ALL",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"netIncome\":\"500.00\""))
-            assertTrue(body.contains("\"id\":\"$draftRemittanceId\""))
-        }
+        val response =
+            testServer.client.get(
+                "/api/remittances?branchId=$branchId&status=ALL",
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"netIncome\":\"500.00\""))
+        assertTrue(body.contains("\"id\":\"$draftRemittanceId\""))
     }
 
     @Test
-    fun `GET list returns 400 on invalid status`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client.get("/api/remittances?branchId=$branchId&status=NOPE", asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `GET list returns 400 on invalid status`() = assertGet(400, "/api/remittances?branchId=$branchId&status=NOPE")
 
     // ──────────────────────────────────────────────
     // G2/G3/G4 — pickers
@@ -322,145 +345,92 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET sessions picker allowed with client name`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/branches/$branchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"clientName\":\"Test Client\""))
-            assertTrue(body.contains("\"finalPrice\":\"2500.00\""))
-        }
+        val response =
+            testServer.client.get(
+                "/api/branches/$branchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"clientName\":\"Test Client\""))
+        assertTrue(body.contains("\"finalPrice\":\"2500.00\""))
     }
 
     @Test
-    fun `GET sessions picker forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .get(
-                        "/api/branches/$branchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
-    }
+    fun `GET sessions picker forbidden for no-capability user`() =
+        assertGet(
+            403,
+            "/api/branches/$branchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
+            noneUser,
+        )
 
     @Test
     fun `GET product-sales picker allowed with product name`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/branches/$branchId/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"productName\":"))
-            assertTrue(body.contains("\"totalAmountAtTime\":\"100.00\""))
-        }
+        val response =
+            testServer.client.get(
+                "/api/branches/$branchId/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"productName\":"))
+        assertTrue(body.contains("\"totalAmountAtTime\":\"100.00\""))
     }
 
     @Test
-    fun `GET product-sales picker forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .get(
-                        "/api/branches/$branchId/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
-    }
+    fun `GET product-sales picker forbidden for no-capability user`() =
+        assertGet(
+            403,
+            "/api/branches/$branchId/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
+            noneUser,
+        )
 
     @Test
     fun `GET days picker allowed with effective statuses`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"status\":\"REMITTED\""))
-        }
+        val response =
+            testServer.client.get(
+                "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        assertTrue(
+            response.body
+                .string()
+                .orEmpty()
+                .contains("\"status\":\"REMITTED\""),
+        )
     }
 
     @Test
-    fun `GET days picker allowed for a global branch viewer without remittance rights`() {
-        testServer.client.let { client ->
-            assertEquals(
-                200,
-                client
-                    .get(
-                        "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
-                        asUser(globalViewer),
-                    ).code,
-            )
-        }
-    }
+    fun `GET days picker allowed for a global branch viewer without remittance rights`() =
+        assertGet(
+            200,
+            "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
+            globalViewer,
+        )
 
     @Test
-    fun `GET days picker forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .get(
-                        "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
-    }
+    fun `GET days picker forbidden for no-capability user`() =
+        assertGet(
+            403,
+            "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
+            noneUser,
+        )
 
     @Test
-    fun `GET days picker returns 400 on reversed range`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .get(
-                        "/api/branches/$branchId/remittance-days?from=$rangeEnd&to=$rangeStart",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `GET days picker returns 400 on reversed range`() =
+        assertGet(400, "/api/branches/$branchId/remittance-days?from=$rangeEnd&to=$rangeStart")
 
     @Test
-    fun `GET days picker returns 400 on invalid date`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .get(
-                        "/api/branches/$branchId/remittance-days?from=not-a-date&to=$rangeEnd",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `GET days picker returns 400 on invalid date`() =
+        assertGet(400, "/api/branches/$branchId/remittance-days?from=not-a-date&to=$rangeEnd")
 
     @Test
-    fun `GET pickers forbidden on other branch`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .get(
-                        "/api/branches/$otherBranchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `GET pickers forbidden on other branch`() =
+        assertGet(
+            403,
+            "/api/branches/$otherBranchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
+        )
 
     // ──────────────────────────────────────────────
     // G5 — DELETE day-breakdown
@@ -468,63 +438,32 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `DELETE day breakdown allowed for granted user`() {
-        testServer.client.let { client ->
-            val response =
-                client.delete(
-                    "/api/remittances/$draftRemittanceId/day-breakdowns/$breakdownId",
-                    "",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"id\":\"$breakdownId\""))
-        }
+        val response =
+            testServer.client.delete(
+                "/api/remittances/$draftRemittanceId/day-breakdowns/$breakdownId",
+                "",
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        assertTrue(
+            response.body
+                .string()
+                .orEmpty()
+                .contains("\"id\":\"$breakdownId\""),
+        )
     }
 
     @Test
-    fun `DELETE day breakdown forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .delete(
-                        "/api/remittances/$draftRemittanceId/day-breakdowns/$breakdownId",
-                        "",
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
-    }
+    fun `DELETE day breakdown forbidden for no-capability user`() =
+        assertDelete(403, "/api/remittances/$draftRemittanceId/day-breakdowns/$breakdownId", noneUser)
 
     @Test
-    fun `DELETE day breakdown forbidden on other branch remittance`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .delete(
-                        "/api/remittances/$otherBranchDraftId/day-breakdowns/$otherBranchBreakdownId",
-                        "",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `DELETE day breakdown forbidden on other branch remittance`() =
+        assertDelete(403, "/api/remittances/$otherBranchDraftId/day-breakdowns/$otherBranchBreakdownId")
 
     @Test
-    fun `DELETE day breakdown on submitted remittance returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .delete(
-                        "/api/remittances/$submittedRemittanceId/day-breakdowns/$submittedBreakdownId",
-                        "",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `DELETE day breakdown on submitted remittance returns 400`() =
+        assertDelete(400, "/api/remittances/$submittedRemittanceId/day-breakdowns/$submittedBreakdownId")
 
     // ──────────────────────────────────────────────
     // G6/G7 — detail snapshot + drift
@@ -532,101 +471,47 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET detail includes snapshot for submitted SESSION remittance`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/remittances/$submittedRemittanceId",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"snapshot\":{\"remittanceId\":\"$submittedRemittanceId\""))
-            assertTrue(body.contains("\"netIncome\":\"500.00\""))
-        }
+        val response =
+            testServer.client.get("/api/remittances/$submittedRemittanceId", asUser(submitUser))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"snapshot\":{\"remittanceId\":\"$submittedRemittanceId\""))
+        assertTrue(body.contains("\"netIncome\":\"500.00\""))
     }
 
     @Test
     fun `GET drift allowed for granted user`() {
-        testServer.client.let { client ->
-            val response =
-                client.get(
-                    "/api/remittances/$submittedRemittanceId/drift",
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"frozen\":"))
-            assertTrue(body.contains("\"currentNet\":\"500.00\""))
-        }
+        val response =
+            testServer.client.get("/api/remittances/$submittedRemittanceId/drift", asUser(submitUser))
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"frozen\":"))
+        assertTrue(body.contains("\"currentNet\":\"500.00\""))
     }
 
     @Test
-    fun `GET drift forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/remittances/$submittedRemittanceId/drift", asUser(noneUser)).code,
-            )
-        }
-    }
+    fun `GET drift forbidden for no-capability user`() =
+        assertGet(403, "/api/remittances/$submittedRemittanceId/drift", noneUser)
 
     @Test
-    fun `GET drift returns 404 for draft without snapshot`() {
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client.get("/api/remittances/$draftRemittanceId/drift", asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `GET drift returns 404 for draft without snapshot`() =
+        assertGet(404, "/api/remittances/$draftRemittanceId/drift")
 
     @Test
-    fun `GET drift returns 403 on other branch remittance`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client.get("/api/remittances/$otherBranchDraftId/drift", asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `GET drift returns 403 on other branch remittance`() =
+        assertGet(403, "/api/remittances/$otherBranchDraftId/drift")
 
     // ──────────────────────────────────────────────
     // F9 regression — pre-existing sub-routes were ungated
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST line forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "type" to "SESSION",
-                    "sessionId" to sessionId.toString(),
-                    "amount" to "50.00",
-                )
-            assertEquals(
-                403,
-                client.post("/api/remittances/$draftRemittanceId/lines", body, asUser(noneUser)).code,
-            )
-        }
-    }
+    fun `POST line forbidden for no-capability user`() =
+        assertPost(403, "/api/remittances/$draftRemittanceId/lines", lineBody(), noneUser)
 
     @Test
-    fun `POST line duplicate session in same draft returns 409`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "type" to "SESSION",
-                    "sessionId" to sessionId.toString(),
-                    "amount" to "50.00",
-                )
-            assertEquals(
-                409,
-                client.post("/api/remittances/$draftRemittanceId/lines", body, asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `POST line duplicate session in same draft returns 409`() =
+        assertPost(409, "/api/remittances/$draftRemittanceId/lines", lineBody())
 
     @Test
     fun `POST line still allowed for granted user`() {
@@ -638,19 +523,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             branchDayId = freshDayId,
             sessionStatus = com.companyb.companyapp.contracts.session.SessionStatus.COMPLETED,
         )
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "type" to "SESSION",
-                    "sessionId" to freshSessionId.toString(),
-                    "amount" to "50.00",
-                )
-            assertEquals(
-                201,
-                client.post("/api/remittances/$draftRemittanceId/lines", body, asUser(submitUser)).code,
-            )
-        }
+        assertPost(201, "/api/remittances/$draftRemittanceId/lines", lineBody(sessionId = freshSessionId))
     }
 
     @Test
@@ -673,49 +546,28 @@ class RemittanceAuthzTest : BasePostgresTest() {
             productSaleId = null,
             amount = BigDecimal("75.00"),
         )
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .delete(
-                        "/api/remittances/$draftRemittanceId/lines/$lineId",
-                        "",
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
+        assertDelete(403, "/api/remittances/$draftRemittanceId/lines/$lineId", noneUser)
     }
 
     @Test
     fun `POST day-breakdown forbidden for no-capability user`() {
         val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, LocalDate.of(2026, 7, 11))
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "id" to TestFixtures.uuid().toString(),
-                    "branchDayId" to dayId.toString(),
-                )
-            assertEquals(
-                403,
-                client.post("/api/remittances/$draftRemittanceId/day-breakdowns", body, asUser(noneUser)).code,
-            )
-        }
+        assertPost(
+            403,
+            "/api/remittances/$draftRemittanceId/day-breakdowns",
+            mapOf("id" to TestFixtures.uuid().toString(), "branchDayId" to dayId.toString()),
+            noneUser,
+        )
     }
 
     @Test
-    fun `POST submit forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .post(
-                        "/api/remittances/$draftRemittanceId/submit",
-                        mapOf("expectedVersion" to 2),
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST submit forbidden for no-capability user`() =
+        assertPost(
+            403,
+            "/api/remittances/$draftRemittanceId/submit",
+            mapOf("expectedVersion" to 2),
+            noneUser,
+        )
 
     // ──────────────────────────────────────────────
     // G8 — undo + header PATCH
@@ -723,317 +575,120 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo allowed for granted user`() {
-        testServer.client.let { client ->
-            val version = RemittanceService.getRemittance(submittedRemittanceId).remittance.version
-            val response =
-                client.post(
-                    "/api/remittances/$submittedRemittanceId/undo",
-                    mapOf("expectedVersion" to version, "reason" to "wrong amounts"),
-                    asUser(submitUser),
-                )
-            assertEquals(200, response.code)
-            val body = response.body.string().orEmpty()
-            assertTrue(body.contains("\"status\":\"DRAFT\""))
-        }
+        val version = RemittanceService.getRemittance(submittedRemittanceId).remittance.version
+        val response =
+            testServer.client.post(
+                "/api/remittances/$submittedRemittanceId/undo",
+                undoBody(version, "wrong amounts"),
+                asUser(submitUser),
+            )
+        assertEquals(200, response.code)
+        assertTrue(
+            response.body
+                .string()
+                .orEmpty()
+                .contains("\"status\":\"DRAFT\""),
+        )
     }
 
     @Test
-    fun `POST undo forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .post(
-                        "/api/remittances/$submittedRemittanceId/undo",
-                        mapOf("expectedVersion" to 3, "reason" to "wrong"),
-                        asUser(noneUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST undo forbidden for no-capability user`() =
+        assertPost(403, "/api/remittances/$submittedRemittanceId/undo", undoBody(3), noneUser)
 
     @Test
-    fun `POST undo forbidden on other branch remittance`() {
-        testServer.client.let { client ->
-            assertEquals(
-                403,
-                client
-                    .post(
-                        "/api/remittances/$otherBranchDraftId/undo",
-                        mapOf("expectedVersion" to 1, "reason" to "wrong"),
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST undo forbidden on other branch remittance`() =
+        assertPost(403, "/api/remittances/$otherBranchDraftId/undo", undoBody(1))
 
     @Test
-    fun `POST undo on non-submitted remittance returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .post(
-                        "/api/remittances/$draftRemittanceId/undo",
-                        mapOf("expectedVersion" to 2, "reason" to "wrong"),
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST undo on non-submitted remittance returns 400`() =
+        assertPost(400, "/api/remittances/$draftRemittanceId/undo", undoBody(2))
 
     @Test
-    fun `POST undo without reason returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .post(
-                        "/api/remittances/$submittedRemittanceId/undo",
-                        mapOf("expectedVersion" to 3, "reason" to "   "),
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST undo without reason returns 400`() =
+        assertPost(400, "/api/remittances/$submittedRemittanceId/undo", undoBody(3, "   "))
 
     @Test
-    fun `POST undo with multi-line reason returns 400`() {
-        testServer.client.let { client ->
-            assertEquals(
-                400,
-                client
-                    .post(
-                        "/api/remittances/$submittedRemittanceId/undo",
-                        mapOf("expectedVersion" to 3, "reason" to "line one\nline two"),
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST undo with multi-line reason returns 400`() =
+        assertPost(400, "/api/remittances/$submittedRemittanceId/undo", undoBody(3, "line one\nline two"))
 
     @Test
-    fun `POST undo with version mismatch returns 409`() {
-        testServer.client.let { client ->
-            assertEquals(
-                409,
-                client
-                    .post(
-                        "/api/remittances/$submittedRemittanceId/undo",
-                        mapOf("expectedVersion" to 99, "reason" to "wrong"),
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
-    }
+    fun `POST undo with version mismatch returns 409`() =
+        assertPost(409, "/api/remittances/$submittedRemittanceId/undo", undoBody(99))
 
     @Test
     fun `PATCH header allowed for granted user`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 3,
-                )
-            val response = client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser))
-            assertEquals(200, response.code)
-            val responseBody = response.body.string().orEmpty()
-            assertTrue(responseBody.contains("\"method\":\"HANDED_TO_ACCOUNTANT\""))
-            assertTrue(responseBody.contains("\"version\":4"))
-        }
-    }
-
-    @Test
-    fun `PATCH header to a type already used for the submitted date is allowed for drafts`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 3,
-                )
-            assertEquals(200, client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code)
-        }
-    }
-
-    @Test
-    fun `PATCH header forbidden for no-capability user`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 2,
-                )
-            assertEquals(
-                403,
-                client.patch("/api/remittances/$draftRemittanceId", body, asUser(noneUser)).code,
+        val response =
+            testServer.client.patch(
+                "/api/remittances/$draftRemittanceId",
+                headerBody(expectedVersion = 3),
+                asUser(submitUser),
             )
-        }
+        assertEquals(200, response.code)
+        val body = response.body.string().orEmpty()
+        assertTrue(body.contains("\"method\":\"HANDED_TO_ACCOUNTANT\""))
+        assertTrue(body.contains("\"version\":4"))
     }
 
     @Test
-    fun `PATCH header forbidden on other branch remittance`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 1,
-                )
-            assertEquals(
-                403,
-                client.patch("/api/remittances/$otherBranchDraftId", body, asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `PATCH header to a type already used for the submitted date is allowed for drafts`() =
+        assertPatch(200, "/api/remittances/$draftRemittanceId", headerBody(expectedVersion = 3))
 
     @Test
-    fun `PATCH header invalid type returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "NOPE",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 2,
-                )
-            assertEquals(
-                400,
-                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `PATCH header forbidden for no-capability user`() =
+        assertPatch(403, "/api/remittances/$draftRemittanceId", headerBody(expectedVersion = 2), noneUser)
 
     @Test
-    fun `PATCH header reversed range returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeEnd.toString(),
-                    "dateRangeEnd" to rangeStart.toString(),
-                    "expectedVersion" to 2,
-                )
-            assertEquals(
-                400,
-                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `PATCH header forbidden on other branch remittance`() =
+        assertPatch(403, "/api/remittances/$otherBranchDraftId", headerBody(expectedVersion = 1))
 
     @Test
-    fun `PATCH header on submitted remittance returns 400`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 3,
-                )
-            assertEquals(
-                400,
-                client.patch("/api/remittances/$submittedRemittanceId", body, asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `PATCH header invalid type returns 400`() =
+        assertPatch(400, "/api/remittances/$draftRemittanceId", headerBody(type = "NOPE", expectedVersion = 2))
 
     @Test
-    fun `PATCH header with version mismatch returns 409`() {
-        testServer.client.let { client ->
-            val body =
-                mapOf(
-                    "type" to "SESSION",
-                    "method" to "HANDED_TO_ACCOUNTANT",
-                    "dateRangeStart" to rangeStart.toString(),
-                    "dateRangeEnd" to rangeEnd.toString(),
-                    "expectedVersion" to 99,
-                )
-            assertEquals(
-                409,
-                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
-            )
-        }
-    }
+    fun `PATCH header reversed range returns 400`() =
+        assertPatch(
+            400,
+            "/api/remittances/$draftRemittanceId",
+            headerBody(start = rangeEnd, end = rangeStart, expectedVersion = 2),
+        )
+
+    @Test
+    fun `PATCH header on submitted remittance returns 400`() =
+        assertPatch(400, "/api/remittances/$submittedRemittanceId", headerBody(expectedVersion = 3))
+
+    @Test
+    fun `PATCH header with version mismatch returns 409`() =
+        assertPatch(409, "/api/remittances/$draftRemittanceId", headerBody(expectedVersion = 99))
 
     @Test
     fun `GET list with unknown branch returns 404`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client.get("/api/remittances?branchId=$unknownBranch", asUser(submitUser)).code,
-            )
-        }
+        assertGet(404, "/api/remittances?branchId=$unknownBranch")
     }
 
     @Test
     fun `GET list with unknown branch returns 404 without any capability`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client.get("/api/remittances?branchId=$unknownBranch", asUser(noneUser)).code,
-            )
-        }
+        assertGet(404, "/api/remittances?branchId=$unknownBranch", noneUser)
     }
 
     @Test
     fun `GET sessions picker with unknown branch returns 404`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client
-                    .get(
-                        "/api/branches/$unknownBranch/remittance-sessions?from=$rangeStart&to=$rangeEnd",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
+        assertGet(404, "/api/branches/$unknownBranch/remittance-sessions?from=$rangeStart&to=$rangeEnd")
     }
 
     @Test
     fun `GET product-sales picker with unknown branch returns 404`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client
-                    .get(
-                        "/api/branches/$unknownBranch/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
+        assertGet(404, "/api/branches/$unknownBranch/remittance-product-sales?from=$rangeStart&to=$rangeEnd")
     }
 
     @Test
     fun `GET days picker with unknown branch returns 404`() {
         val unknownBranch = TestFixtures.uuid()
-        testServer.client.let { client ->
-            assertEquals(
-                404,
-                client
-                    .get(
-                        "/api/branches/$unknownBranch/remittance-days?from=$rangeStart&to=$rangeEnd",
-                        asUser(submitUser),
-                    ).code,
-            )
-        }
+        assertGet(404, "/api/branches/$unknownBranch/remittance-days?from=$rangeStart&to=$rangeEnd")
     }
 
     @Test
@@ -1041,11 +696,9 @@ class RemittanceAuthzTest : BasePostgresTest() {
         val emptyBranch = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(emptyBranch, "Empty Remittance Branch $emptyBranch")
         IdentityFixtures.member(submitUser, emptyBranch, Role.COORDINATOR)
-        testServer.client.let { client ->
-            val response = client.get("/api/remittances?branchId=$emptyBranch", asUser(submitUser))
-            assertEquals(200, response.code)
-            assertEquals("[]", response.body.string().orEmpty())
-        }
+        val response = testServer.client.get("/api/remittances?branchId=$emptyBranch", asUser(submitUser))
+        assertEquals(200, response.code)
+        assertEquals("[]", response.body.string().orEmpty())
     }
 
     @Test
@@ -1053,28 +706,14 @@ class RemittanceAuthzTest : BasePostgresTest() {
         val emptyBranch = TestFixtures.uuid()
         BranchWorkforceFixtures.insertTestBranch(emptyBranch, "Empty Picker Branch $emptyBranch")
         IdentityFixtures.member(submitUser, emptyBranch, Role.COORDINATOR)
-        testServer.client.let { client ->
-            val sessions =
-                client.get(
-                    "/api/branches/$emptyBranch/remittance-sessions?from=$rangeStart&to=$rangeEnd",
+        for (picker in listOf("remittance-sessions", "remittance-product-sales", "remittance-days")) {
+            val response =
+                testServer.client.get(
+                    "/api/branches/$emptyBranch/$picker?from=$rangeStart&to=$rangeEnd",
                     asUser(submitUser),
                 )
-            assertEquals(200, sessions.code)
-            assertEquals("[]", sessions.body.string().orEmpty())
-            val sales =
-                client.get(
-                    "/api/branches/$emptyBranch/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
-                    asUser(submitUser),
-                )
-            assertEquals(200, sales.code)
-            assertEquals("[]", sales.body.string().orEmpty())
-            val days =
-                client.get(
-                    "/api/branches/$emptyBranch/remittance-days?from=$rangeStart&to=$rangeEnd",
-                    asUser(submitUser),
-                )
-            assertEquals(200, days.code)
-            assertEquals("[]", days.body.string().orEmpty())
+            assertEquals(200, response.code, picker)
+            assertEquals("[]", response.body.string().orEmpty(), picker)
         }
     }
 }
