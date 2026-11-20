@@ -25,7 +25,13 @@ CONSTANTS
     RecentUntilSeen,  \* fix: "just sent" rows persist over a reload and stay until the server list shows them
     ReplayReason,     \* fix: a replay sent on a later day than it was made carries a reason
     UserCanEditPast,  \* the signed-in person holds EDIT_PAST_DAY
+    EventTime,        \* fix: the server judges a closed day by when the save was made (X-Occurred-At), within LateDays
+    MaxDay,           \* day turnovers the run may see (04:00 Manila); 2 reaches past the late window
     MaxMarks, MaxReloads
+
+\* BranchDayService + OpTime.LATE_WINDOW (48 h): a save made on a day lands on it, flagged, up to the next day.
+LateDays == 1
+Days == 0..MaxDay
 
 None == 0
 Codes == {0, 400, 403, 404, 409}
@@ -38,13 +44,13 @@ vars == <<net, today, srv, sale, queue, sending, todo, flight, sent,
           recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 Item == [id : Nat, kind : {"create", "mark", "sale"}, st : {"P", "D", "-"}, ver : Nat,
-         day : 0..1, qday : 0..1, failed : Codes, tried : BOOLEAN]
+         day : Days, qday : Days, failed : Codes, tried : BOOLEAN]
 
 TypeOK ==
     /\ net \in {"up", "down"}
-    /\ today \in 0..1
-    /\ srv \in [ex : BOOLEAN, st : {"P", "D"}, ver : 0..4, day : 0..1]
-    /\ sale \in [ex : BOOLEAN, day : 0..1]
+    /\ today \in Days
+    /\ srv \in [ex : BOOLEAN, st : {"P", "D"}, ver : 0..4, day : Days]
+    /\ sale \in [ex : BOOLEAN, day : Days]
     /\ queue \in Seq(Item)
     /\ sending \in BOOLEAN
     /\ flight.phase \in {"none", "req", "res"}
@@ -118,7 +124,7 @@ UserSale ==
     /\ UNCHANGED <<net, today, srv, sale, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nmarks, ncreate, nreload>>
 
 Rollover ==
-    /\ today = 0 /\ today' = 1
+    /\ today < MaxDay /\ today' = today + 1
     /\ UNCHANGED <<net, srv, sale, queue, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 NetFlip ==
@@ -201,6 +207,8 @@ FlushEnd ==
 \* Server side: what the routes answer for the item in flight.
 PastGate(gateDay, it) ==
     IF gateDay >= today THEN 0
+    \* made while that day was open and sent within the window: lands as made, flagged for review
+    ELSE IF EventTime /\ it.qday = gateDay /\ today - it.qday <= LateDays THEN 0
     ELSE IF ~UserCanEditPast THEN 403
     ELSE IF ReplayReason /\ it.qday < today THEN 0
     ELSE 400
@@ -288,6 +296,10 @@ NoVanish ==
 \* P2. Saves the person made in a sensible order are never refused for a clash or a bad request.
 NoSelfRefusal ==
     \A j \in 1..Len(queue) : queue[j].failed \notin {400, 409}
+
+\* P4. Work made on an open day is never refused for the day having closed, until the late window is over.
+NoLateRefusal ==
+    \A j \in 1..Len(queue) : queue[j].failed = 403 => today - queue[j].qday > LateDays
 
 \* P3. When everything has been sent, the server holds what the person last chose.
 ConvergesToIntent ==

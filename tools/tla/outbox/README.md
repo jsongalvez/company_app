@@ -29,6 +29,10 @@ Needs Java 17+. The script downloads `tla2tools.jar` (TLC 2026.10.20) into `~/.l
   `RecentUntilSeen`, `ReplayReason`). They must pass.
 - `noCapability-*.cfg`: the same fixes, but the signed-in person may not change earlier days. Their
   replays are refused with 403, never 400/409.
+- `today-NoLateRefusal.cfg` / `eventTime-NoLateRefusal.cfg`: two day turnovers (`MaxDay = 2`), a
+  person who may not change earlier days. Without `EventTime` a save made offline and sent after
+  04:00 is refused 403 (expected to fail); with it (`X-Occurred-At`, `OpTime.admitsLate`) the server
+  takes it on the day it was made, flagged, until the 48 h window (`LateDays = 1`) is over.
 
 `run.sh` exits 1 if any config does the opposite of what its name says. `ablate.sh` switches the
 fixes off one at a time in the passing configs and checks that the model then fails, so each fix is
@@ -41,6 +45,7 @@ shown to be needed (about ten minutes).
 | `NoVanish` | A session that exists today, on the server or waiting on the phone, is on `#/today`. |
 | `NoSelfRefusal` | A save the person made in a sensible order is never refused with 400 or 409. |
 | `ConvergesToIntent` | When nothing is left to send, the server holds the status the person chose last. |
+| `NoLateRefusal` | Work made on an open day is never refused because the day has closed since, until the late window is over. |
 
 ## What it found (all four reproduce in the real app)
 
