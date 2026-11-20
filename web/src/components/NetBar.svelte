@@ -3,6 +3,7 @@
     import { outbox, waiting, failed, discard, flush, retry } from "../lib/outbox.svelte";
     import { time } from "../lib/format";
     import { update } from "../lib/update.svelte";
+    import InstallApp from "./InstallApp.svelte";
 
     const w = $derived((outbox.items, waiting()));
     const f = $derived((outbox.items, failed()));
@@ -14,6 +15,9 @@
     }
 </script>
 
+{#if !update.coming && !update.ready && !offline && !w.length && !f.length}
+    <div class="dock"><InstallApp nudge /></div>
+{/if}
 {#if update.coming && !update.ready && !offline && !w.length && !f.length}
     <div class="dock">
         <div class="netbar" role="status"><span>A newer version is downloading…</span></div>
@@ -35,7 +39,7 @@
                 {#if w.length}
                     {w.length === 1 ? "1 change" : `${w.length} changes`} waiting to send{outbox.sending ? "…" : "."}
                 {:else if offline}
-                    Showing what this phone last saw. New sessions, sales and marks will wait here until you're back online.
+                    Showing what this phone last saw. Your changes wait here and send when you're back online.
                 {/if}
                 {#if f.length}<b>{f.length} couldn't be sent.</b>{/if}
             </span>
