@@ -135,7 +135,7 @@ export function takeStart(s: S["StartResponse"], withToday: boolean) {
 }
 
 /** Fill the phone's copy for a day's work here with no signal (`data.ts pullBranch`). */
-function pull() {
+export function pull() {
     const branch = app.branchId;
     const day = today.day?.branchDayId;
     pullBranch(branch, day, {

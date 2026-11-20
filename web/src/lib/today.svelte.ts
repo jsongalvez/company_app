@@ -10,7 +10,7 @@ import { parseBody } from "./outbox-classify";
 import { operationalDate } from "./format";
 import { seedTodayScreen } from "./data";
 import { act } from "./act.svelte";
-import { app, branchName, onToday, takeStart, toast } from "./app.svelte";
+import { app, branchName, onToday, pull, takeStart, toast } from "./app.svelte";
 import { worksAt } from "./rights";
 
 type Day = S["BranchDayTodayResponse"];
@@ -80,7 +80,10 @@ export function selectBranch(id: string) {
     app.branchId = id;
     localStorage.setItem("branchId", id);
     s.day = null;
-    void refreshDay();
+    // A branch picked at the start of a day out of signal needs its own copy on the phone too.
+    void refreshDay().then(() => {
+        if (app.branchId === id) pull();
+    });
 }
 
 export async function refreshDay() {
