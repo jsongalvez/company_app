@@ -1,6 +1,6 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-import { clockInHere, clockOutHere, doneSessionForNewClient } from "./support";
+import { clockInHere, clockOutHere, diskValues, doneSessionForNewClient } from "./support";
 
 test("log a session for a new client and mark it done", { session: "owner" }, async ({ app, screen, browser }) => {
     await doneSessionForNewClient(app, screen, browser);
@@ -20,16 +20,7 @@ test("clocking out takes today's list off the screen and off the phone", { sessi
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 
     // Nothing of today's list is kept on the phone, so a reload has nothing to flash.
-    await expect
-        .poll(() =>
-            browser.evaluate(() =>
-                Object.keys(localStorage)
-                    .filter((k) => k.startsWith("qcache:"))
-                    .map((k) => localStorage.getItem(k) ?? "")
-                    .join(),
-            ),
-        )
-        .not.toContain(name);
+    await expect.poll(async () => (await diskValues(browser, "qcache:")).join()).not.toContain(name);
     await app.open("/#/today");
     await expect(screen.getByRole("banner").getByRole("button", "Clock in").first()).toBeVisible();
     await expect(screen.getByRole("row").filter({ hasText: name })).toHaveCount(0);

@@ -3,7 +3,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { jittered } from "../lib/backoff";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
-import { canQueue, eager, enqueue, mustQueue, onlyEagerAhead, waiting } from "../lib/outbox.svelte";
+import { canQueue, eager, enqueue as hold, mustQueue, newOp, OCCURRED_AT, OP_ID, onlyEagerAhead, waiting } from "../lib/outbox.svelte";
 import { traceparent } from "../lib/telemetry";
 
 export type S = components["schemas"];
@@ -180,9 +180,17 @@ async function resilientFetch(req: Request): Promise<Response> {
     // A remittance freezes the day's totals: it must not go out ahead of saves still on this phone.
     if (FREEZES.test(path) && req.method !== "GET" && waiting().length)
         return refusedHere(req.method, path, 409, `Send the ${waiting().length} waiting changes first, then try again.`);
+    const queueable = canQueue(req.method, path);
+    // One id and one time per save, from the tap: the live try and every resend from the queue carry the
+    // same ones, so a try that reached the server but lost its answer is not done again.
+    const op = queueable ? newOp() : undefined;
+    if (op) {
+        req.headers.set(OP_ID, op.id);
+        req.headers.set(OCCURRED_AT, op.at);
+    }
+    const enqueue = (m: string, p: string, b: string, sh?: string, q?: string, held = true) => hold(m, p, b, sh, q, held, op);
     // Saves already waiting for signal go first: this one lines up behind them.
     if (mustQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query, net.trouble || !navigator.onLine || !onlyEagerAhead());
-    const queueable = canQueue(req.method, path);
     // Signal already known to be bad: hold the save now rather than make the person wait.
     if (queueable && (net.trouble || !navigator.onLine)) return enqueue(req.method, path, body ?? "", shown, query);
     // New sessions and sales show at once; the queue sends them now and keeps them if that fails.

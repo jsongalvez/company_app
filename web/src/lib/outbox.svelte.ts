@@ -289,7 +289,11 @@ export function mustQueue(method: string, path: string): boolean {
  * Store a save for later; answer the page as if it went through (the record's own fields).
  * `held` is false for an eager save made with good signal: it goes out now, so the page says "added", not "saved on this phone".
  */
-export function enqueue(method: string, path: string, body: string, shown?: string, query?: string, held = true): Response {
+/** A save's own id and the time it was made, given once when the person acts. */
+export type Op = { id: string; at: string };
+export const newOp = (): Op => ({ id: crypto.getRandomValues(new Uint32Array(2)).join("-"), at: nowIso() });
+
+export function enqueue(method: string, path: string, body: string, shown?: string, query?: string, held = true, op: Op = newOp()): Response {
     const r = rule(method, path)!;
     const b = parseBody(body);
     let from: string | undefined;
@@ -309,8 +313,8 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
     }
     if (!drop)
         outbox.items.push({
-            id: crypto.getRandomValues(new Uint32Array(2)).join("-"),
-            at: nowIso(),
+            id: op.id,
+            at: op.at,
             user: tokenUser(),
             method,
             path,

@@ -131,7 +131,18 @@ export function takeStart(s: S["StartResponse"], withToday: boolean) {
     app.unread = s.unreadCount;
     allowDirectory(canRead("WORK_ANYWHERE", {}));
     void refreshDirectory();
-    pullBranch(app.branchId, today.day?.branchDayId);
+    pull();
+}
+
+/** Fill the phone's copy for a day's work here with no signal (`data.ts pullBranch`). */
+function pull() {
+    const branch = app.branchId;
+    const day = today.day?.branchDayId;
+    pullBranch(branch, day, {
+        seeDay: canRead("SEE_DAY", { branch, day }),
+        seeBranch: canRead("SEE_BRANCH", { branch }),
+        pay: !!day && can("PAY", { branch, day }),
+    });
 }
 
 /** Load identity, rights and branches; pick a branch. What the phone saved shows at once. */
@@ -172,7 +183,7 @@ const catchUp = () => {
     if (!getToken()) return;
     if (!app.me) void boot().catch(() => {});
     else void Promise.all([catchUpDay(), refreshUnread()]).catch(() => {});
-    if (app.me && navigator.onLine) pullBranch(app.branchId, today.day?.branchDayId);
+    if (app.me && navigator.onLine) pull();
 };
 
 /** End a timed "view as" when it runs out, and catch up when the signal returns or held saves go out. */

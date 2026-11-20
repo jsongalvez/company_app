@@ -1,6 +1,6 @@
 /** Every read the UI makes, with its cache key. Pages and hover-prefetch share these. */
 import { api, ok, ApiError, type S } from "../api/client";
-import { fetchCached } from "./cache.svelte";
+import { fetchCached, peek } from "./cache.svelte";
 import { operationalDate } from "./format";
 import { key, type Key } from "./keys";
 
@@ -137,33 +137,25 @@ export function warm<T>(l: Loader<T>) {
     void fetchCached(l.key, l.fn).catch(() => {});
 }
 
+/** What the signed-in person may read at the branch, from the server's rights (`app.svelte.ts`). */
+export type PullRights = { seeDay: boolean; seeBranch: boolean; pay: boolean };
+
 /**
- * Everything a day's work at a branch reads, pulled into the phone's copy at sign-in, at open and
- * when the signal returns, so a whole day with no signal still has its records: the open day,
- * clients, prices, stock and staff. A read the person may not make is refused and skipped.
+ * What the save dialogs read (new session, product sale, pay), pulled into the phone's copy at sign-in,
+ * at open and when the signal returns, so a whole day with no signal can still record work: the day's
+ * sessions, staff, stock and prices. Only reads the person may make, and only what the phone has never
+ * saved: pages refresh their own lists when opened.
  */
-export function pullBranch(branchId: string, branchDayId: string | undefined) {
-    if (!branchId) return;
-    const date = operationalDate();
-    const branch = [
-        load.dashboard(branchId),
-        load.roster(branchId),
-        load.bookings(branchId),
+export function pullBranch(branchId: string, branchDayId: string | undefined, may: PullRights) {
+    if (!branchId || !may.seeDay) return;
+    const reads: Loader<unknown>[] = [
+        load.daySessions(branchId, operationalDate()),
         load.members(branchId),
-        load.daySessions(branchId, date),
         load.inventory(branchId),
-        load.rates(branchId),
+        load.concerns(),
+        load.recentClients(),
+        ...(may.seeBranch ? [load.rates(branchId)] : []),
+        ...(branchDayId && may.pay ? [load.dayUsers(branchDayId)] : []),
     ];
-    const shared = [load.concerns(), load.recentClients(), load.products(), load.categories()];
-    const day = branchDayId
-        ? [
-              load.dayUsers(branchDayId),
-              load.productSales(branchDayId),
-              load.expenses(branchDayId),
-              load.compensations(branchDayId),
-              load.allowances(branchDayId),
-              load.commissionSplits(branchDayId),
-          ]
-        : [];
-    for (const l of [...branch, ...shared, ...day] as Loader<unknown>[]) void fetchCached(l.key, l.fn).catch(() => {});
+    for (const l of reads) if (peek(l.key) === undefined) void fetchCached(l.key, l.fn).catch(() => {});
 }

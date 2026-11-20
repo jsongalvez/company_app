@@ -1,12 +1,12 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
-import { doneSessionForNewClient } from "./support";
+import { diskValues, doneSessionForNewClient } from "./support";
 
 // Found by the TLA+ model in tools/tla/outbox (see its README). Each test is one counterexample TLC printed.
 const down = /\/(api\/|health)/;
 const refused = "couldn't be sent";
 type Item = { failed?: string; sentAt?: number };
-const saved = (browser: { evaluate: <T>(f: () => T) => Promise<T> }) => browser.evaluate(() => JSON.parse(localStorage.getItem("outbox") ?? "[]") as Item[]);
+const saved = async (browser: Parameters<typeof diskValues>[0]) => JSON.parse((await diskValues(browser, "outbox"))[0] ?? "[]") as Item[];
 
 // Done, then Undo, both with no signal: the phone used to queue "back to Waiting" for a session that
 // is still waiting on the server, and the server answered 400 (Waiting -> Waiting is not a move).

@@ -128,3 +128,27 @@ export async function noteRefusals(browser: Browser) {
     });
 }
 export const refused = (browser: Browser) => browser.evaluate(() => JSON.parse(sessionStorage.getItem("refused") ?? "[]") as string[]);
+
+/** What the phone keeps under keys starting with `prefix` (web/src/lib/disk.ts: IndexedDB "company-app", store "kv"). */
+export function diskValues(browser: Browser, prefix: string): Promise<string[]> {
+    return browser.evaluate(
+        (p) =>
+            new Promise<string[]>((resolve) => {
+                const req = indexedDB.open("company-app", 1);
+                req.onupgradeneeded = () => req.result.createObjectStore("kv");
+                req.onerror = () => resolve([]);
+                req.onsuccess = () => {
+                    const out: string[] = [];
+                    const cur = req.result.transaction("kv", "readonly").objectStore("kv").openCursor();
+                    cur.onsuccess = () => {
+                        const c = cur.result;
+                        if (!c) return resolve(out);
+                        if (String(c.key).startsWith(p)) out.push(String(c.value));
+                        c.continue();
+                    };
+                    cur.onerror = () => resolve(out);
+                };
+            }),
+        prefix,
+    );
+}
