@@ -59,9 +59,6 @@ object OpTime {
             }.getOrNull()
         }
 
-    /** When the server got the request. */
-    fun received(): Instant = current.get()?.received ?: Instant.now()
-
     /** When the change happened: the phone's time, but never later than the server got it. */
     fun occurred(): Instant = current.get()?.let { it.claimed ?: it.received } ?: Instant.now()
 
