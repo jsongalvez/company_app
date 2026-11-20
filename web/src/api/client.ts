@@ -3,7 +3,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { jittered } from "../lib/backoff";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
-import { canQueue, eager, enqueue, mustQueue, onlyEagerAhead } from "../lib/outbox.svelte";
+import { canQueue, eager, enqueue, mustQueue, onlyEagerAhead, waiting } from "../lib/outbox.svelte";
 import { traceparent } from "../lib/telemetry";
 
 export type S = components["schemas"];
@@ -13,9 +13,53 @@ const TOKEN_KEY = "token";
 export function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
 }
-export function setToken(token: string | null) {
+/** The long token from sign-in: after days without signal it buys a fresh [TOKEN_KEY] (`/auth/refresh`). */
+const REPLAY_KEY = "replayToken";
+
+export function setToken(token: string | null, replayToken?: string) {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
+    if (replayToken) localStorage.setItem(REPLAY_KEY, replayToken);
+    else if (!token) localStorage.removeItem(REPLAY_KEY);
+}
+
+/** Has the sign-in token run out (or will within a minute)? Then the replay token is needed before sending. */
+export function tokenExpired(t = getToken()): boolean {
+    if (!t) return false;
+    try {
+        const exp = (JSON.parse(atob(t.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number }).exp;
+        return typeof exp === "number" && exp * 1000 < Date.now() + 60_000;
+    } catch {
+        return false;
+    }
+}
+
+let refreshing: Promise<boolean | undefined> | null = null;
+/**
+ * Trade the replay token for a fresh sign-in. True: signed in again. False: the server said no
+ * (sign-out, password change, over 7 days): the person must sign in. Undefined: no answer (no signal).
+ */
+export function refreshToken(): Promise<boolean | undefined> {
+    refreshing ??= (async () => {
+        const replayToken = localStorage.getItem(REPLAY_KEY);
+        if (!replayToken) return false;
+        try {
+            const res = await fetch("/auth/refresh", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ replayToken }),
+                signal: AbortSignal.timeout(15_000),
+            });
+            if (res.status === 401 || res.status === 400) return false;
+            if (!res.ok) return undefined;
+            const r = (await res.json()) as S["RefreshResponse"];
+            setToken(r.token, r.replayToken);
+            return true;
+        } catch {
+            return undefined;
+        }
+    })().finally(() => (refreshing = null));
+    return refreshing;
 }
 
 /** Developer "View as": while set, every request runs as that person (server checks we're a superuser). */
@@ -85,7 +129,8 @@ export class NetError extends Error {
 export const BASE_STATUS = "X-Base-Status";
 
 const RETRY_WAITS_MS = [700, 2000, 5000];
-const TIMEOUT_MS = 20_000;
+/** Bad wifi hangs rather than fails: a read gives up in time and the page keeps what it had. */
+const TIMEOUT_MS = 12_000;
 /** A save that can wait on the phone gives up sooner: holding it beats a frozen button. */
 const SAVE_TIMEOUT_MS = 6_000;
 const GATEWAY = new Set([502, 503, 504]);
@@ -104,6 +149,21 @@ function repeatable(method: string, body: string | null): boolean {
     }
 }
 
+/** Saves that freeze a day's totals. */
+const FREEZES = /^\/api\/remittances/;
+
+/** A save that needs the server failed for want of signal: `detail` is { method, path }. The recorder logs it by screen. */
+export const OFFLINE_REFUSED = "app:offline-refused";
+export type OfflineRefused = { method: string; path: string };
+function offlineRefused(method: string, path: string) {
+    window.dispatchEvent(new CustomEvent<OfflineRefused>(OFFLINE_REFUSED, { detail: { method, path } }));
+}
+
+function refusedHere(method: string, path: string, status: number, error: string): Response {
+    offlineRefused(method, path);
+    return new Response(JSON.stringify({ error }), { status, headers: { "Content-Type": "application/json" } });
+}
+
 /**
  * fetch for weak signal: every request gets a time limit, and requests that are safe to
  * resend are retried a few times (waiting for the phone to come back online), so short
@@ -117,6 +177,9 @@ async function resilientFetch(req: Request): Promise<Response> {
     // The page says what status a mark starts from (the server never sees this header).
     const shown = req.headers.get(BASE_STATUS) ?? undefined;
     req.headers.delete(BASE_STATUS);
+    // A remittance freezes the day's totals: it must not go out ahead of saves still on this phone.
+    if (FREEZES.test(path) && req.method !== "GET" && waiting().length)
+        return refusedHere(req.method, path, 409, `Send the ${waiting().length} waiting changes first, then try again.`);
     // Saves already waiting for signal go first: this one lines up behind them.
     if (mustQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query, net.trouble || !navigator.onLine || !onlyEagerAhead());
     const queueable = canQueue(req.method, path);
@@ -140,6 +203,7 @@ async function resilientFetch(req: Request): Promise<Response> {
             // Saves that can wait are held at the first failure: the queue resends them itself,
             // and each carries its own id or version, so a copy that did arrive isn't doubled.
             if (queueable) return enqueue(req.method, path, body ?? "", shown, query);
+            if (req.method !== "GET" && req.method !== "HEAD") offlineRefused(req.method, path);
             // The phone says it has no signal: say so now; waiting out retries only feels slow.
             if (!navigator.onLine || knownBad) throw new NetError(false);
             if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));

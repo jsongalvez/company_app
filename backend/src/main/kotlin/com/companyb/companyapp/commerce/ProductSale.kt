@@ -50,6 +50,9 @@ internal object ProductSaleTable : Table("product_sale") {
     val totalAmountAtTime = decimal("total_amount_at_time", PRICE_PRECISION, PRICE_SCALE)
     val commissionAmountAtTime = decimal("commission_amount_at_time", COMMISSION_PRECISION, COMMISSION_SCALE)
     val soldAt = timestampWithTimeZone("sold_at").defaultExpression(CurrentTimestampWithTimeZone)
+
+    /** When the server got the sale; [soldAt] is when it happened (they differ for a save sent later). */
+    val recordedAt = timestampWithTimeZone("recorded_at").defaultExpression(CurrentTimestampWithTimeZone)
     val deletedBy = javaUUID("deleted_by").references(AppUserTable.id).nullable()
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
     val deletedReason = text("deleted_reason").nullable()

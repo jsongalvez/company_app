@@ -5,6 +5,7 @@
  */
 import { api, ok, type S } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
+import { disk } from "./disk";
 import { pendingClients, SENT, tokenUser } from "./outbox.svelte";
 
 type C = S["ClientResponse"];
@@ -15,7 +16,7 @@ const key = () => `clientdir:${tokenUser()}`;
 
 function read(): Saved {
     try {
-        const v = JSON.parse(localStorage.getItem(key()) ?? "null") as Saved | null;
+        const v = JSON.parse(disk.get(key()) ?? "null") as Saved | null;
         return v && Array.isArray(v.list) ? v : { at: 0, list: [] };
     } catch {
         return { at: 0, list: [] };
@@ -27,11 +28,7 @@ const current = () => (saved ??= read());
 
 function write(v: Saved) {
     saved = v;
-    try {
-        localStorage.setItem(key(), JSON.stringify(v));
-    } catch {
-        /* phone storage full: keep it in memory */
-    }
+    disk.set(key(), JSON.stringify(v));
 }
 
 let busy = false;

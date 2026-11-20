@@ -1,6 +1,7 @@
 import { ApiError } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
 import { SENT, tokenUser } from "./outbox.svelte";
+import { disk } from "./disk";
 import type { Key } from "./keys";
 import { writes, type Write, type WriteArgs } from "./writes";
 /**
@@ -26,7 +27,8 @@ const FRESH_MS = 15_000;
  * What the screens last showed is kept on the phone too (per person), so the app opens with
  * yesterday's view at once, even with no signal, and refreshes it in the background.
  */
-const SAVE_MAX_CHARS = 1_500_000;
+/** IndexedDB holds far more than this; the cap keeps the copy quick to load at open. */
+const SAVE_MAX_CHARS = 8_000_000;
 const saveKey = () => `qcache:${tokenUser()}`;
 let restoredFor: string | null = null;
 
@@ -36,7 +38,7 @@ export function restoreCache() {
     if (!u || restoredFor === u) return;
     restoredFor = u;
     try {
-        const rows = JSON.parse(localStorage.getItem(saveKey()) ?? "[]") as [Key, unknown, number][];
+        const rows = JSON.parse(disk.get(saveKey()) ?? "[]") as [Key, unknown, number][];
         for (const [k, data, got] of rows) if (!store.has(k)) store.set(k, { data, at: 0, got });
     } catch {
         /* nothing usable saved */
@@ -61,11 +63,7 @@ function saveSoon() {
             size += j.length + 1;
             out.push(j);
         }
-        try {
-            localStorage.setItem(saveKey(), `[${out.join(",")}]`);
-        } catch {
-            /* storage full: keep it in memory only */
-        }
+        disk.set(saveKey(), `[${out.join(",")}]`);
     }, 800);
 }
 
@@ -161,7 +159,7 @@ export function wrote<W extends Write>(write: W, ...args: WriteArgs<W>): Promise
 
 /** Sign-out: forget everything, on the phone too. */
 export function clearCache() {
-    if (tokenUser()) localStorage.removeItem(saveKey());
+    if (tokenUser()) disk.del(saveKey());
     store.clear();
     restoredFor = null;
 }

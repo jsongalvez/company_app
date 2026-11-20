@@ -5,6 +5,8 @@ sealed class LoginResult {
     data class Success(
         val token: String,
         val userId: java.util.UUID,
+        /** Kept by the phone to sign itself in again after days without signal (`/auth/refresh`). */
+        val replayToken: String,
     ) : LoginResult()
 
     /** Too many tries from one address in a minute (RateLimiter). */

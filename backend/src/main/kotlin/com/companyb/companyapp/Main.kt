@@ -8,9 +8,11 @@ import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.app.ScheduledJob
 import com.companyb.companyapp.app.SchedulerLifecycle
 import com.companyb.companyapp.audit.AuditLogRoutes
+import com.companyb.companyapp.audit.OpLog
 import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductCategoryRoutes
@@ -171,6 +173,7 @@ private fun configureFilters(
     }
     config.routes.after {
         TraceIdFilter.echo(it)
+        OpLog.keep(it)
         RequestLog.complete(it)
     }
 }
@@ -194,7 +197,10 @@ internal fun configureAuth(config: io.javalin.config.JavalinConfig) {
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-        context.attribute("userId", ViewAs.resolve(context, userId))
+        val runsAs = ViewAs.resolve(context, userId)
+        context.attribute("userId", runsAs)
+        OpTime.resolve(context)
+        OpLog.answerRepeat(context, runsAs)
     }
 }
 
@@ -262,6 +268,7 @@ fun registerAllRoutes(config: io.javalin.config.JavalinConfig) {
 
 private fun registerAuthRoutes(config: io.javalin.config.JavalinConfig) {
     AuthRoutes.login(config)
+    AuthRoutes.refresh(config)
     AuthRoutes.acceptInvite(config)
     AuthRoutes.forgotPassword(config)
     AuthRoutes.resetPassword(config)

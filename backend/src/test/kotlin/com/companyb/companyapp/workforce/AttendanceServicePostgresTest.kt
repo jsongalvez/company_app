@@ -252,6 +252,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                             branchDayAssignmentId = TestFixtures.uuid(),
                             isRelief = true,
                             branchId = branchId,
+                            clockIn = java.time.OffsetDateTime.now(),
                         ),
                     )
                     AuditLog.record(
@@ -279,7 +280,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
             runCatching {
                 transaction {
                     checkNotNull(AttendanceRepository.findByIdInTransaction(attendanceId))
-                    AttendanceRepository.clockOutInTransaction(attendanceId)
+                    AttendanceRepository.clockOutInTransaction(attendanceId, java.time.OffsetDateTime.now())
                     AuditLog.record(
                         context = AuditContext(changedBy = userId),
                         row = AuditedRow(AttendanceTable.tableName, attendanceId),

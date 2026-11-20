@@ -1,6 +1,7 @@
 package com.companyb.companyapp.logging
 
 import com.companyb.companyapp.api.middleware.TraceIdFilter
+import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.observability.RequestOutcome
 import com.companyb.companyapp.observability.RequestSpan
 import com.companyb.companyapp.observability.RouteLabels
@@ -118,6 +119,7 @@ object RequestLog {
         logger.info { Json.encodeToString(event) }
         RequestSpan.end(context, outcome)
         RequestElapsedConverter.endRequest()
+        OpTime.clear()
         DeltaTimeConverter.endRequest()
         MDC.clear()
     }

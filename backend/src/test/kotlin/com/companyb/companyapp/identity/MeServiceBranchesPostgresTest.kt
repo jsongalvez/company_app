@@ -162,6 +162,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
                     branchDayAssignmentId = TestFixtures.uuid(),
                     isRelief = true,
                     branchId = branchB,
+                    clockIn = java.time.OffsetDateTime.now(),
                 ),
             )
         }

@@ -185,7 +185,16 @@ object BranchDayService {
         write: DayWrite,
     ): Pair<BranchDay, Boolean> {
         val today = currentOperationalDate()
-        val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
+        val judged = evaluateStatus(branchDay.status, branchDay.date, today)
+        // A save made while the day was open, sent after it closed, lands as made, flagged for review.
+        val effectiveStatus =
+            if (judged == DayStatus.PAST &&
+                OpTime.admitsLate(branchDay.date)
+            ) {
+                DayStatus.OPEN
+            } else {
+                judged
+            }
         val isRemitted = effectiveStatus == DayStatus.REMITTED
         // Only a non-open day looks at EDIT_PAST_DAY: an open day needs no grant.
         val hasEditPastDay =

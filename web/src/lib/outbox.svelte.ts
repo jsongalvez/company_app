@@ -5,9 +5,10 @@
  * twice can't make a duplicate, and a change someone else made in the meantime is refused by
  * the server rather than overwritten: those land in "couldn't send" for the person to check.
  */
-import type { S } from "../api/client";
+import { refreshToken, tokenExpired, type S } from "../api/client";
 import { label, nowIso } from "./format";
 import { classify, parseBody } from "./outbox-classify";
+import { disk } from "./disk";
 import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 import { traceparent } from "./telemetry";
@@ -43,7 +44,10 @@ type Rule = {
 
 const name = (b: Record<string, unknown>) => [b.firstName, b.lastName].filter(Boolean).join(" ");
 
-/** The saves that may wait. Everything else needs the server there and then. */
+/**
+ * Saves with their own words and page behaviour. Any other save may wait too (see [ONLINE_ONLY]):
+ * it shows in the waiting list under [LABELS]' words and the page hears back the record it sent.
+ */
 const RULES: Rule[] = [
     { method: "POST", path: /^\/api\/clients$/, what: (b) => `New client ${name(b)}`, echo: (b) => heldClient(b) },
     { method: "POST", path: /^\/api\/sessions$/, what: () => "New session", eager: true },
@@ -57,7 +61,56 @@ const RULES: Rule[] = [
     { method: "POST", path: /^\/api\/branches\/[^/]+\/attendance\/marks$/, what: (b) => (b.present ? "Marked present" : "Marked absent") },
 ];
 
+/** What the waiting list calls the other day-work saves. */
+const LABELS: [string, RegExp, string][] = [
+    ["PATCH", /^\/api\/sessions\/[^/]+\/final-price$/, "Session price"],
+    ["POST", /^\/api\/sessions\/[^/]+\/concerns$/, "Illness on a session"],
+    ["DELETE", /^\/api\/sessions\/[^/]+\/concerns\/[^/]+$/, "Illness removed"],
+    ["DELETE", /^\/api\/concerns\/[^/]+$/, "Illness removed"],
+    ["POST", /^\/api\/sessions\/[^/]+\/promote-concern$/, "Illness made main"],
+    ["POST", /^\/api\/sessions\/[^/]+\/void$/, "Session voided"],
+    ["POST", /^\/api\/sessions\/[^/]+\/unvoid$/, "Session restored"],
+    ["PATCH", /^\/api\/sessions\/[^/]+\/practitioners\/[^/]+$/, "Practitioner changed"],
+    ["DELETE", /^\/api\/sessions\/[^/]+\/practitioners\/[^/]+$/, "Practitioner removed"],
+    ["POST", /^\/api\/branches\/[^/]+\/bookings$/, "New booking"],
+    ["PATCH", /^\/api\/branches\/[^/]+\/bookings\/[^/]+$/, "Booking changed"],
+    ["POST", /^\/api\/branches\/[^/]+\/inventory\/[^/]+\/restock$/, "Restock"],
+    ["POST", /^\/api\/branches\/[^/]+\/inventory\/[^/]+\/movement$/, "Stock moved"],
+    ["POST", /^\/api\/compensation$/, "Pay"],
+    ["PATCH", /^\/api\/compensation\/[^/]+$/, "Pay changed"],
+    ["PATCH", /^\/api\/clients\/[^/]+$/, "Client details"],
+    ["PATCH", /^\/api\/expenses\/[^/]+$/, "Expense changed"],
+    ["DELETE", /^\/api\/expenses\/[^/]+$/, "Expense removed"],
+    ["POST", /^\/api\/expenses\/[^/]+\/restore$/, "Expense restored"],
+    ["PATCH", /^\/api\/product-sales\/[^/]+$/, "Sale changed"],
+    ["DELETE", /^\/api\/product-sales\/[^/]+$/, "Sale removed"],
+    ["POST", /^\/api\/product-sales\/[^/]+\/restore$/, "Sale restored"],
+    ["POST", /^\/api\/commission-inclusions$/, "Commission share"],
+    ["POST", /^\/api\/feedback$/, "Problem report"],
+];
+
+/**
+ * Saves that need the server there and then. A remittance freezes the day's totals, so it must see
+ * every save first; signing in, passwords, roles and wiping a client change who may do what, so
+ * they must take effect at once or say plainly that they didn't.
+ */
+const ONLINE_ONLY = [
+    /^\/api\/auth\//,
+    /^\/api\/me\/password$/,
+    /^\/api\/view-as/,
+    /^\/api\/remittances/,
+    /^\/api\/users\//,
+    /^\/api\/clients\/[^/]+\/anonymize$/,
+    /^\/api\/telemetry$/,
+    /^\/api\/feedback-notes/,
+];
+
+const WRITES = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 const KEY = "outbox";
+/** Request headers every queued save carries (server `OpTime.HEADER`, `OpLog.HEADER`). */
+export const OCCURRED_AT = "X-Occurred-At";
+export const OP_ID = "X-Op-Id";
 export const SENT = "app:outbox-sent";
 /** One save the server took: `detail` is { item, answer }. Today takes the answer in (lib/today.svelte.ts). */
 export const LANDED = "app:outbox-landed";
@@ -80,7 +133,7 @@ export function whenLanded(id: string, fn: () => void): () => void {
 
 function load(): Item[] {
     try {
-        const v = JSON.parse(localStorage.getItem(KEY) ?? "[]") as Item[];
+        const v = JSON.parse(disk.get(KEY) ?? "[]") as Item[];
         return Array.isArray(v) ? v : [];
     } catch {
         return [];
@@ -110,7 +163,7 @@ export function sessionsSeen(ids: Set<string>) {
 }
 
 function save() {
-    localStorage.setItem(KEY, JSON.stringify(outbox.items));
+    disk.set(KEY, JSON.stringify(outbox.items));
 }
 
 /** Who the stored token belongs to (JWT subject), so one person's queue never sends as another. */
@@ -202,8 +255,16 @@ export function heldClock(): { attendanceId: string; branchId: string } | "out" 
     return typeof b.attendanceId === "string" && typeof b.branchId === "string" ? { attendanceId: b.attendanceId, branchId: b.branchId } : undefined;
 }
 
+/** May this save wait on the phone at all? */
+export function mayWait(method: string, path: string): boolean {
+    return WRITES.has(method) && !ONLINE_ONLY.some((r) => r.test(path));
+}
+
 function rule(method: string, path: string): Rule | undefined {
-    return RULES.find((r) => r.method === method && r.path.test(path));
+    const own = RULES.find((r) => r.method === method && r.path.test(path));
+    if (own || !mayWait(method, path)) return own;
+    const named = LABELS.find(([m, p]) => m === method && p.test(path))?.[2] ?? "Change";
+    return { method, path: /./, what: () => named };
 }
 
 /** Does this save always go through the queue (the page shows it before the server answers)? */
@@ -233,7 +294,7 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
     const b = parseBody(body);
     let from: string | undefined;
     let drop = false;
-    if (method === "PATCH") {
+    if (isMark(method, path)) {
         // Marking the same session again before the first mark has gone out: only the last one counts.
         // A mark that already went out once may be on the server, so it stays and this one follows it.
         const mine = (i: Item) => i.method === method && i.path === path && !i.failed;
@@ -305,17 +366,31 @@ async function send(i: Item): Promise<Response> {
     return fetch(i.query ? `${i.path}?${i.query}` : i.path, {
         method: i.method,
         body: replayBody(i) || undefined,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`, traceparent: traceparent() },
-        signal: AbortSignal.timeout(20_000),
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+            traceparent: traceparent(),
+            // The server counts the save at the time it was made, and answers a resend of the same id as it did the first time.
+            [OCCURRED_AT]: i.at,
+            [OP_ID]: i.id,
+        },
+        // A hung send ends here; the server answers a resend of the same op id without doing it twice.
+        signal: AbortSignal.timeout(15_000),
     });
 }
 
-/** Marks queued behind one that has just landed were made from the version it was made from: move them up. */
+const MARK = /^\/api\/sessions\/[^/]+\/status$/;
+const isMark = (method: string, path: string) => method === "PATCH" && MARK.test(path);
+/** The record a save changes: `/api/sessions/<id>` for every save under it, so a price and a mark share one version line. */
+const recordOf = (path: string) => path.split("/").slice(0, 4).join("/");
+
+/** Saves queued behind one that has just landed were made from the version it was made from: move them up. */
 function chainVersions(landed: Item, newVersion: number | undefined) {
     const from = parseBody(landed.body).version;
     if (typeof from !== "number") return;
+    const rec = recordOf(landed.path);
     for (const x of outbox.items) {
-        if (x.id === landed.id || x.method !== landed.method || x.path !== landed.path || x.failed) continue;
+        if (x.id === landed.id || recordOf(x.path) !== rec || x.failed) continue;
         const o = parseBody(x.body);
         if (o.version === from) x.body = JSON.stringify({ ...o, version: newVersion ?? from + 1 });
     }
@@ -337,6 +412,8 @@ export async function flush(): Promise<void> {
     let sent = 0;
     let finished = false;
     try {
+        // A phone back after a day or more off signal renews its sign-in before sending.
+        if (tokenExpired() && !(await refreshToken())) return;
         for (const i of waiting()) {
             // The person replaced this one while earlier saves were going out: don't send the old one.
             const live = outbox.items.find((x) => x.id === i.id);
@@ -354,10 +431,14 @@ export async function flush(): Promise<void> {
             }
             const body = await readBody(res);
             const verdict = classify(res.status, body);
+            if (res.status === 401 && (await refreshToken())) {
+                setTimeout(() => void flush(), 0);
+                return;
+            }
             if (verdict.kind === "retry") return;
             reportNetOk();
             if (verdict.kind === "applied") {
-                if (i.method === "PATCH") {
+                if (i.method !== "POST" || recordOf(i.path) !== i.path) {
                     const v = (body as { version?: unknown } | null)?.version;
                     chainVersions(i, typeof v === "number" ? v : undefined);
                 }

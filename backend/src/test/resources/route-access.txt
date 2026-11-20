@@ -1,6 +1,7 @@
 route                                                                OWN  ACC  PRA  COO  MAN  SUP OWNx  OUT  REL  NON  gate
 GET /health                                                          200  200  200  200  200  200  200  200  200  200  Open: health check
 POST /auth/login                                                     400  400  400  400  400  400  400  400  400  400  Open: sign-in
+POST /auth/refresh                                                   400  400  400  400  400  400  400  400  400  400  Open: the replay token is the key
 POST /auth/accept-invite                                             400  400  400  400  400  400  400  400  400  400  Open: the invite code is the key
 POST /auth/forgot-password                                           400  400  400  400  400  400  400  400  400  400  Open: asks for a reset email
 POST /auth/reset-password                                            400  400  400  400  400  400  400  400  400  400  Open: the reset token is the key

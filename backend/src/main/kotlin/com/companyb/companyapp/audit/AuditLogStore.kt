@@ -1,6 +1,7 @@
 package com.companyb.companyapp.audit
 
 import com.companyb.companyapp.branch.BranchTable
+import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.client.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.contracts.audit.AuditAction
@@ -75,10 +76,10 @@ internal object AuditLogStore {
             it[AuditLogTable.changedBy] = context.changedBy
             ViewedAsBy.get()?.let { real -> it[AuditLogTable.viewedAsBy] = real }
             it[AuditLogTable.branchId] = context.branchId
-            it[AuditLogTable.isFlagged] = context.isFlagged
+            it[AuditLogTable.isFlagged] = context.isFlagged || OpTime.isLate()
             if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
             if (newValue != null) it[AuditLogTable.newValue] = newValue
-            if (context.reason != null) it[AuditLogTable.reason] = context.reason
+            (context.reason ?: OpTime.lateReason())?.let { reason -> it[AuditLogTable.reason] = reason }
         }
         logger.info {
             "[AUDIT-LOG] Recorded $action on ${row.tableName}/${row.recordId} isFlagged=${context.isFlagged}"

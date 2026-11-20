@@ -1,4 +1,4 @@
-import { api, getToken, uuid } from "../api/client";
+import { api, getToken, OFFLINE_REFUSED, type OfflineRefused, uuid } from "../api/client";
 import { REFUSED, type Refused } from "./outbox.svelte";
 import { createRecorder, describe, fieldOf, norm, plainPath, routeOf, sendBatch } from "./telemetry";
 import { APP_VERSION } from "./version";
@@ -108,6 +108,11 @@ export function installRecorder() {
         const f = (e as CustomEvent<Refused>).detail;
         recorder.record("error", { r: route(), outbox: `${f.method} ${plainPath(f.path)}`, s: f.status });
         void recorder.flush();
+    });
+    // Where people hit "needs signal": which screen, which save.
+    addEventListener(OFFLINE_REFUSED, (e) => {
+        const f = (e as CustomEvent<OfflineRefused>).detail;
+        recorder.record("net", { r: route(), offline: `${f.method} ${plainPath(f.path)}` });
     });
     addEventListener("pagehide", () => void recorder.flush());
 

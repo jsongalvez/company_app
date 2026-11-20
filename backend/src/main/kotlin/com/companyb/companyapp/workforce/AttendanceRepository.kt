@@ -37,6 +37,8 @@ internal data class ClockInParams(
     val branchDayAssignmentId: UUID,
     val isRelief: Boolean,
     val branchId: UUID,
+    /** When the clock-in happened ([com.companyb.companyapp.branchday.OpTime]); `clock_in_recorded_at` keeps when it arrived. */
+    val clockIn: OffsetDateTime,
 )
 
 data class BranchDayUser(
@@ -145,7 +147,7 @@ internal object AttendanceRepository {
                     it[AttendanceTable.branchDayId] = params.branchDayId
                     it[AttendanceTable.userId] = params.userId
                     it[AttendanceTable.markedBy] = params.markedBy
-                    it[AttendanceTable.clockIn] = CurrentTimestampWithTimeZone
+                    it[AttendanceTable.clockIn] = params.clockIn
                 }.insertedCount
         val isNew = insertedCount > 0
 
@@ -327,11 +329,15 @@ internal object AttendanceRepository {
             .singleOrNull() != null
     }
 
-    fun clockOutInTransaction(attendanceId: UUID): Pair<Attendance, Boolean> {
+    fun clockOutInTransaction(
+        attendanceId: UUID,
+        at: OffsetDateTime,
+    ): Pair<Attendance, Boolean> {
         val updated =
             AttendanceTable
                 .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
-                    it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
+                    it[AttendanceTable.clockOut] = at
+                    it[AttendanceTable.clockOutRecordedAt] = CurrentTimestampWithTimeZone
                 }
 
         val after =

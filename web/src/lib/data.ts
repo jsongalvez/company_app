@@ -136,3 +136,34 @@ export const load = {
 export function warm<T>(l: Loader<T>) {
     void fetchCached(l.key, l.fn).catch(() => {});
 }
+
+/**
+ * Everything a day's work at a branch reads, pulled into the phone's copy at sign-in, at open and
+ * when the signal returns, so a whole day with no signal still has its records: the open day,
+ * clients, prices, stock and staff. A read the person may not make is refused and skipped.
+ */
+export function pullBranch(branchId: string, branchDayId: string | undefined) {
+    if (!branchId) return;
+    const date = operationalDate();
+    const branch = [
+        load.dashboard(branchId),
+        load.roster(branchId),
+        load.bookings(branchId),
+        load.members(branchId),
+        load.daySessions(branchId, date),
+        load.inventory(branchId),
+        load.rates(branchId),
+    ];
+    const shared = [load.concerns(), load.recentClients(), load.products(), load.categories()];
+    const day = branchDayId
+        ? [
+              load.dayUsers(branchDayId),
+              load.productSales(branchDayId),
+              load.expenses(branchDayId),
+              load.compensations(branchDayId),
+              load.allowances(branchDayId),
+              load.commissionSplits(branchDayId),
+          ]
+        : [];
+    for (const l of [...branch, ...shared, ...day] as Loader<unknown>[]) void fetchCached(l.key, l.fn).catch(() => {});
+}

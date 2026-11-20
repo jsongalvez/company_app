@@ -8,6 +8,7 @@ object ApiRoutes {
     const val TRACE_ID_HEADER = "X-Trace-Id"
     private const val API_ROOT = "/api"
     const val AUTH_LOGIN = "/auth/login"
+    const val AUTH_REFRESH = "/auth/refresh"
     const val AUTH_ACCEPT_INVITE = "/auth/accept-invite"
     const val AUTH_FORGOT_PASSWORD = "/auth/forgot-password"
     const val AUTH_RESET_PASSWORD = "/auth/reset-password"

@@ -1,5 +1,6 @@
-import { api, ok, setToken, getToken, setUnauthorizedHandler, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
+import { api, ok, refreshToken, setToken, getToken, setUnauthorizedHandler, getViewAs, setViewAs, type S, type ViewAs } from "../api/client";
 import { forgetSnapshot } from "./snapshot";
+import { pullBranch } from "./data";
 import { key } from "./keys";
 import { wrote, clearCache, peek, restoreCache, seed } from "./cache.svelte";
 import { allowDirectory, refreshDirectory, resetDirectory } from "./clientdir.svelte";
@@ -65,13 +66,19 @@ async function switchIdentity(v: ViewAs | null) {
     await boot();
 }
 
-setUnauthorizedHandler(() => signOut(false));
+// A run-out sign-in renews itself from the replay token; only a refused renewal signs the person out.
+setUnauthorizedHandler(
+    () =>
+        void refreshToken().then((renewed) => {
+            if (renewed === false) void signOut(false);
+        }),
+);
 
 export async function signIn(username: string, password: string) {
     const withToday = onToday();
     // One request signs in and brings everything the app needs to open.
     const r = await ok(api.POST("/auth/login", { body: { username, password, branchId: app.branchId || undefined, withToday } }));
-    setToken(r.token);
+    setToken(r.token, r.replayToken);
     // Wait for the person's access before showing a page; else Shell lands on Relief first.
     app.ready = false;
     app.signedIn = true;
@@ -124,6 +131,7 @@ export function takeStart(s: S["StartResponse"], withToday: boolean) {
     app.unread = s.unreadCount;
     allowDirectory(canRead("WORK_ANYWHERE", {}));
     void refreshDirectory();
+    pullBranch(app.branchId, today.day?.branchDayId);
 }
 
 /** Load identity, rights and branches; pick a branch. What the phone saved shows at once. */
@@ -164,6 +172,7 @@ const catchUp = () => {
     if (!getToken()) return;
     if (!app.me) void boot().catch(() => {});
     else void Promise.all([catchUpDay(), refreshUnread()]).catch(() => {});
+    if (app.me && navigator.onLine) pullBranch(app.branchId, today.day?.branchDayId);
 };
 
 /** End a timed "view as" when it runs out, and catch up when the signal returns or held saves go out. */

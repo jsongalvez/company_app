@@ -2,7 +2,8 @@ import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { startBackgroundSync } from "./lib/sync";
-import { installRecorder } from "./lib/record";
+import { installRecorder, recorder } from "./lib/record";
+import { diskKind, keepOnPhone } from "./lib/disk";
 import { getToken } from "./api/client";
 import { loadShell } from "./lib/shell";
 import { reveal, saveSnapshotOnLeave } from "./lib/snapshot";
@@ -15,6 +16,8 @@ const prefetch = () => void loadShell().catch(() => {});
 if (getToken()) prefetch();
 else addEventListener("load", prefetch);
 mount(App, { target: document.getElementById("app")! });
+// A day's work lives on the phone: ask the browser not to clear it, and record where it is kept.
+void keepOnPhone().then((kept) => recorder.record("net", { storage: diskKind, kept }));
 reveal();
 saveSnapshotOnLeave();
 

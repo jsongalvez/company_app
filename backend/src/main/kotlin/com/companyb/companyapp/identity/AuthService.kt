@@ -100,8 +100,8 @@ object AuthService {
             // instant strictly after the persisted boundary so fresh logins verify
             // immediately without sleeps. A concurrent reset/invite-accept rotates the
             // hash or deactivates first, and this login fails closed.
-            val token: String? = if (preliminaryOk) mintToken(userId, appUser.passwordHash) else null
-            return@traced if (!preliminaryOk || token == null) {
+            val tokens: Pair<String, String>? = if (preliminaryOk) mintToken(userId, appUser.passwordHash) else null
+            return@traced if (!preliminaryOk || tokens == null) {
                 if (preliminaryOk) {
                     logger.warn { "[LOGIN] Credential rotated or account inactive" }
                 }
@@ -110,32 +110,54 @@ object AuthService {
             } else {
                 LoginFailures.succeeded(username)
                 logger.info { "[LOGIN] User has logged in successfully " }
-                LoginResult.Success(token, userId)
+                LoginResult.Success(tokens.first, userId, tokens.second)
             }
         }
     }
 
-    /** The token for a verified login, or null when the credential rotated or the account went inactive meanwhile. */
+    /**
+     * The sign-in and replay tokens for a verified login, or null when the credential rotated or
+     * the account went inactive meanwhile.
+     */
     private fun mintToken(
         userId: UUID,
         passwordHash: String,
-    ): String? =
+    ): Pair<String, String>? =
         traced("AuthService.mintToken") {
             transaction {
                 val liveVersion =
                     UserRepository.revalidateCredentialLockedInTransaction(userId, passwordHash)
                         ?: return@transaction null
-                val boundary = UserRepository.revocationBoundaryInTransaction(userId)
-                val issuedAt =
-                    UserRepository.dbNowInTransaction().toInstant().plusSeconds(ISSUED_AT_SKEW_SECONDS)
-                // Belt-and-braces: the DB-derived instant is already after the boundary,
-                // but never mint a token the authorization read would reject.
-                if (boundary != null && !issuedAt.isAfter(boundary.toInstant())) {
-                    return@transaction null
-                }
-                JwtService.generateToken(userId.toString(), liveVersion, issuedAt)
+                mintPairInTransaction(userId, liveVersion)
             }
         }
+
+    /**
+     * A fresh sign-in token and replay token for the holder of a live replay token, or null.
+     * The replay token slides: a phone that comes back to signal once a week stays signed in.
+     * A password change or sign-out moves the revocation boundary, which ends both.
+     */
+    fun refresh(replayToken: String): Pair<String, String>? =
+        traced("AuthService.refresh") {
+            val (subject, version) = JwtService.verifyReplayToken(replayToken) ?: return@traced null
+            transaction { mintPairInTransaction(UUID.fromString(subject), version) }
+        }
+
+    private fun mintPairInTransaction(
+        userId: UUID,
+        liveVersion: Long,
+    ): Pair<String, String>? {
+        val boundary = UserRepository.revocationBoundaryInTransaction(userId)
+        val issuedAt =
+            UserRepository.dbNowInTransaction().toInstant().plusSeconds(ISSUED_AT_SKEW_SECONDS)
+        // Belt-and-braces: the DB-derived instant is already after the boundary,
+        // but never mint a token the authorization read would reject.
+        if (boundary != null && !issuedAt.isAfter(boundary.toInstant())) {
+            return null
+        }
+        return JwtService.generateToken(userId.toString(), liveVersion, issuedAt) to
+            JwtService.generateReplayToken(userId.toString(), liveVersion, issuedAt)
+    }
 
     /**
      * Public single-use invite redemption: consumes the code atomically (single-use +

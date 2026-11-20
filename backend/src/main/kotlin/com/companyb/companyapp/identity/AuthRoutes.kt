@@ -7,6 +7,8 @@ import com.companyb.companyapp.contracts.identity.AcceptInviteRequest
 import com.companyb.companyapp.contracts.identity.ForgotPasswordRequest
 import com.companyb.companyapp.contracts.identity.LoginRequest
 import com.companyb.companyapp.contracts.identity.LoginResponse
+import com.companyb.companyapp.contracts.identity.RefreshRequest
+import com.companyb.companyapp.contracts.identity.RefreshResponse
 import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.dto.ErrorResponse
 import com.companyb.companyapp.identity.AuthService
@@ -32,6 +34,17 @@ import java.util.UUID
         OpenApiResponse(status = "200", content = [OpenApiContent(from = LoginResponse::class)]),
         OpenApiResponse(status = "401"),
         OpenApiResponse(status = "429"),
+    ],
+)
+@OpenApi(
+    path = ApiRoutes.AUTH_REFRESH,
+    methods = [HttpMethod.POST],
+    operationId = "auth_refresh",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RefreshRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = RefreshResponse::class)]),
+        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -79,6 +92,19 @@ import java.util.UUID
     ],
 )
 object AuthRoutes {
+    /** A phone back from days without signal trades its replay token for a fresh sign-in, so its queue can send. */
+    fun refresh(config: JavalinConfig) {
+        config.post(ApiRoutes.AUTH_REFRESH, Gate.Open("the replay token is the key")) { context ->
+            val request = context.bodyAsClass<RefreshRequest>()
+            val tokens = AuthService.refresh(request.replayToken)
+            if (tokens == null) {
+                context.status(HttpStatus.UNAUTHORIZED).json(ErrorResponse("Please sign in again."))
+            } else {
+                context.json(RefreshResponse(tokens.first, tokens.second))
+            }
+        }
+    }
+
     fun login(config: JavalinConfig) {
         config.post(ApiRoutes.AUTH_LOGIN, Gate.Open("sign-in")) { context ->
             val loginRequest = context.bodyAsClass<LoginRequest>()
@@ -101,7 +127,7 @@ object AuthRoutes {
                                 loginRequest.withToday,
                             )
                         }.getOrNull()
-                    context.json(LoginResponse(loginResult.token, start))
+                    context.json(LoginResponse(loginResult.token, start, loginResult.replayToken))
                 }
 
                 // Each refusal carries its words: a bare 401 reads as "You were signed out" in the app.

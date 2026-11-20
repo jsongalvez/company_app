@@ -143,6 +143,8 @@ object BackendArchitectureOwners {
             "identity/AuthService.kt",
             "identity/UserService.kt",
             "branchday/BranchDayService.kt",
+            "branchday/OpTime.kt",
+            "audit/AppliedOpStore.kt",
         )
 
     /**

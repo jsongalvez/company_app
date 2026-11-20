@@ -169,6 +169,8 @@ Nov 7, after unit 3. Before each unit, four questions are put to this plan: redu
    - `tools/quality/check-raw-sql.sh` fails on SQL text in server code.
    - Still Revisions 5: relief and helpers as facts (done: V14 `relief_day`, V15 helper seats), test fixtures as facts, and the web's rights from the server.
 
+7. **Nov 20, offline first slice of section 2.** The owner's biggest complaint is the app on no signal and on bad wifi. Built: the outbox's ops carry an op id (`X-Op-Id`, server `audit/OpLog`: a resend gets the first answer) and an event time (`X-Occurred-At`, server `branchday/OpTime`: clock times and sale times are when it happened, late work within 48 h lands flagged); every write may queue except an online-only list; the store's documents live in IndexedDB (`web/src/lib/disk.ts`); the branch's day is pulled at sign-in (`data.ts pullBranch`); a 7-day replay token (`/auth/refresh`). Still section 2's target: one local mutator per op kind, so a queued edit shows on its page before it lands. Design and status: the build notes kept outside the repo; business rules: `docs/business-requirements.md` "Offline and Bad Wifi".
+
 ## Handoff
 
 Nov 8, unit 4 as Revisions 6, done after V16 and the web's rights. For a fresh agent; read `AGENTS.md`, then this file.

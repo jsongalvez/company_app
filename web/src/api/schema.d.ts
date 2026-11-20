@@ -2100,6 +2100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["auth_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/reset-password": {
         parameters: {
             query?: never;
@@ -2573,6 +2589,7 @@ export interface components {
                     earlierWaitingDays?: string[] | null;
                 } | null;
             } | null;
+            replayToken: string;
         };
         MeResponse: {
             id: string;
@@ -2583,6 +2600,13 @@ export interface components {
             status: "ACTIVE" | "INACTIVE";
             createdAt: string;
             canViewAs?: boolean;
+        };
+        RefreshRequest: {
+            replayToken: string;
+        };
+        RefreshResponse: {
+            token: string;
+            replayToken: string;
         };
         ResetPasswordRequest: {
             token: string;
@@ -10569,6 +10593,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    auth_refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
         };
     };

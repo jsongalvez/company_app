@@ -49,7 +49,21 @@ object JwtService {
         runtime = Runtime(issuer, audience, algo, verifier)
     }
 
+    /** Marks a replay token: it only buys a fresh sign-in token (`/auth/refresh`), never an API call. */
+    const val USE_CLAIM = "use"
+    private const val REPLAY_USE = "replay"
+
+    /** A phone may be off signal for a whole day or more; its queued saves still go out within this. */
+    const val REPLAY_DAYS = 7L
+
     fun generateToken(userId: String): String = generateToken(userId, 0L, Instant.now())
+
+    /** The long token a phone keeps to sign itself in again after days without signal. */
+    fun generateReplayToken(
+        userId: String,
+        credentialVersion: Long,
+        issuedAt: Instant,
+    ): String = generateToken(userId, credentialVersion, issuedAt, replay = true)
 
     /**
      * Version-bound issuance: [credentialVersion] is the account's current
@@ -60,10 +74,11 @@ object JwtService {
         userId: String,
         credentialVersion: Long,
         issuedAt: Instant,
+        replay: Boolean = false,
     ): String {
         logger.info { "[GENERATE-TOKEN] Generating token for ${userId.maskUUID()}" }
         val configured = runtime ?: error("JwtService.init() must be called before generateToken()")
-        val expiresAt = issuedAt.plus(1, ChronoUnit.DAYS)
+        val expiresAt = issuedAt.plus(if (replay) REPLAY_DAYS else 1, ChronoUnit.DAYS)
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
         val token =
             JWT
@@ -74,15 +89,37 @@ object JwtService {
                 .withExpiresAt(Date.from(expiresAt))
                 .withIssuedAt(Date.from(issuedAt))
                 .withClaim(CREDENTIAL_VERSION_CLAIM, credentialVersion)
+                .apply { if (replay) withClaim(USE_CLAIM, REPLAY_USE) }
                 .sign(configured.algorithm)
         logger.info { "[GENERATE-TOKEN] Successfully generated token" }
         return token
     }
 
-    fun verifyToken(token: String): String? =
+    /** The user a replay token belongs to and its credential version, or null. */
+    fun verifyReplayToken(token: String): Pair<String, Long>? =
+        verifyToken(token, replay = true)?.let { subject ->
+            subject to (credentialVersionOf(token) ?: return null)
+        }
+
+    private fun credentialVersionOf(token: String): Long? =
+        runCatching {
+            val claim = JWT.decode(token).getClaim(CREDENTIAL_VERSION_CLAIM)
+            claim.takeIf { !it.isMissing && !it.isNull }?.asLong() ?: 0L
+        }.getOrNull()
+
+    /** The user an API token belongs to, or null. A replay token is refused here. */
+    fun verifyToken(
+        token: String,
+        replay: Boolean = false,
+    ): String? =
         try {
             val configured = runtime ?: error("JwtService.init() must be called before verifyToken()")
             val decoded = configured.verifier.verify(token)
+            val isReplay = decoded.getClaim(USE_CLAIM).asString() == REPLAY_USE
+            if (isReplay != replay) {
+                logger.warn { "[VERIFY-TOKEN] Token used for the wrong purpose" }
+                return null
+            }
             val subj =
                 decoded.subject ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no subject" }

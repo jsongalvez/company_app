@@ -25,6 +25,13 @@ internal object AttendanceTable : Table("attendance") {
     val clockIn = timestampWithTimeZone("clock_in").defaultExpression(CurrentTimestampWithTimeZone)
     val clockOut = timestampWithTimeZone("clock_out").nullable()
 
+    /** When the server got the clock-in; [clockIn] is when it happened (they differ for a save sent later). */
+    val clockInRecordedAt =
+        timestampWithTimeZone(
+            "clock_in_recorded_at",
+        ).defaultExpression(CurrentTimestampWithTimeZone)
+    val clockOutRecordedAt = timestampWithTimeZone("clock_out_recorded_at").nullable()
+
     override val primaryKey = PrimaryKey(id)
 
     fun auditFields(entity: Attendance): Map<String, String?> =

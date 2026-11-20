@@ -401,14 +401,19 @@ Each branch day has a status that governs edit permissions. Transition from OPEN
 
 ## Connectivity and Reliability
 
-### Strictly Online Model
+### Offline and Bad Wifi
 
-The application operates on a **strictly online** basis. Offline-first synchronization is not supported in Phase 2 due to the complexity of real-time commission splits, auto-assigned session types, and remittance constraints.
+A branch keeps working for a whole day with no signal or with wifi that is slow, hangs or drops halfway. The server stays the one judge of money: it decides visit types, prices, commission splits and remittances when each save arrives, by the time the save says it happened.
 
-- **Optimistic UI:** Mutating operations (e.g. logging a session, product sale) reflect the expected result in the UI immediately while the request is in flight.
-- **Auto-Retry:** If a connection drops, the client automatically retries the request until a definitive success or failure is received.
-- **Idempotency:** To prevent duplicate records during retries, every mutating request includes a client-generated UUID as its primary identifier. The server ignores subsequent requests with the same ID.
-- **Safety Net:** Users see a clear "Saving..." or "Retrying..." state until the server acknowledges the write.
+- **Day's records on the phone:** at sign-in, at open and when the signal returns, the phone pulls the branch's open day, clients, prices, stock and staff into its own storage (IndexedDB, kept under storage pressure where the browser allows). It survives closing the app.
+- **Every day-work save may wait:** a save that gets no answer within a few seconds is kept on the phone and sent by itself, in order, when the server answers again. The page shows it at once as "Saved on this phone".
+- **Needs the server there and then:** signing in, passwords, roles, wiping a client, and remittances. A remittance is refused while saves are still waiting on the phone, since it freezes the day's totals.
+- **Once, never twice:** every waiting save carries its own id. The server keeps its answer to each id and answers a resend with it, so a save sent twice over bad wifi is done once.
+- **When it happened:** every waiting save carries the time it was made. Clock-in, clock-out and the time of a sale take that time, never later than the server got it and never outside the save's operational day; the server also keeps when it arrived. Commission goes to whoever was on duty when the sale happened.
+- **Late work lands by itself:** a save made while its day was open and sent after the day closed (04:00 Manila) lands if it is less than 48 hours old, flagged "Needs review" with the reason "Saved offline on X, sent on Y". Older saves, and saves to a remitted day, follow the closed-day rule.
+- **Signed in for a week:** a phone without signal keeps a replay token for 7 days from its last contact, so its saves still send; signing out or changing the password ends it.
+- **Install on iPhone:** Safari may clear a site's data after a week unused, so iPhones are asked to add the app to the Home Screen.
+- **One phone's view:** while cut off, each phone sees only its own waiting saves. A site hub that lets phones see each other's work offline is a later step.
 
 ---
 

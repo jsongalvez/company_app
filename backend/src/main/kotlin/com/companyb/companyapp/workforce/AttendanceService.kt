@@ -4,7 +4,9 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
+import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -103,6 +105,26 @@ object AttendanceService {
     }
 
     /**
+     * The day a clock-in or mark belongs to, locked: the day it happened on, so one saved offline
+     * last night lands on last night. The lock comes BEFORE the guard so a clock-in serializes
+     * against the retraction cutoff commands (they hold it while deciding). A day other than
+     * today passes the closed-day rule first: late within [OpTime.LATE_WINDOW] lands flagged.
+     */
+    private fun lockedDayOfClock(
+        callerId: UUID,
+        branchId: UUID,
+    ): BranchDay {
+        val day = OpTime.occurredDate()
+        val branchDay = BranchDayService.resolveOrCreate(branchId, day)
+        if (day == BranchDayService.currentOperationalDate()) {
+            BranchDayService.lockDayInTransaction(branchDay.id)
+        } else {
+            BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDay.id)
+        }
+        return branchDay
+    }
+
+    /**
      * The present leg: mirrors self clock-in — day resolution, branch-day lock,
      * active-clock-in guard, idempotent-retry contract, atomic commission recalculation —
      * with `userId` = target and `markedBy` = caller.
@@ -116,13 +138,8 @@ object AttendanceService {
         val id =
             attendanceId
                 ?: throw ValidationException("attendance id is required to mark a member present")
-        val today = BranchDayService.currentOperationalDate()
-        val branchDay = BranchDayService.resolveOrCreate(branchId, today)
-
-        // same serialization as self clock-in: the retraction-cutoff commands
-        // hold this lock while deciding, so a duty can never start behind a mark that
-        // then lands; the idempotent readback re-runs under it.
-        BranchDayService.lockDayInTransaction(branchDay.id)
+        // same serialization as self clock-in: the idempotent readback re-runs under the lock.
+        val branchDay = lockedDayOfClock(callerId, branchId)
         retryOutcomeOrNull(id, branchId, targetUserId, callerId)?.let {
             return AttendanceMarkResult(it.attendance, it.created, it.isRelief)
         }
@@ -140,6 +157,7 @@ object AttendanceService {
                     // The gate proved the target is a home member — never relief.
                     isRelief = false,
                     branchId = branchId,
+                    clockIn = OpTime.occurredWithin(branchDay.date),
                 ),
             )
 
@@ -168,14 +186,18 @@ object AttendanceService {
         targetUserId: UUID,
     ): AttendanceMarkResult {
         val today =
-            BranchDayService.findToday(branchId)
+            BranchDayService.findByBranchAndDate(branchId, OpTime.occurredDate())
                 ?: return AttendanceMarkResult(null, created = false, isRelief = false)
 
         val existing =
             AttendanceRepository.findActiveByUserAndBranchDayInTransaction(targetUserId, today.id)
                 ?: return AttendanceMarkResult(null, created = false, isRelief = false)
 
-        val (after, wasClockedOut) = AttendanceRepository.clockOutInTransaction(existing.id)
+        val (after, wasClockedOut) =
+            AttendanceRepository.clockOutInTransaction(
+                existing.id,
+                OpTime.occurredAfter(existing.clockIn),
+            )
 
         if (wasClockedOut) {
             AttendanceAudit.updated(
@@ -218,9 +240,16 @@ object AttendanceService {
                     return@transaction AttendanceServiceResult(existing, false, isRelief)
                 }
 
-                val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
+                val day = BranchDayService.requireBranchDayExists(existing.branchDayId)
+                val branchId = day.branchId
+                // A clock-out saved offline that lands after its day closed is flagged for review.
+                if (day.date != BranchDayService.currentOperationalDate()) OpTime.admitsLate(day.date)
 
-                val (attendance, wasClockedOut) = AttendanceRepository.clockOutInTransaction(attendanceId)
+                val (attendance, wasClockedOut) =
+                    AttendanceRepository.clockOutInTransaction(
+                        attendanceId,
+                        OpTime.occurredAfter(existing.clockIn),
+                    )
 
                 if (wasClockedOut) {
                     AttendanceAudit.updated(
@@ -251,13 +280,7 @@ object AttendanceService {
             return@traced transaction {
                 retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
-                val today = BranchDayService.currentOperationalDate()
-                val branchDay = BranchDayService.resolveOrCreate(branchId, today)
-
-                // take the branch-day row lock BEFORE the guard so clock-in serializes
-                // against the retraction cutoff commands (they hold it while deciding); the
-                // commission recalculation below re-acquires it harmlessly in this transaction.
-                BranchDayService.lockDayInTransaction(branchDay.id)
+                val branchDay = lockedDayOfClock(callerId, branchId)
 
                 // A concurrent same-id retry may have committed while this transaction waited
                 // on the lock — the idempotent readback must run again under it (review).
@@ -279,6 +302,7 @@ object AttendanceService {
                             branchDayAssignmentId = branchDayAssignmentId,
                             isRelief = isRelief,
                             branchId = branchId,
+                            clockIn = OpTime.occurredWithin(branchDay.date),
                         ),
                     )
 

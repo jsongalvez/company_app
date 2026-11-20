@@ -1,5 +1,7 @@
 # Rules for agents
 
+Goal: staff can do a full day of work on iPhone, Android or a browser, whether the wifi is bad or there is no signal at all.
+
 One row per rule. "Enforced by" is the file that fails when the rule breaks, or `judgment` when nothing does. Word list: [CONTEXT.md](CONTEXT.md).
 
 | Rule                                                                                                                                                    | Enforced by                                                                                                                                                                  |

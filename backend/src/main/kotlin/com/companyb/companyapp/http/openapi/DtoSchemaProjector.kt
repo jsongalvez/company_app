@@ -52,6 +52,8 @@ import com.companyb.companyapp.contracts.identity.InviteMintResponse
 import com.companyb.companyapp.contracts.identity.LoginRequest
 import com.companyb.companyapp.contracts.identity.LoginResponse
 import com.companyb.companyapp.contracts.identity.MeResponse
+import com.companyb.companyapp.contracts.identity.RefreshRequest
+import com.companyb.companyapp.contracts.identity.RefreshResponse
 import com.companyb.companyapp.contracts.identity.ResetPasswordRequest
 import com.companyb.companyapp.contracts.identity.RoleResponse
 import com.companyb.companyapp.contracts.identity.StartResponse
@@ -255,6 +257,8 @@ internal object DtoSchemaProjector {
             "InviteMintRequest" to InviteMintRequest.serializer(),
             "InviteMintResponse" to InviteMintResponse.serializer(),
             "LoginRequest" to LoginRequest.serializer(),
+            "RefreshRequest" to RefreshRequest.serializer(),
+            "RefreshResponse" to RefreshResponse.serializer(),
             "LoginResponse" to LoginResponse.serializer(),
             "MarkAttendanceRequest" to MarkAttendanceRequest.serializer(),
             "MeBranchResponse" to MeBranchResponse.serializer(),

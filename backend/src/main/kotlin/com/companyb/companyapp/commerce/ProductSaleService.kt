@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.exception.NotFoundException
@@ -102,6 +103,7 @@ object ProductSaleService {
                             expectedVersion = expectedVersion,
                             handledBy = callerId,
                             product = product,
+                            soldAt = OpTime.occurredWithin(branchDay.date),
                         )
 
                     if (!ProductSaleRepository.insertSaleInTransaction(params)) {

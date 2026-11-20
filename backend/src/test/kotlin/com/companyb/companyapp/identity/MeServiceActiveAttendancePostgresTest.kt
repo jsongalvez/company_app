@@ -91,6 +91,7 @@ class MeServiceActiveAttendancePostgresTest : BasePostgresTest() {
                     branchDayAssignmentId = TestFixtures.uuid(),
                     isRelief = false,
                     branchId = branchA,
+                    clockIn = java.time.OffsetDateTime.now(),
                 ),
             )
         }

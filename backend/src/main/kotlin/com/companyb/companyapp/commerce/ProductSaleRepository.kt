@@ -21,6 +21,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
+import java.time.OffsetDateTime
 import java.util.UUID
 
 data class SellProductParams(
@@ -35,6 +36,8 @@ data class SellProductParams(
     val expectedVersion: Int?,
     val handledBy: UUID,
     val product: Product,
+    /** When the sale happened ([com.companyb.companyapp.branchday.OpTime]); `recorded_at` keeps when it arrived. */
+    val soldAt: OffsetDateTime,
 )
 
 data class RetryProductSaleParams(
@@ -90,7 +93,7 @@ internal object ProductSaleRepository {
                 it[ProductSaleTable.totalAmountAtTime] =
                     params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong())
                 it[ProductSaleTable.commissionAmountAtTime] = params.product.commissionAmount
-                it[ProductSaleTable.soldAt] = CurrentTimestampWithTimeZone
+                it[ProductSaleTable.soldAt] = params.soldAt
             }.insertedCount > 0
 
     fun insertSaleMovementInTransaction(params: SellProductParams) {
