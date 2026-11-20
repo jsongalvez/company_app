@@ -8,7 +8,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeParseException
 
 /**
  * When the current request's change happened, as the phone that made it says.
@@ -26,7 +25,8 @@ object OpTime {
     const val HEADER = "X-Occurred-At"
 
     /** How long after it happened a save may still land on a day that has closed since, by itself. */
-    val LATE_WINDOW: Duration = Duration.ofHours(48)
+    private const val LATE_HOURS = 48L
+    val LATE_WINDOW: Duration = Duration.ofHours(LATE_HOURS)
 
     private class State(
         val received: Instant,
@@ -51,11 +51,12 @@ object OpTime {
 
     fun parse(raw: String?): Instant? =
         raw?.trim()?.takeIf { it.isNotEmpty() }?.let {
-            try {
-                OffsetDateTime.parse(it).toInstant()
-            } catch (_: DateTimeParseException) {
-                null
-            }
+            runCatching {
+                OffsetDateTime
+                    .parse(
+                        it,
+                    ).toInstant()
+            }.getOrNull()
         }
 
     /** When the server got the request. */

@@ -16,7 +16,7 @@ data class LoginResponse(
     val token: String,
     /** What the app needs to open, so signing in is one request. Null if it could not be read: ask `GET /api/start`. */
     val start: StartResponse? = null,
-    /** Kept on the phone: after days without signal it buys a new [token] from `/auth/refresh`, so queued saves still send. */
+    /** Kept on the phone: after days off signal it buys a new [token] (`/auth/refresh`), so queued saves send. */
     val replayToken: String,
 )
 

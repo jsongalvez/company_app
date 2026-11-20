@@ -37,7 +37,7 @@ internal data class ClockInParams(
     val branchDayAssignmentId: UUID,
     val isRelief: Boolean,
     val branchId: UUID,
-    /** When the clock-in happened ([com.companyb.companyapp.branchday.OpTime]); `clock_in_recorded_at` keeps when it arrived. */
+    /** When the clock-in happened (`OpTime`); `clock_in_recorded_at` keeps when it arrived. */
     val clockIn: OffsetDateTime,
 )
 

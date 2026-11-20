@@ -22,7 +22,8 @@ object OpLog {
     private const val OK_MAX = 299
 
     /** Long past the phone's replay token, so no queued save outlives its answer. */
-    private val KEEP: Duration = Duration.ofDays(14)
+    private const val KEEP_DAYS = 14L
+    private val KEEP: Duration = Duration.ofDays(KEEP_DAYS)
 
     private fun opId(context: Context): String? =
         context
@@ -31,7 +32,8 @@ object OpLog {
             ?.takeIf { it.isNotEmpty() && it.length <= MAX_ID && context.method().name != "GET" }
 
     /** How long a save may run before a resend of it may take over (the server stopped halfway). */
-    private val ABANDONED: Duration = Duration.ofMinutes(2)
+    private const val ABANDONED_MINUTES = 2L
+    private val ABANDONED: Duration = Duration.ofMinutes(ABANDONED_MINUTES)
     private const val CLAIMED = "opClaimed"
     private const val BUSY = 503
 
@@ -45,25 +47,46 @@ object OpLog {
         userId: String,
     ) {
         val op = opId(context) ?: return
-        val claim =
-            traced("OpLog.answerRepeat") {
-                transaction { AppliedOpStore.claimInTransaction(UUID.fromString(userId), op, ABANDONED) }
-            }
-        when (claim) {
-            is OpClaim.Claimed -> {
-                context.attribute(CLAIMED, true)
-                return
-            }
+        traced("OpLog.answerRepeat") {
+            when (
+                val claim =
+                    transaction {
+                        AppliedOpStore.claimInTransaction(
+                            UUID.fromString(userId),
+                            op,
+                            ABANDONED,
+                        )
+                    }
+            ) {
+                is OpClaim.Claimed -> {
+                    context.attribute(CLAIMED, true)
+                }
 
-            is OpClaim.Kept -> {
-                context.status(claim.status).result(claim.body)
-            }
+                is OpClaim.Kept -> {
+                    answer(context, claim.status, claim.body)
+                }
 
-            OpClaim.Running -> {
-                context.status(BUSY).result("""{"error":"Still saving this. It will send again by itself."}""")
+                OpClaim.Running -> {
+                    answer(
+                        context,
+                        BUSY,
+                        """{"error":"Still saving this. It will send again by itself."}""",
+                    )
+                }
             }
         }
-        context.contentType("application/json").header(REPLAYED_HEADER, "1")
+    }
+
+    private fun answer(
+        context: Context,
+        status: Int,
+        body: String,
+    ) {
+        context
+            .status(status)
+            .result(body)
+            .contentType("application/json")
+            .header(REPLAYED_HEADER, "1")
         context.skipRemainingHandlers()
     }
 
@@ -71,15 +94,15 @@ object OpLog {
     fun keep(context: Context) {
         val op = opId(context) ?: return
         if (context.attribute<Boolean>(CLAIMED) != true) return
-        val userId = UUID.fromString(context.attribute<String>("userId") ?: return)
-        val status = context.statusCode()
-        val body = if (status in OK_MIN..OK_MAX) context.result().orEmpty() else null
+        val userId = context.attribute<String>("userId") ?: return
         traced("OpLog.keep") {
+            val status = context.statusCode()
+            val body = if (status in OK_MIN..OK_MAX) context.result().orEmpty() else null
             transaction {
                 if (body != null) {
-                    AppliedOpStore.keepInTransaction(userId, op, status, body, KEEP)
+                    AppliedOpStore.keepInTransaction(UUID.fromString(userId), op, status, body, KEEP)
                 } else {
-                    AppliedOpStore.releaseInTransaction(userId, op)
+                    AppliedOpStore.releaseInTransaction(UUID.fromString(userId), op)
                 }
             }
         }

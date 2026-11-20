@@ -59,24 +59,37 @@ internal object AppliedOpStore {
                     it[AppliedOpTable.status] = RUNNING
                     it[AppliedOpTable.body] = ""
                 }.insertedCount > 0
-        if (inserted) return OpClaim.Claimed
         val row =
-            AppliedOpTable
-                .selectAll()
-                .where { (AppliedOpTable.userId eq userId) and (AppliedOpTable.opId eq opId) }
-                .forUpdate()
-                .singleOrNull() ?: return OpClaim.Claimed
-        if (row[AppliedOpTable.status] !=
-            RUNNING
-        ) {
-            return OpClaim.Kept(row[AppliedOpTable.status], row[AppliedOpTable.body])
-        }
+            if (inserted) {
+                null
+            } else {
+                AppliedOpTable
+                    .selectAll()
+                    .where { (AppliedOpTable.userId eq userId) and (AppliedOpTable.opId eq opId) }
+                    .forUpdate()
+                    .singleOrNull()
+            }
         val cutoff = Instant.now().minus(abandonedAfter).atOffset(ZoneOffset.UTC)
-        if (row[AppliedOpTable.appliedAt].isAfter(cutoff)) return OpClaim.Running
-        AppliedOpTable.update({ (AppliedOpTable.userId eq userId) and (AppliedOpTable.opId eq opId) }) {
-            it[AppliedOpTable.appliedAt] = CurrentTimestampWithTimeZone
+        return when {
+            row == null -> {
+                OpClaim.Claimed
+            }
+
+            row[AppliedOpTable.status] != RUNNING -> {
+                OpClaim.Kept(row[AppliedOpTable.status], row[AppliedOpTable.body])
+            }
+
+            row[AppliedOpTable.appliedAt].isAfter(cutoff) -> {
+                OpClaim.Running
+            }
+
+            else -> {
+                AppliedOpTable.update({ (AppliedOpTable.userId eq userId) and (AppliedOpTable.opId eq opId) }) {
+                    it[AppliedOpTable.appliedAt] = CurrentTimestampWithTimeZone
+                }
+                OpClaim.Claimed
+            }
         }
-        return OpClaim.Claimed
     }
 
     fun keepInTransaction(
