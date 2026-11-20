@@ -452,6 +452,9 @@ object SessionRoutes {
         addWithNewSession(callerId, sessionId, request)
         val result = saved.result
         val ticked = request.concernIds.isNotEmpty() || request.newConcerns.isNotEmpty()
+        // Each practitioner or concern added moves the session's version: answer with the one a next save goes on.
+        val added = request.practitioners.isNotEmpty() || ticked
+        val session = if (added) SessionReads.findById(sessionId) ?: result.session else result.session
         val savedConcerns = if (ticked) SessionConcernService.getForSession(callerId, sessionId) else saved.concerns
         val concerns = savedConcerns.map { it.toResponse() }
         val today =
@@ -461,7 +464,7 @@ object SessionRoutes {
                 null
             }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-        context.json(result.session.toResponse(concerns).copy(todayScreen = today))
+        context.json(session.toResponse(concerns).copy(todayScreen = today))
     }
 
     private fun parseDay(

@@ -166,6 +166,36 @@ class OutboxReplayContractTest : BasePostgresTest() {
         assertEquals(1, count(SessionTable) { it.id eq id })
     }
 
+    /** The phone queues a mark behind a new session at the version the create answered with. */
+    @Test
+    fun `a new session with practitioners answers with the version a mark goes on`() {
+        clockStaffIn()
+        val id = TestFixtures.uuid()
+        val res =
+            call(
+                staff,
+                "POST",
+                "/api/sessions",
+                mapOf(
+                    "id" to id.toString(),
+                    "clientId" to clientId.toString(),
+                    "branchId" to branchId.toString(),
+                    "isWalkIn" to false,
+                    "finalPrice" to "2500.00",
+                    "practitioners" to
+                        listOf(mapOf("id" to TestFixtures.uuid().toString(), "practitionerId" to staff.toString())),
+                ),
+            )
+        assertEquals(201, res.code)
+        val answered = Regex("\"version\":(\\d+)").find(res.body.string())!!.groupValues[1].toInt()
+        val stored =
+            transaction { SessionTable.selectAll().where { SessionTable.id eq id }.single()[SessionTable.version] }
+        assertEquals(stored, answered)
+        val mark =
+            call(staff, "PATCH", "/api/sessions/$id/status", mapOf("status" to "COMPLETED", "version" to answered))
+        assertEquals(200, mark.code, mark.body.string())
+    }
+
     @Test
     fun `POST sessions slash id slash practitioners`() {
         val sessionId = TestFixtures.uuid()
