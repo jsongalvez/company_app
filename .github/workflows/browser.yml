@@ -25,7 +25,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        include:
+          - { name: "1 of 2", browser: chromium, args: "--shard 1/2" }
+          - { name: "2 of 2", browser: chromium, args: "--shard 2/2" }
+          # Staff use iPhones and Firefox too: the day without signal runs in Safari's and Firefox's engines.
+          - { name: webkit, browser: webkit, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts" }
+          - { name: firefox, browser: firefox, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts" }
+    name: e2e (${{ matrix.name }})
     services:
       postgres:
         image: postgres:18
@@ -56,6 +62,7 @@ jobs:
       TEST_USERNAME: owner
       TEST_PASSWORD: owner-dev-pass
       E2E_OWNER_PASSWORD: owner-dev-pass
+      E2E_BROWSER: ${{ matrix.browser }}
       SCOPED_USERNAME: staff
       SCOPED_PASSWORD: staff-dev-pass
       RELIEF_USERNAME: relief
@@ -89,7 +96,7 @@ jobs:
 
       - name: Install the test browser
         working-directory: web
-        run: npx @e2e-dev/web install chromium --with-deps
+        run: npx @e2e-dev/web install ${{ matrix.browser }} --with-deps
 
       - name: Start the backend
         run: |
@@ -113,15 +120,15 @@ jobs:
       - name: Security headers and hidden API map (tools/verify/headers.sh)
         run: tools/verify/headers.sh http://localhost:18080
 
-      - name: Run browser tests (slice ${{ matrix.shard }} of 2)
+      - name: Run browser tests (${{ matrix.name }})
         working-directory: web
-        run: npm run e2e -- --shard ${{ matrix.shard }}/2
+        run: npm run e2e -- ${{ matrix.args }}
 
       - name: Keep traces of failures
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-traces-${{ matrix.shard }}
+          name: e2e-traces-${{ matrix.name }}
           path: |
             web/.e2e/results
             backend.log
