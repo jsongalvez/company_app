@@ -3,6 +3,9 @@ import { web } from "@e2e-dev/web";
 
 // E2E_BROWSER=webkit|firefox runs the same tests in Safari's or Firefox's engine (chromium by default).
 const browser = (process.env.E2E_BROWSER ?? "chromium") as "chromium" | "firefox" | "webkit";
+// Outside Chromium, a service worker's requests skip the tests' network cuts (browser.route). Any added
+// header makes the engine block service workers, so a cut there reaches every request too.
+const headers = browser === "chromium" ? undefined : { "X-E2E-Browser": browser };
 
 // Runs against a backend that serves the built web app (WEB_DIR=web/dist).
 // Start it first: `./gradlew :backend:run` from the repo root, with the dev
@@ -10,7 +13,7 @@ const browser = (process.env.E2E_BROWSER ?? "chromium") as "chromium" | "firefox
 export default {
     targets: [
         {
-            engine: web({ browser, viewport: { width: 1400, height: 860 }, timezoneId: "Asia/Manila" }),
+            engine: web({ browser, headers, viewport: { width: 1400, height: 860 }, timezoneId: "Asia/Manila" }),
             app: { url: process.env.APP_URL ?? "http://localhost:18080" },
         },
     ],

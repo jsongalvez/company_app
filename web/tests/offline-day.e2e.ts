@@ -60,12 +60,15 @@ async function expireSignIn(browser: Browser) {
     });
 }
 
-async function pickBranch(app: App, screen: Screen, branch: string) {
+async function pickBranch(app: App, screen: Screen, browser: Browser, branch: string) {
     await app.open("/#/today");
     const picker = screen.getByLabel("Branch");
     await expect(picker.getByRole("option", branch)).toBeAttached();
     await picker.selectOption({ label: branch });
-    await expect(picker).toContainText(branch);
+    // The chosen option's text, read the same way in every engine (a select's own text differs by browser).
+    const chosen = () =>
+        browser.evaluate(() => document.querySelector<HTMLSelectElement>('select[aria-label="Branch"]')?.selectedOptions[0]?.textContent ?? "");
+    await expect.poll(chosen).toBe(branch);
     await expect(
         screen
             .getByRole("banner")
@@ -185,16 +188,16 @@ for (const p of people) {
             { session: p.session, timeout: 300_000 },
             async ({ app, screen, browser }) => {
                 // Each run adds to both branches' day, so compare what this run added, not the totals.
-                await pickBranch(app, screen, `Online ${p.letter} Branch`);
+                await pickBranch(app, screen, browser, `Desk ${p.letter} Branch`);
                 const online = await branchIdOf(browser);
                 const onlineBefore = await totals(online).catch(() => null);
                 // Pay is one per person and day: a second run on the same day (only on this box) skips it at both branches.
-                const name = net === "offline" ? "Payee no signal" : "Payee bad wifi";
+                const name = net === "offline" ? "Payee cut" : "Payee flaky";
                 const payee = p.payee && !(await paid(online, name)) ? name : null;
                 await workDay(app, screen, browser, payee);
                 const onlineAfter = await totals(online);
 
-                await pickBranch(app, screen, `Offline ${p.letter} Branch`);
+                await pickBranch(app, screen, browser, `Field ${p.letter} Branch`);
                 const offline = await branchIdOf(browser);
                 const offlineBefore = await totals(offline).catch(() => null);
                 // Give the branch pull a moment to land, as a phone does between sign-in and walking out of signal.
@@ -222,7 +225,7 @@ for (const p of people) {
                 const history = (await (
                     await fetch(`${BASE}/api/me/history?from=${businessDate()}&to=${businessDate()}`, { headers: { Authorization: `Bearer ${token}` } })
                 ).json()) as { shifts: { branchName: string; clockIn: string }[] };
-                const shifts = history.shifts.filter((s) => s.branchName === `Offline ${p.letter} Branch`).map((s) => Date.parse(s.clockIn));
+                const shifts = history.shifts.filter((s) => s.branchName === `Field ${p.letter} Branch`).map((s) => Date.parse(s.clockIn));
                 expect(shifts.length).toBeGreaterThan(0);
                 const last = Math.max(...shifts);
                 expect(last).toBeGreaterThanOrEqual(cutAt - 2_000);

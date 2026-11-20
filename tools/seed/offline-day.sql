@@ -2,10 +2,10 @@
 -- so a day's work done online at one and offline (or on bad wifi) at the other can be compared total
 -- for total. Run after DevMain has seeded `staff`: both sign in with staff's password (staff-dev-pass).
 WITH b(id, name) AS (
-  VALUES ('00000000-0000-4000-8000-000000000201'::uuid, 'Online P Branch'),
-         ('00000000-0000-4000-8000-000000000202'::uuid, 'Offline P Branch'),
-         ('00000000-0000-4000-8000-000000000203'::uuid, 'Online C Branch'),
-         ('00000000-0000-4000-8000-000000000204'::uuid, 'Offline C Branch')
+  VALUES ('00000000-0000-4000-8000-000000000201'::uuid, 'Desk P Branch'),
+         ('00000000-0000-4000-8000-000000000202'::uuid, 'Field P Branch'),
+         ('00000000-0000-4000-8000-000000000203'::uuid, 'Desk C Branch'),
+         ('00000000-0000-4000-8000-000000000204'::uuid, 'Field C Branch')
 )
 INSERT INTO branch (id, name) SELECT id, name FROM b;
 
@@ -15,7 +15,7 @@ WITH r(username, role, branches) AS (
 ), u AS (
   INSERT INTO app_user (username, password_hash, email, display_name)
   SELECT r.username, (SELECT password_hash FROM app_user WHERE username = 'staff'), r.username || '@example.com',
-         'Offline ' || initcap(lower(r.role))
+         'Field ' || initcap(lower(r.role))
   FROM r
   RETURNING id, username
 ), ur AS (
@@ -46,10 +46,10 @@ WHERE b.id::text LIKE '00000000-0000-4000-8000-0000000002%';
 
 -- People the coordinator pays, one per branch and test: pay is one per person and paying day.
 WITH p(username, display_name, branch_id) AS (
-  VALUES ('payee-on-nosignal', 'Payee no signal', '00000000-0000-4000-8000-000000000203'::uuid),
-         ('payee-off-nosignal', 'Payee no signal', '00000000-0000-4000-8000-000000000204'::uuid),
-         ('payee-on-badwifi', 'Payee bad wifi', '00000000-0000-4000-8000-000000000203'::uuid),
-         ('payee-off-badwifi', 'Payee bad wifi', '00000000-0000-4000-8000-000000000204'::uuid)
+  VALUES ('payee-on-nosignal', 'Payee cut', '00000000-0000-4000-8000-000000000203'::uuid),
+         ('payee-off-nosignal', 'Payee cut', '00000000-0000-4000-8000-000000000204'::uuid),
+         ('payee-on-badwifi', 'Payee flaky', '00000000-0000-4000-8000-000000000203'::uuid),
+         ('payee-off-badwifi', 'Payee flaky', '00000000-0000-4000-8000-000000000204'::uuid)
 ), u AS (
   INSERT INTO app_user (username, password_hash, email, display_name)
   SELECT p.username, (SELECT password_hash FROM app_user WHERE username = 'staff'), p.username || '@example.com', p.display_name
