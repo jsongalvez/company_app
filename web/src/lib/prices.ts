@@ -1,8 +1,11 @@
 /**
- * The last session prices this phone saw per branch and visit type, so a new session can be
- * priced with no signal. The server still decides the visit type when the save arrives.
+ * Session prices on the phone, so a new session is priced at once on bad wifi and with no signal:
+ * the branch's rates as pulled for the day, and the last prices this phone saw. The server still
+ * decides the visit type and price when the save arrives.
  */
 import type { S } from "../api/client";
+import { peek } from "./cache.svelte";
+import { key as keys } from "./keys";
 
 type P = S["SessionPreviewResponse"];
 type T = NonNullable<P["sessionType"]>;
@@ -21,20 +24,27 @@ export function rememberPrice(branchId: string, p: P) {
     localStorage.setItem(key(branchId), JSON.stringify({ ...read(branchId), [p.sessionType]: p.basePrice }));
 }
 
-/** Same rule as the server: no earlier visits is a regular first visit, one is a second session. */
-export function guessPreview(branchId: string, c: S["ClientResponse"]): P | null {
+type BranchType = S["BranchResponse"]["branchType"];
+
+/** The branch's rates from the day's pull (`data.ts pullBranch`), over the prices this phone saw. */
+function rates(branchId: string): Partial<Record<T, string>> {
+    const pulled = peek<S["RateResponse"][]>(keys.rates(branchId)) ?? [];
+    return { ...read(branchId), ...Object.fromEntries(pulled.map((r) => [r.sessionType, r.rate])) };
+}
+
+/** Same rule as the server (`SessionService.computeSessionType`), priced from the branch's rates. */
+export function guessPreview(branchId: string, branchType: BranchType | undefined, c: S["ClientResponse"]): P | null {
     const visits = c.sessionCount + (c.earlierVisits ?? 0);
-    const seen = read(branchId);
-    // Mission branches price every visit the same; provincial tours have their own first visit.
-    const type: T = seen.MEDICAL_MISSION
-        ? "MEDICAL_MISSION"
-        : visits === 0
-          ? seen.PROVINCIAL_FIRST
-              ? "PROVINCIAL_FIRST"
-              : "REGULAR"
-          : visits === 1
-            ? "SECOND_SESSION"
-            : "SUBSEQUENT";
-    const price = seen[type];
+    const type: T =
+        branchType === "MEDICAL_MISSION"
+            ? "MEDICAL_MISSION"
+            : visits === 0
+              ? branchType === "PROVINCIAL_TOUR"
+                  ? "PROVINCIAL_FIRST"
+                  : "REGULAR"
+              : visits === 1
+                ? "SECOND_SESSION"
+                : "SUBSEQUENT";
+    const price = rates(branchId)[type];
     return price ? { sessionType: type, basePrice: price } : null;
 }

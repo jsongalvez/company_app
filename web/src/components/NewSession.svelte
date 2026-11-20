@@ -6,7 +6,7 @@
     import { today, takeLists } from "../lib/today.svelte";
     import { wrote, fetchCached } from "../lib/cache.svelte";
     import { deferredSoFar, whenLanded } from "../lib/outbox.svelte";
-    import { onDestroy } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { label, peso, operationalDate, shortDay } from "../lib/format";
@@ -58,36 +58,39 @@
     let nextDate = $state("");
     let staff = $state<{ id: string; name: string }[]>([]);
 
-    // Reset each time the dialog opens; load who can be assigned today.
+    // Reset each time the dialog opens; load who can be assigned today. Only opening resets it: a day or
+    // sign-in refreshed behind the open dialog (bad wifi) must not clear what the person typed.
     $effect(() => {
         if (!open) return;
-        client = startClient;
-        creating = false;
-        draft = emptyDraft();
-        preview = null;
-        previewErr = null;
-        price = "";
-        walkIn = false;
-        requested = "";
-        practitioners = app.me ? [app.me.id] : [];
-        remarks = otherConcerns = nextDate = "";
-        picked = [];
-        const cl = load.concerns();
-        fetchCached(cl.key, cl.fn).then(
-            (l) => (concerns = sortConcerns(l as S["ConcernResponse"][])),
-            () => {},
-        );
-        a.reset();
-        // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
-        const day = (date ? dayId : today.day?.branchDayId) || undefined;
-        const usersOf = day && can("PAY", { branch: app.branchId, day }) ? day : undefined;
-        const l = usersOf ? load.dayUsers(usersOf) : null;
-        const m = load.members(app.branchId);
-        Promise.all([l ? fetchCached(l.key, l.fn).catch(() => []) : Promise.resolve([]), fetchCached(m.key, m.fn).catch(() => [])]).then(([du, mem]) => {
-            const map = new Map<string, string>();
-            for (const u of du as S["BranchDayUserResponse"][]) map.set(u.userId, u.displayName);
-            for (const u of mem as S["BranchMemberResponse"][]) if (!map.has(u.id)) map.set(u.id, u.displayName);
-            staff = [...map].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
+        untrack(() => {
+            client = startClient;
+            creating = false;
+            draft = emptyDraft();
+            preview = null;
+            previewErr = null;
+            price = "";
+            walkIn = false;
+            requested = "";
+            practitioners = app.me ? [app.me.id] : [];
+            remarks = otherConcerns = nextDate = "";
+            picked = [];
+            const cl = load.concerns();
+            fetchCached(cl.key, cl.fn).then(
+                (l) => (concerns = sortConcerns(l as S["ConcernResponse"][])),
+                () => {},
+            );
+            a.reset();
+            // Who clocked in today is readable only with the pay permission; the branch's members cover the rest.
+            const day = (date ? dayId : today.day?.branchDayId) || undefined;
+            const usersOf = day && can("PAY", { branch: app.branchId, day }) ? day : undefined;
+            const l = usersOf ? load.dayUsers(usersOf) : null;
+            const m = load.members(app.branchId);
+            Promise.all([l ? fetchCached(l.key, l.fn).catch(() => []) : Promise.resolve([]), fetchCached(m.key, m.fn).catch(() => [])]).then(([du, mem]) => {
+                const map = new Map<string, string>();
+                for (const u of du as S["BranchDayUserResponse"][]) map.set(u.userId, u.displayName);
+                for (const u of mem as S["BranchMemberResponse"][]) if (!map.has(u.id)) map.set(u.id, u.displayName);
+                staff = [...map].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
+            });
         });
     });
 
@@ -108,11 +111,16 @@
     const pastVisits = $derived((hist?.sessions ?? []).filter((v) => !v.voided && v.status === "COMPLETED"));
     const visitCount = $derived((hist ? pastVisits.length : (client?.sessionCount ?? 0)) + (client?.earlierVisits ?? 0));
 
+    const branchType = () => (app.branches.find((b) => b.branchId === app.branchId) ?? app.accessible.find((b) => b.id === app.branchId))?.branchType;
+
     // Base rate preview for the chosen client.
     $effect(() => {
         const c = client;
         if (!c) return;
-        preview = null;
+        // Priced at once from the phone's rates; the server's answer replaces it when it comes.
+        const guess = guessPreview(app.branchId, branchType(), c);
+        preview = guess;
+        if (guess) price = guess.basePrice;
         previewErr = null;
         ok(api.GET("/api/branches/{branchId}/session-preview", { params: { path: { branchId: app.branchId }, query: { clientId: c.id } } })).then(
             (p) => {
@@ -124,12 +132,11 @@
             (e: Error) => {
                 if (client?.id !== c.id) return;
                 // No signal: work it out from the visits and the rates this phone last saw.
-                const guess = e instanceof ApiError && e.status <= 0 ? guessPreview(app.branchId, c) : null;
-                if (guess) {
-                    preview = guess;
-                    price = guess.basePrice;
-                    previewErr = "No signal: price from the rates this phone last saw.";
-                } else previewErr = e instanceof ApiError && e.status <= 0 ? "No signal: enter the price." : e.message;
+                const offline = e instanceof ApiError && e.status <= 0;
+                // A client made on this phone and not yet sent is unknown to the server: the phone's price stands.
+                if (guess && e instanceof ApiError && e.status === 404) previewErr = null;
+                else if (offline && guess) previewErr = "No signal: price from the rates this phone last saw.";
+                else previewErr = e instanceof ApiError && e.status <= 0 ? "No signal: enter the price." : e.message;
             },
         );
     });

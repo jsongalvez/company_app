@@ -400,6 +400,18 @@ function chainVersions(landed: Item, newVersion: number | undefined) {
     }
 }
 
+/** A record made on this phone has landed: saves queued on it were made from version 0, the server's first is the answer's. */
+function startVersions(created: Item, version: number) {
+    const id = parseBody(created.body).id;
+    if (typeof id !== "string") return;
+    const rec = `${created.path}/${id}`;
+    for (const x of outbox.items) {
+        if (x.id === created.id || recordOf(x.path) !== rec || x.failed) continue;
+        const o = parseBody(x.body);
+        if (o.version === 0) x.body = JSON.stringify({ ...o, version });
+    }
+}
+
 /** The answer's JSON, or null when it has none. */
 async function readBody(res: Response): Promise<unknown> {
     try {
@@ -442,10 +454,9 @@ export async function flush(): Promise<void> {
             if (verdict.kind === "retry") return;
             reportNetOk();
             if (verdict.kind === "applied") {
-                if (i.method !== "POST" || recordOf(i.path) !== i.path) {
-                    const v = (body as { version?: unknown } | null)?.version;
-                    chainVersions(i, typeof v === "number" ? v : undefined);
-                }
+                const v = (body as { version?: unknown } | null)?.version;
+                if (i.method !== "POST" || recordOf(i.path) !== i.path) chainVersions(i, typeof v === "number" ? v : undefined);
+                else if (typeof v === "number") startVersions(i, v);
                 if (keepsAfterSend(i)) live.sentAt = Date.now();
                 else outbox.items = outbox.items.filter((x) => x.id !== i.id);
                 save();

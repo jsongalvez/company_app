@@ -137,6 +137,8 @@
             .filter((p) => p.body.branchId === bid && (p.body.date ?? operationalDate()) === date && !have.has(String(p.body.id)))
             .map((p) => ({
                 ...heldRow(p.at, p.body),
+                // A mark made with no signal on a session that is still waiting too: both go out in order.
+                sessionStatus: (marks.get(String(p.body.id)) ?? "PENDING") as S["DashboardSessionResponse"]["sessionStatus"],
                 held: p.state === "waiting",
                 local: p.state === "sent" ? null : { state: p.state, item: p.id, failed: p.failed },
             }));
@@ -253,7 +255,12 @@
         await markMember(m.userId, present, bid);
     }
 
-    const needClockIn = $derived(!!dash.error && /clocked in/i.test(dash.error));
+    // The server refused the list before a clock-in this phone holds: that refusal is out of date.
+    const clockRefusal = $derived(!!dash.error && /clocked in/i.test(dash.error));
+    const needClockIn = $derived(clockRefusal && !onDutyAt(bid));
+    const dashShown = $derived(
+        clockRefusal && !needClockIn ? { ...dash, loading: dash.loading, waiting: dash.waiting, error: null, refresh: () => dash.refresh() } : dash,
+    );
 
     let newOpen = $state(false);
     let bookOpen = $state(false);
@@ -395,7 +402,7 @@
         {:else}
             <State
                 q={isToday
-                    ? dash
+                    ? dashShown
                     : {
                           loading: pastList.loading && !switching && late,
                           waiting: pastList.waiting && !heldRows,
@@ -464,8 +471,7 @@
                                 {#if canMark}
                                     <td class="acts full" onclick={(e) => e.stopPropagation()}>
                                         {#if s.local?.state === "sending"}<span class="faint">Saving…</span>
-                                        {:else if s.local}{#if s.local.state === "waiting"}<span class="faint">Sends when back online</span>{/if}
-                                        {:else if !s.isVoided}
+                                        {:else if !s.isVoided && (!s.local || s.local.state === "waiting")}
                                             {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false) as to (to)}
                                                 <button class="sm" class:primary={to === "COMPLETED"} onclick={() => mark(s, to)}
                                                     >{to === "COMPLETED" ? "Done" : to === "PENDING" ? "Undo" : label(to)}</button
