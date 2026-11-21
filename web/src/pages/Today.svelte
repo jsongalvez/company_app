@@ -26,6 +26,7 @@
     import { changed } from "../lib/changed";
     import type { Booking } from "../lib/bookings";
     import ProductSale from "../components/ProductSale.svelte";
+    import SitePanel from "../components/SitePanel.svelte";
 
     const bid = $derived(app.branchId);
     // Staff enter yesterday's sessions and sales the next day: ◀ opens an earlier day to add to.
@@ -318,6 +319,7 @@
     {/if}
 </PageHead>
 
+{#if isToday}<SitePanel />{/if}
 {#if remitted}
     <div class="notice warn mb">{day(date)} is remitted. Changes need coordinator rights and a reason.</div>
 {:else if isToday && today.day && today.day.status !== "OPEN"}

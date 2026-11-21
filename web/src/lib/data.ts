@@ -3,6 +3,7 @@ import { api, ok, ApiError, type S } from "../api/client";
 import { fetchCached, peek } from "./cache.svelte";
 import { operationalDate } from "./format";
 import { key, type Key } from "./keys";
+import { keepTicket } from "./site.svelte";
 
 export type Loader<T> = { key: Key; fn: () => Promise<T> };
 const L = <T>(key: Key, fn: () => Promise<T>): Loader<T> => ({ key, fn });
@@ -21,6 +22,7 @@ function todayScreen(branchId: string) {
     if (p && seeded.has(p)) setTimeout(() => todayInFlight.get(branchId) === p && todayInFlight.delete(branchId), 0);
     if (!p) {
         p = ok(api.GET("/api/branches/{branchId}/today-screen", b(branchId)));
+        p.then((t) => keepTicket(branchId, t)).catch(() => {});
         todayInFlight.set(branchId, p);
         setTimeout(() => todayInFlight.delete(branchId), 0);
     }
@@ -32,7 +34,7 @@ function todayScreen(branchId: string) {
  */
 export function seedTodayScreen(branchId: string, bundle: Promise<S["TodayScreenResponse"]>) {
     const p = bundle.catch(() => ok(api.GET("/api/branches/{branchId}/today-screen", b(branchId))));
-    p.catch(() => {});
+    p.then((t) => keepTicket(branchId, t)).catch(() => {});
     seeded.add(p);
     todayInFlight.set(branchId, p);
     setTimeout(() => todayInFlight.get(branchId) === p && todayInFlight.delete(branchId), 5000);

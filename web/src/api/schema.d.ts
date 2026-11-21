@@ -2588,6 +2588,11 @@ export interface components {
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                     earlierWaitingDays?: string[] | null;
+                    siteHub?: {
+                        room: string;
+                        key: string;
+                        date: string;
+                    } | null;
                 } | null;
             } | null;
             replayToken: string;
@@ -2646,6 +2651,11 @@ export interface components {
                 bookings: components["schemas"]["BookingResponse"][] | null;
                 roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                 earlierWaitingDays?: string[] | null;
+                siteHub?: {
+                    room: string;
+                    key: string;
+                    date: string;
+                } | null;
             } | null;
         };
         StopViewAsRequest: {
@@ -3153,6 +3163,11 @@ export interface components {
                 bookings: components["schemas"]["BookingResponse"][] | null;
                 roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                 earlierWaitingDays?: string[] | null;
+                siteHub?: {
+                    room: string;
+                    key: string;
+                    date: string;
+                } | null;
             } | null;
         };
         SessionVoidResponse: {
@@ -3180,6 +3195,11 @@ export interface components {
             bookings: components["schemas"]["BookingResponse"][] | null;
             roster: components["schemas"]["MemberAttendanceResponse"][] | null;
             earlierWaitingDays?: string[] | null;
+            siteHub?: {
+                room: string;
+                key: string;
+                date: string;
+            } | null;
         };
         UnvoidSessionRequest: {
             unvoidedReason: string;
@@ -3292,6 +3312,11 @@ export interface components {
                         bookings: components["schemas"]["BookingResponse"][] | null;
                         roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                         earlierWaitingDays?: string[] | null;
+                        siteHub?: {
+                            room: string;
+                            key: string;
+                            date: string;
+                        } | null;
                     } | null;
                 } | null;
             } | null;
@@ -3324,6 +3349,11 @@ export interface components {
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                     earlierWaitingDays?: string[] | null;
+                    siteHub?: {
+                        room: string;
+                        key: string;
+                        date: string;
+                    } | null;
                 } | null;
             } | null;
         };
@@ -3372,6 +3402,11 @@ export interface components {
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                     earlierWaitingDays?: string[] | null;
+                    siteHub?: {
+                        room: string;
+                        key: string;
+                        date: string;
+                    } | null;
                 } | null;
             } | null;
         };
@@ -3415,6 +3450,11 @@ export interface components {
                     bookings: components["schemas"]["BookingResponse"][] | null;
                     roster: components["schemas"]["MemberAttendanceResponse"][] | null;
                     earlierWaitingDays?: string[] | null;
+                    siteHub?: {
+                        room: string;
+                        key: string;
+                        date: string;
+                    } | null;
                 } | null;
             } | null;
         };

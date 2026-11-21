@@ -3,6 +3,7 @@ import { refreshOnSent } from "./cache.svelte";
 import { keepDirectoryFresh } from "./clientdir.svelte";
 import { watchConnection } from "./net.svelte";
 import { startOutbox } from "./outbox.svelte";
+import { startSite } from "./site.svelte";
 import { watchLanded } from "./today.svelte";
 import { watchForUpdates } from "./update.svelte";
 
@@ -19,4 +20,5 @@ export function startBackgroundSync() {
     keepDirectoryFresh();
     watchSession();
     watchForUpdates();
+    startSite();
 }
