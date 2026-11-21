@@ -241,7 +241,11 @@ let asked = false;
 async function watchLocalNetwork() {
     for (const name of ["local-network-access", "local-network"]) {
         try {
-            const st = await navigator.permissions.query({ name } as unknown as PermissionDescriptor);
+            // Some engines never settle a query for a name they don't know: past a second, it never asks.
+            const st = await Promise.race([
+                navigator.permissions.query({ name } as unknown as PermissionDescriptor),
+                new Promise<never>((_, no) => setTimeout(() => no(new Error("no answer")), 1_000)),
+            ]);
             const set = () => (site.localNetwork = st.state);
             set();
             st.onchange = set;
