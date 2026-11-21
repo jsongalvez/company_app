@@ -15,7 +15,8 @@ export async function signIn(app: App, screen: Screen, username: string, passwor
     let waited = false;
     for (;;) {
         await app.clearState();
-        await app.open("/");
+        // Firefox can fail the open (NS_ERROR_FAILURE) when it lands on the page clearState is still reloading; once more is enough.
+        await app.open("/").catch(() => app.open("/"));
         await screen.getByLabel("Username").fill(username);
         await screen.getByLabel("Password").fill(password);
         await screen.getByRole("button", "Sign in").tap();
