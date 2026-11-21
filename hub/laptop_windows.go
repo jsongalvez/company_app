@@ -4,6 +4,7 @@ package main
 
 import (
 	_ "embed"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf16"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -67,8 +69,9 @@ func (winPlatform) Battery() *Battery {
 }
 
 func runHotspotScript(ssid, pass string) (string, error) {
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "-")
-	cmd.Stdin = strings.NewReader(hotspotScript)
+	// -EncodedCommand, not "-Command -": PowerShell reads stdin line by line and drops a
+	// multi-line try block without a word.
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodePS(hotspotScript))
 	cmd.Env = append(os.Environ(), "HUB_SSID="+ssid, "HUB_PASS="+pass)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
 	out, _ := cmd.CombinedOutput()
@@ -81,6 +84,16 @@ func runHotspotScript(ssid, pass string) (string, error) {
 		return "", errors.New(strings.TrimPrefix(last, "error: "))
 	}
 	return "", fmt.Errorf("hotspot script said: %s", strings.TrimSpace(string(out)))
+}
+
+// encodePS is PowerShell's -EncodedCommand form: base64 of the script in UTF-16LE.
+func encodePS(script string) string {
+	u := utf16.Encode([]rune(script))
+	b := make([]byte, 2*len(u))
+	for i, c := range u {
+		b[2*i], b[2*i+1] = byte(c), byte(c>>8)
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 func (winPlatform) Hotspot(ssid, pass string) (string, error) { return runHotspotScript(ssid, pass) }
