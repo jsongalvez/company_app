@@ -74,14 +74,16 @@ func runHotspotScript(ssid, pass string) (string, error) {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodePS(hotspotScript))
 	cmd.Env = append(os.Environ(), "HUB_SSID="+ssid, "HUB_PASS="+pass)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
-	out, _ := cmd.CombinedOutput()
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	last := strings.TrimSpace(lines[len(lines)-1])
-	switch {
-	case strings.HasPrefix(last, "state: "):
-		return strings.TrimPrefix(last, "state: "), nil
-	case strings.HasPrefix(last, "error: "):
-		return "", errors.New(strings.TrimPrefix(last, "error: "))
+	// Stdout only: PowerShell writes its progress records to stderr as CLIXML.
+	out, _ := cmd.Output()
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "state: "):
+			return strings.TrimPrefix(line, "state: "), nil
+		case strings.HasPrefix(line, "error: "):
+			return "", errors.New(strings.TrimPrefix(line, "error: "))
+		}
 	}
 	return "", fmt.Errorf("hotspot script said: %s", strings.TrimSpace(string(out)))
 }
