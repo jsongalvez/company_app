@@ -1,17 +1,22 @@
 -- For offline-day.e2e.ts: a practitioner and a coordinator who each work two branches of their own,
 -- so a day's work done online at one and offline (or on bad wifi) at the other can be compared total
--- for total. Run after DevMain has seeded `staff`: both sign in with staff's password (staff-dev-pass).
+-- for total. For offline-hours.e2e.ts: two practitioners with a branch each, whose phones' clocks run
+-- one and three days behind. Run after DevMain has seeded `staff`: both sign in with staff's password (staff-dev-pass).
 WITH b(id, name) AS (
   VALUES ('00000000-0000-4000-8000-000000000201'::uuid, 'Desk P Branch'),
          ('00000000-0000-4000-8000-000000000202'::uuid, 'Field P Branch'),
          ('00000000-0000-4000-8000-000000000203'::uuid, 'Desk C Branch'),
-         ('00000000-0000-4000-8000-000000000204'::uuid, 'Field C Branch')
+         ('00000000-0000-4000-8000-000000000204'::uuid, 'Field C Branch'),
+         ('00000000-0000-4000-8000-000000000205'::uuid, 'Late P Branch'),
+         ('00000000-0000-4000-8000-000000000206'::uuid, 'Stale P Branch')
 )
 INSERT INTO branch (id, name) SELECT id, name FROM b;
 
 WITH r(username, role, branches) AS (
   VALUES ('offline-practitioner', 'PRACTITIONER', ARRAY['00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000202']),
-         ('offline-coordinator', 'COORDINATOR', ARRAY['00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000204'])
+         ('offline-coordinator', 'COORDINATOR', ARRAY['00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000204']),
+         ('late-practitioner', 'PRACTITIONER', ARRAY['00000000-0000-4000-8000-000000000205']),
+         ('stale-practitioner', 'PRACTITIONER', ARRAY['00000000-0000-4000-8000-000000000206'])
 ), u AS (
   INSERT INTO app_user (username, password_hash, email, display_name)
   SELECT r.username, (SELECT password_hash FROM app_user WHERE username = 'staff'), r.username || '@example.com',

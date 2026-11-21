@@ -1,14 +1,18 @@
 import { test } from "@e2e-dev/web";
 import { signIn } from "./support";
 
-// Signs in once per role user (tools/seed/roles.sql), the relief worker and the offline-day pair, for roles.e2e.ts. Signing
+// Signs in once per role user (tools/seed/roles.sql), the relief worker and the offline users, for roles.e2e.ts. Signing
 // in again inside each test would pass the server's limit of 10 sign-ins a minute from one address.
 const ROLES = ["superuser", "owner", "manager", "coordinator", "practitioner", "accountant", "relief", "newcomer"] as const;
 const logins = [
     ...ROLES.map((r) => ({ session: `role-${r}`, username: `role-${r}`, password: "staff-dev-pass" })),
     { session: "relief", username: "relief", password: process.env.RELIEF_PASSWORD ?? "relief-dev-pass" },
-    // tools/seed/offline-day.sql, for offline-day.e2e.ts.
-    ...["offline-practitioner", "offline-coordinator"].map((u) => ({ session: u, username: u, password: "staff-dev-pass" })),
+    // tools/seed/offline-day.sql, for offline-day.e2e.ts and offline-hours.e2e.ts.
+    ...["offline-practitioner", "offline-coordinator", "late-practitioner", "stale-practitioner"].map((u) => ({
+        session: u,
+        username: u,
+        password: "staff-dev-pass",
+    })),
 ];
 
 // The deadline holds the sign-ins, one wait for the server's minute inside signIn, and the closing wait.

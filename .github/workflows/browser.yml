@@ -29,8 +29,8 @@ jobs:
           - { name: "1 of 2", browser: chromium, args: "--shard 1/2" }
           - { name: "2 of 2", browser: chromium, args: "--shard 2/2" }
           # Staff use iPhones and Firefox too: the day without signal runs in Safari's and Firefox's engines, and WebKit plays an iPhone (tests/iphone.e2e.ts).
-          - { name: webkit, browser: webkit, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts tests/iphone.e2e.ts" }
-          - { name: firefox, browser: firefox, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts" }
+          - { name: webkit, browser: webkit, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts tests/iphone.e2e.ts tests/offline-hours.e2e.ts" }
+          - { name: firefox, browser: firefox, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts tests/offline-hours.e2e.ts" }
     name: e2e (${{ matrix.name }})
     services:
       postgres:
