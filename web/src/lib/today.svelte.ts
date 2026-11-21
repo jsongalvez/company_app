@@ -45,8 +45,11 @@ export function takeDay(st: S["StartResponse"], withToday: boolean) {
 }
 export function restoreDay() {
     s.day = peek<Day>(key.bootToday(app.branchId, operationalDate())) ?? null;
-    s.shift = peek<Shift | null>(key.boot("shift")) ?? null;
+    const saved = peek<Shift | null>(key.boot("shift"));
+    s.shift = saved ?? null;
     applyHeldClock();
+    // Opened with no signal, the shift the phone saved plus its waiting clock changes is all anyone can know.
+    if (saved !== undefined) s.shiftKnown = true;
 }
 export function resetDay() {
     Object.assign(s, { day: null, shift: null, shiftKnown: false, marking: null });
@@ -181,7 +184,7 @@ export async function clockOut(): Promise<boolean> {
         const r = await ok(
             api.POST("/api/attendance/clock-out", { params: { query: { branchId: app.branchId || undefined, withToday: onToday() } }, body: { attendanceId } }),
         );
-        if (heldSoFar() > before) return (applyHeldClock(), wrote("clockOutHeld"), toast(doneText(before)!), true);
+        if (heldSoFar() > before) return (applyHeldClock(), (s.shiftKnown = true), wrote("clockOutHeld"), toast(doneText(before)!), true);
         toast(doneText(before, "Clocked out")!);
         // Today's list needs a clock-in: the new state takes it off screen (and off the phone).
         void applyStart(r.start);
