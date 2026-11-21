@@ -1,0 +1,115 @@
+name: hub
+
+# The site hub (hub/): tests on Linux, with Pebble (Let's Encrypt's test server) for the
+# certificate path, and on Windows, where the laptop program runs; then builds the Windows
+# program and, on master, puts it on the "site-hub" release the owner downloads from.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'hub/**'
+      - '.github/workflows/hub.yml'
+  pull_request:
+    paths:
+      - 'hub/**'
+      - '.github/workflows/hub.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: hub
+    services:
+      pebble:
+        image: ghcr.io/letsencrypt/pebble:latest
+        env:
+          PEBBLE_VA_ALWAYS_VALID: '1'
+        ports:
+          - 14000:14000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: hub/go.mod
+          cache-dependency-path: hub/go.sum
+      - name: Formatting (gofmt)
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./... && GOOS=windows go vet ./...
+      - name: Tests, with the certificate path against Pebble
+        env:
+          PEBBLE_DIRECTORY: https://localhost:14000/dir
+        run: go test -v ./...
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: hub
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: hub/go.mod
+          cache-dependency-path: hub/go.sum
+      - name: Tests on Windows (keep-awake, battery, hotspot script, firewall, hosts, DNS, relay)
+        run: go test -v ./...
+      - name: Build the laptop program
+        shell: bash
+        run: |
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/company-hub.exe .
+          GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/company-hub-arm64.exe .
+          (cd dist && sha256sum *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: The built program starts as the bare relay and answers /health
+        shell: bash
+        run: |
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 \
+            -subj /CN=hub.kiel.party -keyout k.pem -out c.pem 2>/dev/null
+          ./dist/company-hub.exe -addr 127.0.0.1:8443 -cert c.pem -key k.pem -battery 50 &
+          for i in $(seq 1 20); do
+            curl -sfk --resolve hub.kiel.party:8443:127.0.0.1 https://hub.kiel.party:8443/health && exit 0
+            sleep 1
+          done
+          exit 1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: company-hub
+          path: hub/dist/
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: company-hub
+          path: dist
+      - name: Put the program on the site-hub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          notes="Company site hub for a Windows laptop, built from ${GITHUB_SHA::8}. Download company-hub.exe and open it."
+          if gh release view site-hub >/dev/null 2>&1; then
+            gh release edit site-hub --notes "$notes" --target "$GITHUB_SHA"
+          else
+            gh release create site-hub --title "Company site hub" --notes "$notes" --target "$GITHUB_SHA" --latest
+          fi
+          gh release upload site-hub dist/* --clobber

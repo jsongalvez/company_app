@@ -73,6 +73,14 @@ type SyncOut struct {
 	Taken   int      `json:"taken"`
 	Records []Record `json:"records"`
 	Phones  []Phone  `json:"phones"`
+	// Battery is the laptop's, when it has one; the Site panel warns at 15%.
+	Battery *Battery `json:"battery,omitempty"`
+}
+
+// Battery is what the laptop's power status says.
+type Battery struct {
+	Percent  int  `json:"percent"`
+	Charging bool `json:"charging"`
 }
 
 type Relay struct {
@@ -81,6 +89,8 @@ type Relay struct {
 	boot  string
 	now   func() time.Time
 	log   func(event string, fields map[string]any)
+	// battery reads the laptop's battery; nil, or nil answers, where there is none.
+	battery func() *Battery
 }
 
 func NewRelay(log func(string, map[string]any)) *Relay {
@@ -139,11 +149,31 @@ func (r *Relay) sync(id string, in SyncIn) (SyncOut, error) {
 		since = 0
 	}
 	out := SyncOut{Boot: r.boot, Next: len(rm.records), Taken: taken, Records: append([]Record{}, rm.records[since:]...)}
+	if r.battery != nil {
+		out.Battery = r.battery()
+	}
 	for _, p := range rm.phones {
 		out.Phones = append(out.Phones, Phone{Device: p.Device, AgoSec: int64(now.Sub(p.last) / time.Second), Presence: p.Presence})
 	}
 	sort.Slice(out.Phones, func(i, j int) bool { return out.Phones[i].Device < out.Phones[j].Device })
 	return out, nil
+}
+
+// Counts gives the phones heard from in the last two minutes and the records held, over all rooms,
+// for the laptop's window.
+func (r *Relay) Counts() (phones, records int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := r.now()
+	for _, rm := range r.rooms {
+		records += len(rm.records)
+		for _, p := range rm.phones {
+			if now.Sub(p.last) < 2*time.Minute {
+				phones++
+			}
+		}
+	}
+	return phones, records
 }
 
 func (r *Relay) prune(now time.Time) {

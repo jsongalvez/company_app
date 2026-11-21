@@ -57,3 +57,17 @@ func TestOldRoomsAreDropped(t *testing.T) {
 		t.Fatal("room older than keepFor kept")
 	}
 }
+
+// The Site panel warns at 15%: the laptop's battery must reach the phones in every answer.
+func TestSyncCarriesTheLaptopsBattery(t *testing.T) {
+	r := NewRelay(quiet)
+	out, _ := r.sync(room1, SyncIn{Device: "a"})
+	if out.Battery != nil {
+		t.Fatalf("no battery source, got %+v", out.Battery)
+	}
+	r.battery = func() *Battery { return &Battery{Percent: 14, Charging: false} }
+	out, _ = r.sync(room1, SyncIn{Device: "a"})
+	if out.Battery == nil || out.Battery.Percent != 14 || out.Battery.Charging {
+		t.Fatalf("battery: %+v", out.Battery)
+	}
+}
