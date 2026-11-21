@@ -56,6 +56,9 @@ object SiteHubCerts {
         data object NotSetUp : Result
     }
 
+    /** A new laptop's token: the clock for laptop tokens is read here only. */
+    fun pair(now: Instant = Instant.now()): SiteHub.LaptopToken = SiteHub.laptopToken(UUID.randomUUID(), now)
+
     fun put(
         token: String,
         value: String,

@@ -24,8 +24,6 @@ import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.io.IOException
-import java.time.Instant
-import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
@@ -79,9 +77,8 @@ object SiteHubRoutes {
                     .bodyAsClass<SiteHubLaptopRequest>()
                     .name
                     .take(MAX_NAME)
-            val laptop = UUID.randomUUID()
-            val t = SiteHub.laptopToken(laptop, Instant.now())
-            logger.info { "[SITE-HUB] laptop $laptop ($name) paired by ${ctx.callerUuid()}" }
+            val t = SiteHubCerts.pair()
+            logger.info { "[SITE-HUB] laptop ($name) paired by ${ctx.callerUuid()} until ${t.expiresAt}" }
             ctx.json(SiteHubLaptopResponse(t.token, t.expiresAt.toString()))
         }
         config.put(ApiRoutes.SITE_HUB_CHALLENGE, Gate.Open("the laptop token is the key")) { ctx ->
