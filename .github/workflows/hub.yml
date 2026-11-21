@@ -75,9 +75,12 @@ jobs:
           (cd dist && sha256sum *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: The built program starts as the bare relay and answers /health
         shell: bash
+        env:
+          # Git bash would turn "/CN=..." into a Windows path.
+          MSYS_NO_PATHCONV: '1'
         run: |
           openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 \
-            -subj /CN=hub.kiel.party -keyout k.pem -out c.pem 2>/dev/null
+            -subj /CN=hub.kiel.party -keyout k.pem -out c.pem
           ./dist/company-hub.exe -addr 127.0.0.1:8443 -cert c.pem -key k.pem -battery 50 &
           for i in $(seq 1 20); do
             curl -sfk --resolve hub.kiel.party:8443:127.0.0.1 https://hub.kiel.party:8443/health && exit 0
