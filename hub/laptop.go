@@ -21,7 +21,7 @@ import (
 
 // The laptop program: one window that turns on the laptop's hotspot, answers DNS for
 // hub.kiel.party on it, keeps the certificate fresh, keeps the laptop awake and runs the relay.
-// Windows only (owner 2026-11-21: "laptop os is only windows"); the Windows parts live in
+// Windows only: the site laptops run Windows. The Windows parts live in
 // laptop_windows.go behind the platform interface so the rest is tested on Linux too.
 
 const (

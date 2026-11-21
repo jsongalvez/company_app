@@ -12,6 +12,10 @@ import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.branch.RenameBranchRequest
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
+import com.companyb.companyapp.contracts.branchday.SiteHubChallengeRequest
+import com.companyb.companyapp.contracts.branchday.SiteHubChallengeResponse
+import com.companyb.companyapp.contracts.branchday.SiteHubLaptopRequest
+import com.companyb.companyapp.contracts.branchday.SiteHubLaptopResponse
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.client.CreateClientRequest
 import com.companyb.companyapp.contracts.client.UpdateClientRequest
@@ -190,6 +194,10 @@ internal object DtoSchemaProjector {
             "AuditLogTableResponse" to AuditLogTableResponse.serializer(),
             "BranchDayTodayResponse" to BranchDayTodayResponse.serializer(),
             "BranchDayUserResponse" to BranchDayUserResponse.serializer(),
+            "SiteHubLaptopRequest" to SiteHubLaptopRequest.serializer(),
+            "SiteHubLaptopResponse" to SiteHubLaptopResponse.serializer(),
+            "SiteHubChallengeRequest" to SiteHubChallengeRequest.serializer(),
+            "SiteHubChallengeResponse" to SiteHubChallengeResponse.serializer(),
             "BranchInventoryResponse" to BranchInventoryResponse.serializer(),
             "BranchMemberResponse" to BranchMemberResponse.serializer(),
             "BranchResponse" to BranchResponse.serializer(),

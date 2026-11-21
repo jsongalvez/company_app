@@ -251,6 +251,7 @@ class RouteAccessTest : BasePostgresTest() {
                 is Gate.SignedIn -> "SignedIn: ${gate.why}"
                 is Gate.InHandler -> "InHandler: ${gate.why}"
                 is Gate.Before -> "Before"
+                is Gate.Can -> "Can: ${gate.act}"
                 null -> "none"
             }
 

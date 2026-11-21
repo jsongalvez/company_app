@@ -26,6 +26,8 @@ data class AppConfig(
     // /swagger and /openapi: off unless API_DOCS=on, so prod never publishes the API map.
     // gen:api reads the Gradle export, not the server.
     val apiDocs: Boolean = false,
+    // Lets the server write the hub certificate's DNS-01 record (SiteHubCerts); unset: "not set up".
+    val cloudflareDnsToken: String? = null,
 ) {
     companion object {
         fun parse(): AppConfig {
@@ -74,6 +76,7 @@ data class AppConfig(
                 ntfy = NtfyConfig.fromLookup { env[it] },
                 webDir = env["WEB_DIR"]?.takeIf { it.isNotBlank() },
                 apiDocs = env["API_DOCS"]?.trim() == "on",
+                cloudflareDnsToken = env["CLOUDFLARE_DNS_TOKEN"]?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }

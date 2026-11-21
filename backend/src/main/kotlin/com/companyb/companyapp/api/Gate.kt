@@ -1,5 +1,7 @@
 package com.companyb.companyapp.api
 
+import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.authorization.Act
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.http.Handler
@@ -26,6 +28,11 @@ sealed interface Gate {
         val why: String,
     ) : Gate
 
+    /** The caller may do [act] everywhere; unlike [Before], a test can read which act the route asks for. */
+    data class Can(
+        val act: Act,
+    ) : Gate
+
     /** [check] runs before the handler and throws to refuse. */
     class Before(
         val check: (Context) -> Unit,
@@ -38,7 +45,11 @@ class GatedHandler(
     private val handler: Handler,
 ) : Handler {
     override fun handle(ctx: Context) {
-        (gate as? Gate.Before)?.check?.invoke(ctx)
+        when (gate) {
+            is Gate.Before -> gate.check(ctx)
+            is Gate.Can -> Access.require(ctx, gate.act)
+            else -> Unit
+        }
         handler.handle(ctx)
     }
 }

@@ -1,6 +1,9 @@
 package com.companyb.companyapp.branchday
 
+import java.security.MessageDigest
 import java.security.SecureRandom
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.util.Base64
 import java.util.UUID
@@ -42,6 +45,42 @@ object SiteHub {
             date = date,
         )
     }
+
+    /** How long a laptop token lasts; each certificate renewal hands out a fresh one. */
+    val LAPTOP_TOKEN_LIFE: Duration = Duration.ofDays(LAPTOP_TOKEN_DAYS)
+    private const val LAPTOP_TOKEN_DAYS = 365L
+    private const val LAPTOP_PREFIX = "hl1"
+
+    data class LaptopToken(
+        val token: String,
+        val expiresAt: Instant,
+    )
+
+    /** A token naming [laptopId] until a year from [now], signed with the deployment's secret: nothing stored. */
+    fun laptopToken(
+        laptopId: UUID,
+        now: Instant,
+    ): LaptopToken {
+        val exp = now.plus(LAPTOP_TOKEN_LIFE).epochSecond
+        val sig = Base64.getUrlEncoder().withoutPadding().encodeToString(mac(secret, "laptop|$laptopId|$exp"))
+        return LaptopToken("$LAPTOP_PREFIX.$laptopId.$exp.$sig", Instant.ofEpochSecond(exp))
+    }
+
+    /** The laptop a live, untampered token names, else null. */
+    fun laptop(
+        token: String,
+        now: Instant,
+    ): UUID? {
+        val parts = token.split('.').takeIf { it.size == LAPTOP_PARTS && it[0] == LAPTOP_PREFIX }
+        val id = parts?.let { runCatching { UUID.fromString(it[1]) }.getOrNull() }
+        val exp = parts?.get(2)?.toLongOrNull()
+        val got = parts?.let { runCatching { Base64.getUrlDecoder().decode(it[SIG_PART]) }.getOrNull() }
+        val live = id != null && exp != null && got != null && now.epochSecond < exp
+        return id.takeIf { live && MessageDigest.isEqual(mac(secret, "laptop|$id|$exp"), got) }
+    }
+
+    private const val LAPTOP_PARTS = 4
+    private const val SIG_PART = 3
 
     private fun mac(
         key: ByteArray,
