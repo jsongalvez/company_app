@@ -2,9 +2,9 @@ package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.People
 import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Slice
@@ -323,7 +323,7 @@ internal object AttendanceRepository {
                 (UserBranchAssignmentTable.branchId eq branchId) and
                     (UserBranchAssignmentTable.userId eq userId) and
                     (UserBranchAssignmentTable.endedAt.isNull()) and
-                    (AppUserTable.status eq UserStatus.ACTIVE)
+                    People.active()
             }.forUpdate(ForUpdateOption.ForUpdate)
             .limit(1)
             .singleOrNull() != null
@@ -421,7 +421,7 @@ internal object AttendanceRepository {
                     .where {
                         (UserBranchAssignmentTable.branchId eq branchId) and
                             (UserBranchAssignmentTable.endedAt.isNull()) and
-                            (AppUserTable.status eq UserStatus.ACTIVE)
+                            People.active()
                     }.orderBy(
                         UserBranchAssignmentTable.slot to SortOrder.ASC,
                         AppUserTable.displayName to SortOrder.ASC,

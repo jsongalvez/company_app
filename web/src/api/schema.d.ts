@@ -2544,6 +2544,7 @@ export interface components {
             email?: string;
             displayName?: string;
             roles?: string[];
+            userId?: string | null;
         };
         InviteMintResponse: {
             userId: string;
@@ -2669,8 +2670,9 @@ export interface components {
             username: string;
             displayName: string;
             /** @enum {string} */
-            status: "ACTIVE" | "INACTIVE";
+            status: "ACTIVE" | "INVITED" | "INVITE_EXPIRED" | "INACTIVE";
             deactivatedAt?: string | null;
+            inviteExpiresAt?: string | null;
             assignments?: components["schemas"]["UserAssignmentResponse"][];
             roles?: string[];
         };

@@ -2,9 +2,9 @@ package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefAccessStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.People
 import com.companyb.companyapp.observability.traced
 import com.companyb.companyapp.workforce.AttendanceTable
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -351,7 +351,7 @@ internal object ReliefAccessRepository {
     fun isActiveUserInTransaction(userId: UUID): Boolean =
         AppUserTable
             .selectAll()
-            .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
+            .where { (AppUserTable.id eq userId) and People.active() }
             .empty()
             .not()
 

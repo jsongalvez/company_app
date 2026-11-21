@@ -1,7 +1,7 @@
 package com.companyb.companyapp.workforce
 
-import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.People
 import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -49,7 +49,7 @@ internal object BranchMemberRepository {
                         (UserBranchAssignmentTable.branchId eq branchId) and
                             (UserBranchAssignmentTable.userId eq userId) and
                             (UserBranchAssignmentTable.endedAt.isNull()) and
-                            (AppUserTable.status eq UserStatus.ACTIVE)
+                            People.active()
                     }.empty()
                     .not()
             }
@@ -70,6 +70,6 @@ internal object BranchMemberRepository {
             .where {
                 (UserBranchAssignmentTable.branchId eq branchId) and
                     (UserBranchAssignmentTable.endedAt.isNull()) and
-                    (AppUserTable.status eq UserStatus.ACTIVE)
+                    People.active()
             }
 }

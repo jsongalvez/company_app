@@ -191,7 +191,7 @@
             moving = false;
         }
     }
-    const unassigned = $derived(users.filter((u) => u.status !== "INACTIVE" && !activeStaff.some((a) => a.userId === u.id)));
+    const unassigned = $derived(users.filter((u) => u.status === "ACTIVE" && !activeStaff.some((a) => a.userId === u.id)));
 
     // Price list
     const pa = new Action();
@@ -395,7 +395,7 @@
 <Dialog bind:open={hOpen} title="Add helper" width={400} onsubmit={addHelper} submitText="Add" busy={ha.busy || !hUser} error={ha.error}>
     <div class="field">
         <span class="req">Person</span><PersonPicker
-            people={users.filter((u) => u.status !== "INACTIVE" && !activeHelpers.some((d) => d.targetUser === u.id))}
+            people={users.filter((u) => u.status === "ACTIVE" && !activeHelpers.some((d) => d.targetUser === u.id))}
             bind:value={hUser}
         />
     </div>

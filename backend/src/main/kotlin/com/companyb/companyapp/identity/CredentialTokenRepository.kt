@@ -9,6 +9,7 @@ import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
@@ -77,6 +78,16 @@ internal object CredentialTokenRepository {
                     (CredentialTokenTable.purpose eq purpose) and
                     CredentialTokenTable.consumedAt.isNull()
             }.empty()
+
+    /** Per user holding an unconsumed INVITE token: when the newest such code dies. */
+    fun openInviteExpiriesInTransaction(): Map<UUID, OffsetDateTime> =
+        CredentialTokenTable
+            .select(CredentialTokenTable.userId, CredentialTokenTable.expiresAt)
+            .where {
+                (CredentialTokenTable.purpose eq CredentialTokenPurpose.INVITE) and
+                    CredentialTokenTable.consumedAt.isNull()
+            }.groupBy({ it[CredentialTokenTable.userId] }, { it[CredentialTokenTable.expiresAt] })
+            .mapValues { (_, expiries) -> expiries.max() }
 
     /** Ids of every unconsumed token of [userId] + [purpose] — each gets its own invalidation audit row. */
     fun findUnconsumedIdsInTransaction(

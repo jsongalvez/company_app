@@ -6,6 +6,7 @@ import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.People
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.logging.RequestQueryTally
@@ -199,7 +200,7 @@ internal object CapabilityRepository {
             .where {
                 val onDay =
                     (ReliefDayTable.branchDayId eq branchDayId) and
-                        (AppUserTable.status eq UserStatus.ACTIVE) and
+                        People.active() and
                         reliefInForce()
                 if (userId == null) onDay else onDay and (ReliefDayTable.userId eq userId)
             }.withDistinct()
@@ -239,7 +240,7 @@ internal object CapabilityRepository {
             .where {
                 (UserBranchAssignmentTable.branchId inList branchIds) and
                     UserBranchAssignmentTable.endedAt.isNull() and
-                    (AppUserTable.status eq UserStatus.ACTIVE) and
+                    People.active() and
                     (byRole or bySeat)
             }.withDistinct()
             .map { it[UserBranchAssignmentTable.branchId] to it[UserBranchAssignmentTable.userId] }

@@ -5,6 +5,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class UserStatus { ACTIVE, INACTIVE }
 
+/** What the Users list shows: an account whose invite is still open is not a person yet. */
+@Serializable
+enum class PersonStatus { ACTIVE, INVITED, INVITE_EXPIRED, INACTIVE }
+
 @Serializable
 data class MeResponse(
     val id: String,
@@ -44,8 +48,10 @@ data class UserSummaryResponse(
     val id: String,
     val username: String,
     val displayName: String,
-    val status: UserStatus,
+    val status: PersonStatus,
     val deactivatedAt: String? = null,
+    /** When the open invite's code dies; set only for INVITED and INVITE_EXPIRED. */
+    val inviteExpiresAt: String? = null,
     val assignments: List<UserAssignmentResponse> = emptyList(),
     val roles: List<String> = emptyList(),
 )
@@ -71,6 +77,8 @@ data class InviteMintRequest(
     val email: String = "",
     val displayName: String = "",
     val roles: List<String> = emptyList(),
+    /** Set: a fresh code for this account that has not joined yet; its roles stay and the fields above are ignored. */
+    val userId: String? = null,
 )
 
 @Serializable

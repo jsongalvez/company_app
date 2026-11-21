@@ -220,7 +220,7 @@ class UserServicePostgresTest : BasePostgresTest() {
         assertEquals(emptyList(), users[0].assignments, "ended assignments must be excluded")
 
         val target = users[1]
-        assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.ACTIVE, target.status)
+        assertEquals(com.companyb.companyapp.contracts.identity.PersonStatus.ACTIVE, target.status)
         assertNull(target.deactivatedAt)
         assertEquals(listOf(branchB.toString(), branchA.toString()), target.assignments.map { it.branchId })
         assertEquals(listOf("Branch B", "Branch A"), target.assignments.map { it.branchName })
@@ -234,7 +234,7 @@ class UserServicePostgresTest : BasePostgresTest() {
         val users = UserService.listUsers(TestFixtures.uuid())
 
         val target = users.single { it.id == targetUserId.toString() }
-        assertEquals(com.companyb.companyapp.contracts.identity.UserStatus.INACTIVE, target.status)
+        assertEquals(com.companyb.companyapp.contracts.identity.PersonStatus.INACTIVE, target.status)
         assertNotNull(target.deactivatedAt)
     }
 

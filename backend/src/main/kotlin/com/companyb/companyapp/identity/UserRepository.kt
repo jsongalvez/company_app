@@ -176,6 +176,14 @@ internal object UserRepository {
     fun isActiveUserInTransaction(userId: UUID): Boolean =
         AppUserTable
             .select(AppUserTable.id)
+            .where { (AppUserTable.id eq userId) and People.active() }
+            .empty()
+            .not()
+
+    /** The raw ACTIVE status, invite or not: account lifecycle only, never who counts as a person. */
+    fun isActiveAccountInTransaction(userId: UUID): Boolean =
+        AppUserTable
+            .select(AppUserTable.id)
             .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
             .empty()
             .not()
@@ -410,7 +418,7 @@ internal object UserRepository {
             .selectAll()
             .where {
                 (AppUserTable.id eq userId) and
-                    (AppUserTable.status eq UserStatus.ACTIVE) and
+                    People.active() and
                     (RoleTable.name neq ONBOARDING_ROLE)
             }.empty()
             .not()

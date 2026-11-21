@@ -117,6 +117,8 @@ const WORDS: Record<string, string> = {
     // Users and roles
     ACTIVE: "Active",
     INACTIVE: "Deactivated",
+    INVITED: "Invited",
+    INVITE_EXPIRED: "Invite expired",
     ONBOARDING: "New (no access yet)",
     SUPERUSER: "Superuser",
     OWNER: "Owner",

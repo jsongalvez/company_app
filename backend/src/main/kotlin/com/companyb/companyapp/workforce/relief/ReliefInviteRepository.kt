@@ -3,9 +3,9 @@ package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
-import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.identity.AppUserTable
+import com.companyb.companyapp.identity.People
 import com.companyb.companyapp.observability.traced
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -174,7 +174,7 @@ internal object ReliefInviteRepository {
                 AppUserTable
                     .selectAll()
                     .where {
-                        (AppUserTable.status eq UserStatus.ACTIVE) and
+                        People.active() and
                             (
                                 ilike(AppUserTable.username, needle) or
                                     ilike(AppUserTable.displayName, needle)
@@ -220,7 +220,7 @@ internal object ReliefInviteRepository {
             transaction {
                 AppUserTable
                     .selectAll()
-                    .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
+                    .where { (AppUserTable.id eq userId) and People.active() }
                     .empty()
                     .not()
             }

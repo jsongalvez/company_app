@@ -92,6 +92,15 @@
             refresh();
         });
     }
+    async function newCode(u: U) {
+        ia.reset();
+        iName = u.displayName;
+        minted = null;
+        if (await act(async () => (minted = await ok(api.POST("/api/invites", { body: { userId: u.id } }))))) {
+            iOpen = true;
+            refresh();
+        }
+    }
     async function copy(text: string) {
         try {
             await navigator.clipboard.writeText(text);
@@ -124,12 +133,17 @@
                         <td class="muted full">{(u.assignments ?? []).map((a) => a.branchName).join(", ")}</td>
                         <td>
                             {#if u.status === "INACTIVE"}<span class="mark plain" title={dateTime(u.deactivatedAt)}>Deactivated</span>{/if}
-                            {#if !u.roles?.length || u.roles.includes("ONBOARDING")}<span class="mark warn">No access yet</span>{/if}
+                            {#if u.status === "INVITED"}<span class="mark plain" title="Code works until {dateTime(u.inviteExpiresAt)}">Invited</span>{/if}
+                            {#if u.status === "INVITE_EXPIRED"}<span class="mark warn" title={dateTime(u.inviteExpiresAt)}>Invite expired</span>{/if}
+                            {#if u.status === "ACTIVE" && (!u.roles?.length || u.roles.includes("ONBOARDING"))}<span class="mark warn">No access yet</span>{/if}
                         </td>
                         <td class="right nowrap">
                             {#if u.id !== app.me?.id}
-                                {#if app.me?.canViewAs && u.status !== "INACTIVE" && !u.roles?.includes("SUPERUSER")}
+                                {#if app.me?.canViewAs && u.status === "ACTIVE" && !u.roles?.includes("SUPERUSER")}
                                     <button class="sm" onclick={() => act(() => startViewAs(u.id))} title="See the app as {u.displayName} does">View as</button>
+                                {/if}
+                                {#if u.status === "INVITED" || u.status === "INVITE_EXPIRED"}
+                                    <button class="sm" onclick={() => newCode(u)}>New code</button>
                                 {/if}
                                 {#if u.status !== "INACTIVE"}
                                     <button class="sm" onclick={() => openRoles(u)}>Roles</button>

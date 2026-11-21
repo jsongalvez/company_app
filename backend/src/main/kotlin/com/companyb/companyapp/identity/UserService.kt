@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.contracts.identity.InviteMintRequest
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
+import com.companyb.companyapp.contracts.identity.PersonStatus
 import com.companyb.companyapp.contracts.identity.RoleResponse
 import com.companyb.companyapp.contracts.identity.UserAssignmentResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
@@ -65,6 +66,9 @@ object UserService {
     private const val PLACEHOLDER_EMAIL_DOMAIN = "invite.invalid"
     private const val PLACEHOLDER_DISPLAY_NAME = "Invited user"
     private const val TOKEN_TABLE_NAME = "credential_token"
+    private const val BAD_USER_ID_MESSAGE = "userId is not a valid id"
+    private const val REINVITE_JOINED_MESSAGE = "This person has already joined"
+    private const val REINVITE_INACTIVE_MESSAGE = "Reactivate this account first"
 
     /**
      * Admin mint of a single-use invite link (decision 2). Creates an ACTIVE user
@@ -81,10 +85,16 @@ object UserService {
         callerId: UUID,
         request: InviteMintRequest,
     ): InviteMintResponse {
-        if (request.roles.contains(SUPERUSER_ROLE)) {
-            throw ValidationException(SUPERUSER_GUARD_MESSAGE)
-        }
         return traced("UserService.mintInvite") {
+            request.userId?.let { id ->
+                val target =
+                    runCatching { UUID.fromString(id) }.getOrNull()
+                        ?: throw ValidationException(BAD_USER_ID_MESSAGE)
+                return@traced reinvite(callerId, target)
+            }
+            if (request.roles.contains(SUPERUSER_ROLE)) {
+                throw ValidationException(SUPERUSER_GUARD_MESSAGE)
+            }
             val profile = request.asProfile()
             if (profile != null) {
                 validateProfile(profile)
@@ -398,40 +408,101 @@ object UserService {
         }
     }
 
-    fun listUsers(viewerId: UUID): List<UserSummaryResponse> {
-        val viewerIsSuperuser = ViewAs.isSuperuser(viewerId)
-        val users = UserRepository.findAll()
-        val assignments =
-            UserRepository
-                .findActiveAssignmentsWithBranch()
-                .groupBy { it.userId }
-        val rolesByUser = RoleRepository.findRoleNamesByUser(users.map { UUID.fromString(it.id) })
-        return users.map { user ->
-            UserSummaryResponse(
-                id = user.id,
-                username = user.username,
-                displayName = user.displayName,
-                status =
-                    UserStatus
-                        .valueOf(user.status.name),
-                deactivatedAt =
-                    user.deactivatedAt
-                        ?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                assignments =
-                    assignments[UUID.fromString(user.id)]
-                        .orEmpty()
-                        .map { assignment ->
-                            UserAssignmentResponse(
-                                assignmentId = assignment.assignmentId.toString(),
-                                branchId = assignment.branchId.toString(),
-                                branchName = assignment.branchName,
-                                slot = assignment.slot,
-                            )
-                        },
-                roles = rolesAsSeenBy(rolesByUser[UUID.fromString(user.id)].orEmpty(), viewerIsSuperuser),
+    /**
+     * A fresh invite code for an account nobody has claimed yet (its invite is open or lapsed):
+     * the old codes die and the roles stay. Someone who already joined, or a deactivated
+     * account, is refused.
+     */
+    private fun reinvite(
+        callerId: UUID,
+        targetUserId: UUID,
+    ): InviteMintResponse =
+        traced("UserService.reinvite") {
+            val expiresAt =
+                OffsetDateTime.ofInstant(
+                    Instant.now().plus(INVITE_VALID_DAYS, ChronoUnit.DAYS),
+                    ZoneOffset.UTC,
+                )
+            val rawCode =
+                transaction {
+                    if (!UserRepository.acquireLockInTransaction(targetUserId)) {
+                        throw NotFoundException("User not found")
+                    }
+                    requireMayChangeStatusInTransaction(callerId, targetUserId)
+                    if (!UserRepository.isActiveAccountInTransaction(targetUserId)) {
+                        throw ValidationException(REINVITE_INACTIVE_MESSAGE)
+                    }
+                    val outstanding =
+                        CredentialTokenRepository.hasOutstandingInTransaction(
+                            targetUserId,
+                            CredentialTokenPurpose.INVITE,
+                        )
+                    if (!outstanding) {
+                        throw ValidationException(REINVITE_JOINED_MESSAGE)
+                    }
+                    invalidateOutstandingInvites(callerId, targetUserId)
+                    insertInviteToken(targetUserId, callerId, expiresAt)
+                }
+            logger.info { "[INVITE-REMINT] Re-invited ${targetUserId.toString().maskUUID()}" }
+            InviteMintResponse(
+                userId = targetUserId.toString(),
+                inviteCode = rawCode,
+                expiresAt = expiresAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             )
         }
-    }
+
+    /** ACTIVE accounts read as INVITED or INVITE_EXPIRED while their invite is still unclaimed. */
+    private fun personStatus(
+        status: UserStatus,
+        openInviteExpiry: OffsetDateTime?,
+        now: Instant,
+    ): PersonStatus =
+        when {
+            status == UserStatus.INACTIVE -> PersonStatus.INACTIVE
+            openInviteExpiry == null -> PersonStatus.ACTIVE
+            openInviteExpiry.toInstant().isAfter(now) -> PersonStatus.INVITED
+            else -> PersonStatus.INVITE_EXPIRED
+        }
+
+    fun listUsers(viewerId: UUID): List<UserSummaryResponse> =
+        traced("UserService.listUsers") {
+            val viewerIsSuperuser = ViewAs.isSuperuser(viewerId)
+            val users = UserRepository.findAll()
+            val openInvites = transaction { CredentialTokenRepository.openInviteExpiriesInTransaction() }
+            val now = Instant.now()
+            val assignments =
+                UserRepository
+                    .findActiveAssignmentsWithBranch()
+                    .groupBy { it.userId }
+            val rolesByUser = RoleRepository.findRoleNamesByUser(users.map { UUID.fromString(it.id) })
+            return users.map { user ->
+                UserSummaryResponse(
+                    id = user.id,
+                    username = user.username,
+                    displayName = user.displayName,
+                    status = personStatus(user.status, openInvites[UUID.fromString(user.id)], now),
+                    deactivatedAt =
+                        user.deactivatedAt
+                            ?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                    inviteExpiresAt =
+                        openInvites[UUID.fromString(user.id)]
+                            ?.takeIf { user.status == UserStatus.ACTIVE }
+                            ?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                    assignments =
+                        assignments[UUID.fromString(user.id)]
+                            .orEmpty()
+                            .map { assignment ->
+                                UserAssignmentResponse(
+                                    assignmentId = assignment.assignmentId.toString(),
+                                    branchId = assignment.branchId.toString(),
+                                    branchName = assignment.branchName,
+                                    slot = assignment.slot,
+                                )
+                            },
+                    roles = rolesAsSeenBy(rolesByUser[UUID.fromString(user.id)].orEmpty(), viewerIsSuperuser),
+                )
+            }
+        }
 }
 
 /**
