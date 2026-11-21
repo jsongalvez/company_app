@@ -13,6 +13,7 @@ import com.companyb.companyapp.branch.BranchRoutes
 import com.companyb.companyapp.branchday.BranchDayRoutes
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.OpTime
+import com.companyb.companyapp.branchday.SiteHub
 import com.companyb.companyapp.client.ClientRoutes
 import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductCategoryRoutes
@@ -393,6 +394,7 @@ fun main(config: AppConfig) {
 
     JwtService.init(config)
     LabelSeal.configure(System.getenv("TELEMETRY_SALT")?.takeIf { it.isNotBlank() } ?: config.jwtSecret)
+    SiteHub.configure(config.jwtSecret)
     Password.init(config.authDummyPassword)
     PasswordResetDelivery.configure(config.smtp, config.passwordResetDevRelay)
     IncidentDelivery.configure(config.githubIssue, config.ntfy)

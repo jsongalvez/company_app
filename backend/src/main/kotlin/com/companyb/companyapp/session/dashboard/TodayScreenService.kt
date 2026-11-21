@@ -6,6 +6,7 @@ import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
+import com.companyb.companyapp.branchday.SiteHub
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.exception.NotFoundException
@@ -24,6 +25,7 @@ data class TodayScreenData(
     val bookings: List<BookingResponse>?,
     val roster: List<AttendanceRosterEntry>?,
     val earlierWaitingDays: List<java.time.LocalDate>?,
+    val siteHub: SiteHub.Ticket? = null,
 )
 
 /**
@@ -62,6 +64,12 @@ object TodayScreenService {
                                 branchId,
                                 BranchDayService.currentOperationalDate(),
                             )
+                        } else {
+                            null
+                        },
+                    siteHub =
+                        if (presence.isMember(callerId)) {
+                            SiteHub.ticket(branchId, BranchDayService.currentOperationalDate())
                         } else {
                             null
                         },

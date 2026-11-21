@@ -81,10 +81,10 @@ class SecurityHeadersTest {
         }
 
     @Test
-    fun `the page may connect only to its own origin`() =
+    fun `the page may connect only to its own origin and the site hub`() =
         JavalinTest.test(app(config(apiDocs = false))) { _, client ->
             val connect = directive(client.get("/").h("Content-Security-Policy"), "connect-src")
-            assertEquals("connect-src 'self'", connect)
+            assertEquals("connect-src 'self' https://hub.kiel.party", connect)
         }
 
     @Test

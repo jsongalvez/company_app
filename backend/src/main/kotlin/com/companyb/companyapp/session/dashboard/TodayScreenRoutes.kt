@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.contracts.session.SiteHubResponse
 import com.companyb.companyapp.contracts.session.TodayScreenResponse
 import com.companyb.companyapp.contracts.workforce.MemberAttendanceResponse
 import com.companyb.companyapp.dto.ErrorResponse
@@ -56,5 +57,6 @@ object TodayScreenRoutes {
                     )
                 },
             earlierWaitingDays = screen.earlierWaitingDays?.map { it.toString() },
+            siteHub = screen.siteHub?.let { SiteHubResponse(it.room, it.key, it.date.toString()) },
         )
 }

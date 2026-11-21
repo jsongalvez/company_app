@@ -75,4 +75,14 @@ data class TodayScreenResponse(
      * who may see the branch: they no longer block today, so Today names them to be marked.
      */
     val earlierWaitingDays: List<String>? = null,
+    /** For the branch's members: where and how to share today's unsent work through a site hub. */
+    val siteHub: SiteHubResponse? = null,
+)
+
+/** A branch day's room on a site hub and the key (base64url, AES-256-GCM) that seals its records there. */
+@Serializable
+data class SiteHubResponse(
+    val room: String,
+    val key: String,
+    val date: String,
 )
