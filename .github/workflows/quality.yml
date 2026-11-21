@@ -83,7 +83,7 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Dead references (paths, modules, Gradle tasks)
         run: bash tools/quality/check-references.sh --gradle
@@ -142,7 +142,7 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       # The test database is thrown away with the runner, so it skips crash-safety writes.
       - name: Enable pg_stat_statements tracking and skip crash-safety writes on the test database (#474)
