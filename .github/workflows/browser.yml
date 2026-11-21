@@ -26,8 +26,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "1 of 2", browser: chromium, args: "--shard 1/2" }
-          - { name: "2 of 2", browser: chromium, args: "--shard 2/2" }
+          - { name: "1 of 2", browser: chromium, args: "--shard 1/2 --grep-invert site.hub" }
+          - { name: "2 of 2", browser: chromium, args: "--shard 2/2 --grep-invert site.hub" }
+          # Four phones in Chromium, WebKit and Firefox at once on a site hub (hub/), served as https://hub.kiel.party.
+          - { name: site hub, browser: "chromium webkit firefox", args: "tests/site-hub.e2e.ts", hub: true }
           # Staff use iPhones and Firefox too: the day without signal runs in Safari's and Firefox's engines, and WebKit plays an iPhone (tests/iphone.e2e.ts).
           - { name: webkit, browser: webkit, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts tests/iphone.e2e.ts tests/offline-hours.e2e.ts" }
           - { name: firefox, browser: firefox, args: "tests/roles.setup.e2e.ts tests/offline-day.e2e.ts tests/outbox-model.e2e.ts tests/offline-hours.e2e.ts" }
@@ -62,7 +64,7 @@ jobs:
       TEST_USERNAME: owner
       TEST_PASSWORD: owner-dev-pass
       E2E_OWNER_PASSWORD: owner-dev-pass
-      E2E_BROWSER: ${{ matrix.browser }}
+      E2E_BROWSER: ${{ matrix.hub && 'chromium' || matrix.browser }}
       SCOPED_USERNAME: staff
       SCOPED_PASSWORD: staff-dev-pass
       RELIEF_USERNAME: relief
@@ -97,6 +99,10 @@ jobs:
       - name: Install the test browser
         working-directory: web
         run: npx @e2e-dev/web install ${{ matrix.browser }} --with-deps
+
+      - name: Start the site hub's relay (hub/e2e-up.sh)
+        if: matrix.hub
+        run: hub/e2e-up.sh http://localhost:18080
 
       - name: Start the backend
         run: |
