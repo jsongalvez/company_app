@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the relay's container and serves it on 127.0.0.1:$HUB_PORT as hub.kiel.party with a
-# self-signed test cert, for web/tests/site-hub.e2e.ts (CI browser.yml and local runs).
+# self-signed test cert, for web/tests/site-hub.e2e.ts (CI browser.yml and local runs). The laptop's
+# battery reads 12%, so the phones' low-battery line shows.
 #   hub/e2e-up.sh <app origin>...    e.g. hub/e2e-up.sh http://localhost:18080
 #   hub/e2e-up.sh down               stop it and delete the test cert
 set -euo pipefail
@@ -24,7 +25,7 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
 chmod 644 "$CERTS/hub.key"
 docker build -q -t company-hub:e2e "$HERE" >/dev/null
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker run -d --name "$NAME" -p "127.0.0.1:$PORT:443" -v "$CERTS:/certs:ro" company-hub:e2e -origins "$origins" >/dev/null
+docker run -d --name "$NAME" -p "127.0.0.1:$PORT:443" -v "$CERTS:/certs:ro" company-hub:e2e -origins "$origins" -battery 12 >/dev/null
 for _ in $(seq 1 30); do
   curl -sfk --resolve "hub.kiel.party:$PORT:127.0.0.1" "https://hub.kiel.party:$PORT/health" >/dev/null && { echo "hub up on 127.0.0.1:$PORT ($NAME)"; exit 0; }
   sleep 1

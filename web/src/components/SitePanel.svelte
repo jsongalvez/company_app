@@ -1,12 +1,22 @@
 <script lang="ts">
-    import { site, siteView } from "../lib/site.svelte";
+    import { BATTERY_LOW, findHub, site, siteView } from "../lib/site.svelte";
     import { time } from "../lib/format";
 
     const view = $derived((site.entries, siteView()));
     const ago = (s: number) => (s < 60 ? "just now" : `${Math.floor(s / 60)} min ago`);
 </script>
 
-{#if site.lastAt}
+{#if !site.lastAt && site.offSignal && site.localNetwork === "prompt"}
+    <section class="site" aria-label="Site">
+        <h2>Site hub</h2>
+        <button type="button" class="find" onclick={findHub}>Find site hub</button>
+    </section>
+{:else if !site.lastAt && site.offSignal && site.localNetwork === "denied"}
+    <section class="site" aria-label="Site">
+        <h2>Site hub: local network blocked</h2>
+        <p class="note">Allow in site settings</p>
+    </section>
+{:else if site.lastAt}
     <section class="site" aria-label="Site">
         <h2>
             {#if site.connected}
@@ -15,6 +25,9 @@
                 Site hub: not here since {time(new Date(site.lastAt).toISOString())}
             {/if}
         </h2>
+        {#if site.battery && !site.battery.charging && site.battery.percent <= BATTERY_LOW}
+            <p class="low" role="status">Site hub battery low: {site.battery.percent}%</p>
+        {/if}
         <div class="cols">
             <div>
                 <h3>Waiting</h3>
@@ -108,6 +121,21 @@
         margin-left: var(--s1);
         color: var(--warn);
         font-size: var(--t-meta);
+    }
+    .low {
+        margin: 0 0 var(--s2);
+        color: var(--bad);
+        font-weight: 600;
+        font-size: var(--t-body);
+    }
+    .find {
+        min-height: 44px;
+        font-size: var(--t-body);
+    }
+    .note {
+        margin: 0;
+        color: var(--text-2);
+        font-size: var(--t-body);
     }
     .missing {
         color: var(--bad);

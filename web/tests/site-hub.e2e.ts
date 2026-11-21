@@ -256,6 +256,14 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
             );
 
         for (const p of phones) await clock(p, "in");
+        // Chrome and Firefox ask before a page reaches the local network: the phone waits for a tap,
+        // so the question comes when the person expects it. WebKit never asks.
+        for (const [i, p] of phones.entries()) {
+            if (PHONE_ENGINES[i] === "webkit") continue;
+            const find = p.page.getByRole("region", { name: "Site" }).getByRole("button", { name: "Find site hub" });
+            await shown(find, 15_000);
+            await find.click();
+        }
         const client = await sessionAndSale(a, "S");
         const at = Date.now();
         for (const b of others) {
@@ -264,11 +272,13 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
             await shown(panel.getByRole("list", { name: "On duty at the site" }).getByText("Hub Ana"), 10_000);
             await shown(panel.getByRole("list", { name: "Sales at the site" }).getByText("2 sold · Hub Ana").last(), 10_000);
             await shown(panel.getByRole("list", { name: "Phones at the site" }).getByText("Hub Eva · not seen"), 10_000);
+            // hub/e2e-up.sh runs the relay with the laptop's battery at 12%.
+            await shown(panel.getByText("Site hub battery low: 12%"), 10_000);
         }
         expect(Date.now() - at).toBeLessThan(10_000 * others.length);
-        // The phone off the hotspot works as before: no Site panel.
+        // The phone off the hotspot works as before: it sees none of the site's work.
         await sleep(3_000);
-        expect(await loner.page.getByRole("region", { name: "Site" }).count()).toBe(0);
+        expect(await loner.page.getByRole("list", { name: "Waiting at the site" }).count()).toBe(0);
 
         // The laptop dies and comes back empty; the phones fill it again.
         const room = (JSON.parse((await disk(a, `site:ticket:${field}`))!) as { room: string }).room;

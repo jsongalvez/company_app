@@ -54,7 +54,19 @@ export const site = $state({
     phones: [] as Phone[],
     notSeen: [] as Member[],
     unsent: new Set<string>(),
+    /** The laptop's battery, when it has one. */
+    battery: null as { percent: number; charging: boolean } | null,
+    /**
+     * Chrome asks once before a page reaches a device on the local network. "prompt": the phone
+     * waits for a tap on Find site hub, so the question comes when the person expects it.
+     */
+    localNetwork: "none" as "none" | "prompt" | "granted" | "denied",
+    /** No signal and a ticket for today: the moment a site hub may be near. */
+    offSignal: false,
 });
+
+/** Low enough that the Site panel warns: the laptop has an hour or so left. */
+export const BATTERY_LOW = 15;
 
 const roomKey = (room: string) => `site:room:${room}`;
 
@@ -181,7 +193,14 @@ async function tick(t: Ticket): Promise<boolean> {
         signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) throw new Error(`hub ${res.status}`);
-    const out = (await res.json()) as { boot: string; next: number; records: Sealed[]; phones: { device: string; agoSec: number; presence: string }[] };
+    const out = (await res.json()) as {
+        boot: string;
+        next: number;
+        records: Sealed[];
+        phones: { device: string; agoSec: number; presence: string }[];
+        battery?: { percent: number; charging: boolean };
+    };
+    site.battery = out.battery ?? null;
     // A new boot means the hub lost what it held: send it all again at once.
     const restarted = out.boot !== room.boot;
     if (!restarted) for (const r of room.records) given.ops.add(r.opId);
@@ -216,14 +235,38 @@ async function tick(t: Ticket): Promise<boolean> {
 
 let running = false;
 let probedAt = 0;
+let asked = false;
+
+/** Chrome's permission for reaching local devices; "none" where the browser has no such question. */
+async function watchLocalNetwork() {
+    for (const name of ["local-network-access", "local-network"]) {
+        try {
+            const st = await navigator.permissions.query({ name } as unknown as PermissionDescriptor);
+            const set = () => (site.localNetwork = st.state);
+            set();
+            st.onchange = set;
+            return;
+        } catch {
+            // This browser doesn't know the name: try the next, else it never asks.
+        }
+    }
+}
+
+/** The tap on Find site hub: the phone may now ask for local network access and call the hub. */
+export function findHub() {
+    asked = true;
+    probedAt = 0;
+}
 /** Wakes every FAST_MS; calls the hub when one answered lately or this phone has no signal or unsent saves, else once a SLOW_MS. */
 async function loop() {
     const t = ticket();
     let again = FAST_MS;
     const looking = site.connected || !net.online || net.trouble || waiting().length > 0;
+    site.offSignal = !!t && (!net.online || net.trouble);
+    const mayAsk = site.localNetwork !== "prompt" || asked;
     // Another branch or a new day: its own room, nothing shown until its hub answers.
     if ((t?.room ?? "") !== site.room) Object.assign(site, { room: t?.room ?? "", lastAt: 0, connected: false, entries: [], phones: [], notSeen: [] });
-    if (t && app.me && (looking || Date.now() - probedAt >= SLOW_MS)) {
+    if (t && app.me && mayAsk && site.localNetwork !== "denied" && (looking || Date.now() - probedAt >= SLOW_MS)) {
         probedAt = Date.now();
         try {
             if (await tick(t)) again = 0;
@@ -238,7 +281,7 @@ async function loop() {
 export function startSite() {
     if (running || typeof crypto?.subtle === "undefined") return;
     running = true;
-    void loop();
+    void watchLocalNetwork().finally(() => void loop());
 }
 
 /** The Site panel's lists, from every record seen today. */
