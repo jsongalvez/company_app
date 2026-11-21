@@ -129,7 +129,7 @@
         font-size: var(--t-body);
     }
     .find {
-        min-height: 44px;
+        min-height: var(--tap);
         font-size: var(--t-body);
     }
     .note {
