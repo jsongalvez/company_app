@@ -14,7 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.select
  * old ones, so any unconsumed one is the live or lapsed link). Such a stand-in is nobody yet:
  * every roster, picker, audience or eligibility read uses [active] instead of the raw status.
  */
-object People {
+internal object People {
     /** The [AppUserTable] row is ACTIVE and not waiting on an invite. Correlates on [AppUserTable.id]. */
     fun active(): Op<Boolean> = (AppUserTable.status eq UserStatus.ACTIVE) and notExists(openInvites())
 

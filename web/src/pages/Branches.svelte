@@ -191,7 +191,7 @@
             moving = false;
         }
     }
-    const unassigned = $derived(users.filter((u) => u.status === "ACTIVE" && !activeStaff.some((a) => a.userId === u.id)));
+    const unassigned = $derived(users.filter((u) => (u.status === "ACTIVE" || u.status === "INVITED") && !activeStaff.some((a) => a.userId === u.id)));
 
     // Price list
     const pa = new Action();
