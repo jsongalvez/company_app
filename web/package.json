@@ -19,6 +19,7 @@
     "@types/node": "^24.19.2",
     "e2e": "^0.21.2",
     "openapi-typescript": "^7.13.0",
+    "playwright-core": "1.64.0",
     "prettier": "^3.9.10",
     "prettier-plugin-svelte": "^4.1.1",
     "svelte": "^5.57.2",

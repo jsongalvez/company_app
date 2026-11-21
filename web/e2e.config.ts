@@ -10,10 +10,15 @@ const headers = browser === "chromium" ? undefined : { "X-E2E-Browser": browser 
 // Runs against a backend that serves the built web app (WEB_DIR=web/dist).
 // Start it first: `./gradlew :backend:run` from the repo root, with the dev
 // seed logins from .env. APP_URL overrides the address.
+const engine = web({ browser, headers, viewport: { width: 1400, height: 860 }, timezoneId: "Asia/Manila" });
+// The runner's handle, for tests that drive Playwright itself (tests/live.ts). A test file that imports this
+// config gets a second copy of the module whose handle runs nothing, hence the first one wins.
+(globalThis as { e2eEngine?: typeof engine }).e2eEngine ??= engine;
+
 export default {
     targets: [
         {
-            engine: web({ browser, headers, viewport: { width: 1400, height: 860 }, timezoneId: "Asia/Manila" }),
+            engine,
             app: { url: process.env.APP_URL ?? "http://localhost:18080" },
         },
     ],
