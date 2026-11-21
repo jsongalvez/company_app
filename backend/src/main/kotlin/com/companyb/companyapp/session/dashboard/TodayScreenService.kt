@@ -67,8 +67,14 @@ object TodayScreenService {
                         } else {
                             null
                         },
+                    // Whoever may work the day, roster row or not: at a tour that is every Owner and Manager.
                     siteHub =
-                        if (presence.isMember(callerId)) {
+                        if (Access.allows(
+                                callerId,
+                                Act.WORK_DAY,
+                                day?.let { Place.Day(it.id, branchId) } ?: Place.Branch(branchId),
+                            )
+                        ) {
                             SiteHub.ticket(branchId, BranchDayService.currentOperationalDate())
                         } else {
                             null

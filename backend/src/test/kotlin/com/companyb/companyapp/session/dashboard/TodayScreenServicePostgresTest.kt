@@ -5,6 +5,7 @@ import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
+import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.database.JdbcTiming
 import com.companyb.companyapp.exception.NotFoundException
@@ -75,6 +76,24 @@ class TodayScreenServicePostgresTest : BasePostgresTest() {
             SessionClientFixtures.insertTestClient(),
             BookingInput(BranchDayService.currentOperationalDate().plusDays(1), null, null),
         )
+    }
+
+    /**
+     * Guards who gets a site hub's room and key: everyone who may work the day there, which at a
+     * provincial tour includes every Owner and Manager with no roster row; never someone who
+     * only looks (an Accountant) or doesn't belong.
+     */
+    @Test
+    fun `the site hub key goes to whoever may work the day, roster row or not`() {
+        val tour = TestFixtures.uuid()
+        val owner = TestFixtures.uuid()
+        BranchWorkforceFixtures.insertTestBranch(tour, "Tour $tour", BranchType.PROVINCIAL_TOUR)
+        IdentityFixtures.insertTestUser(owner, "today-owner")
+        IdentityFixtures.hold(owner, Role.OWNER)
+        assertNotNull(TodayScreenService.get(owner, tour).siteHub, "Owner at a tour")
+        assertNotNull(TodayScreenService.get(onDuty, branchId).siteHub, "a practitioner member")
+        assertNull(TodayScreenService.get(globalViewer, branchId).siteHub, "Accountant only looks")
+        assertNull(TodayScreenService.get(outsider, branchId).siteHub, "outsider")
     }
 
     @Test
