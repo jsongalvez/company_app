@@ -26,11 +26,13 @@ class CloudflareTxtLiveTest {
                 .header("Authorization", "Bearer $token")
                 .build()
         val http = HttpClient.newHttpClient()
-        val zone = Regex("\"id\":\"([0-9a-f]{32})\"").find(http.send(req, HttpResponse.BodyHandlers.ofString()).body())!!.groupValues[1]
+        val zones = http.send(req, HttpResponse.BodyHandlers.ofString()).body()
+        val zone = ZONE_ID.find(zones)!!.groupValues[1]
         val list =
             HttpRequest
-                .newBuilder(URI.create("https://api.cloudflare.com/client/v4/zones/$zone/dns_records?type=TXT&name=$name"))
-                .header("Authorization", "Bearer $token")
+                .newBuilder(
+                    URI.create("https://api.cloudflare.com/client/v4/zones/$zone/dns_records?type=TXT&name=$name"),
+                ).header("Authorization", "Bearer $token")
                 .build()
         return http.send(list, HttpResponse.BodyHandlers.ofString()).body().contains(value)
     }
@@ -44,5 +46,9 @@ class CloudflareTxtLiveTest {
         assertTrue(seen(value), "record not written")
         dns.remove(name, value)
         assertFalse(seen(value), "record left behind")
+    }
+
+    private companion object {
+        val ZONE_ID = Regex("\"id\":\"([0-9a-f]{32})\"")
     }
 }
