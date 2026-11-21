@@ -256,10 +256,9 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
             );
 
         for (const p of phones) await clock(p, "in");
-        // Chrome and Firefox ask before a page reaches the local network: the phone waits for a tap,
-        // so the question comes when the person expects it. WebKit never asks.
-        for (const [i, p] of phones.entries()) {
-            if (PHONE_ENGINES[i] === "webkit") continue;
+        // Chromium, Firefox and WebKit all report a local-network question still to ask: the phone waits
+        // for a tap, so the question comes when the person expects it.
+        for (const p of phones) {
             const find = p.page.getByRole("region", { name: "Site" }).getByRole("button", { name: "Find site hub" });
             await shown(find, 15_000);
             await find.click();
