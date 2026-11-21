@@ -3,7 +3,7 @@ import { api, ok, ApiError, type S } from "../api/client";
 import { fetchCached, peek } from "./cache.svelte";
 import { operationalDate } from "./format";
 import { key, type Key } from "./keys";
-import { keepTicket } from "./site.svelte";
+import { keepTicket } from "./site-ticket";
 
 export type Loader<T> = { key: Key; fn: () => Promise<T> };
 const L = <T>(key: Key, fn: () => Promise<T>): Loader<T> => ({ key, fn });

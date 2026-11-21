@@ -7,7 +7,6 @@
  * Every phone keeps every record it has seen, so a hub that restarts empty is refilled by the
  * phones. With no hub answering nothing shows and nothing changes.
  */
-import type { S } from "../api/client";
 import { app } from "./app.svelte";
 import { findLocal } from "./clientdir.svelte";
 import { disk } from "./disk";
@@ -16,6 +15,7 @@ import { net } from "./net.svelte";
 import { outbox, pendingClients, tokenUser, waiting, type Item } from "./outbox.svelte";
 import { parseBody } from "./outbox-classify";
 import { today } from "./today.svelte";
+import { ticketKey, type Member, type Ticket } from "./site-ticket";
 
 export const HUB = "https://hub.kiel.party";
 /** A hub not heard from for this long counts as gone. */
@@ -24,8 +24,6 @@ const FAST_MS = 3_000;
 /** With signal and nothing waiting the phone looks for a hub only now and then. */
 const SLOW_MS = 60_000;
 
-type Member = { userId: string; name: string };
-type Ticket = NonNullable<S["TodayScreenResponse"]["siteHub"]> & { branchId: string; members: Member[] };
 /** What the relay holds per save: only the op id and device stand outside the seal. */
 type Sealed = { opId: string; device: string; occurredAt: string; ciphertext: string };
 export type Kind = "session" | "mark" | "clock-in" | "clock-out" | "sale" | "other";
@@ -58,15 +56,7 @@ export const site = $state({
     unsent: new Set<string>(),
 });
 
-const ticketKey = (branchId: string) => `site:ticket:${branchId}`;
 const roomKey = (room: string) => `site:room:${room}`;
-
-/** The today-screen answer carries the branch's ticket and members: kept on the phone for the day without signal. */
-export function keepTicket(branchId: string, t: S["TodayScreenResponse"]) {
-    if (!t.siteHub) return;
-    const members = (t.roster ?? []).map((m) => ({ userId: m.userId, name: m.displayName ?? "" }));
-    disk.set(ticketKey(branchId), JSON.stringify({ ...t.siteHub, branchId, members } satisfies Ticket));
-}
 
 function ticket(): Ticket | undefined {
     try {
