@@ -58,7 +58,8 @@ test("in iPhone Safari the app asks to keep its data and shows how to add it to 
     try {
         const page = await phone.newPage();
         await signIn(page);
-        expect(await page.evaluate(() => [/iPhone/.test(navigator.userAgent), navigator.maxTouchPoints > 0])).toEqual([true, true]);
+        // Touch is the context's (tap() throws without it); WebKit's emulation leaves maxTouchPoints at 0, so it isn't read here.
+        expect(await page.evaluate(() => /iPhone/.test(navigator.userAgent))).toBe(true);
 
         // Asked at start, and the browser answers yes or no rather than throwing.
         await expect.poll(() => page.evaluate(() => (window as unknown as { persistCalls: number }).persistCalls)).toBeGreaterThan(0);
