@@ -266,9 +266,13 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
         }
         const client = await sessionAndSale(a, "S");
         const at = Date.now();
-        for (const b of others) {
+        for (const [i, b] of others.entries()) {
             const panel = b.page.getByRole("region", { name: "Site" });
-            await shown(panel.getByRole("list", { name: "Waiting at the site" }).getByText(client), 10_000);
+            // A phone that never reached the hub says which engine it runs and what its panel showed.
+            await shown(panel.getByRole("list", { name: "Waiting at the site" }).getByText(client), 10_000).catch(async (e: unknown) => {
+                const seen = await panel.innerText().catch(() => "(no Site panel)");
+                throw new Error(`${b.name} on ${PHONE_ENGINES[i + 1]} never saw ${client}; its Site panel: ${JSON.stringify(seen)}`, { cause: e });
+            });
             await shown(panel.getByRole("list", { name: "On duty at the site" }).getByText("Hub Ana"), 10_000);
             await shown(panel.getByRole("list", { name: "Sales at the site" }).getByText("2 sold · Hub Ana").last(), 10_000);
             await shown(panel.getByRole("list", { name: "Phones at the site" }).getByText("Hub Eva · not seen"), 10_000);
