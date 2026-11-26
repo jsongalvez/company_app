@@ -29,6 +29,10 @@ const CASES = [
     "session price",
     "session void",
     "session unvoid",
+    "practitioner remarks",
+    "practitioner remove",
+    "illness by name",
+    "illness remove",
     "booking edit",
 ];
 
@@ -56,7 +60,7 @@ for (const c of cases) {
 
 /** The cases whose answer is the record itself (a void's answer is the void). */
 const answersRecord = (c: Case) => {
-    const a = c.answer as { id?: string; productId?: string; currentStock?: number };
+    const a = (c.answer ?? {}) as { id?: string; productId?: string; currentStock?: number };
     const id =
         c.op.method === "POST" && c.op.path.split("/").length === 3
             ? c.op.body.id
@@ -68,6 +72,16 @@ test("an answer that is the record, taken into the document the page still had, 
     const taken = cases.filter(answersRecord);
     assert.ok(taken.length >= 10, `only ${taken.length} cases answer with the record`);
     for (const c of taken) assert.deepEqual(norm(takeAnswer(c.key, c.before, c.op, c.answer)), norm(c.after), c.name);
+});
+
+test("a session save the server answers without the session shows, once it lands, as the server holds it", () => {
+    const settled = ["practitioner remarks", "practitioner remove", "illness by name", "illness remove"];
+    const taken = cases.filter((c) => settled.includes(c.name));
+    assert.equal(taken.length, settled.length);
+    for (const c of taken) {
+        assert.ok(!answersRecord(c), c.name);
+        assert.deepEqual(norm(takeAnswer(c.key, c.before, c.op, c.answer)), norm(c.after), c.name);
+    }
 });
 
 test("ops on other documents leave them as they are", () => {

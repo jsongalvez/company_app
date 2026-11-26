@@ -112,14 +112,29 @@ await step("client edit", `client:${client.id}`, `/api/clients/${client.id}`, "P
 // A session on today's list: price, void, restore.
 const dsess = `/api/branches/${branchId}/sessions?date=${today}`;
 await call("POST", "/api/attendance/clock-in", { attendanceId: crypto.randomUUID(), branchId }).catch((e) => console.error(String(e)));
-await call("POST", "/api/sessions", { id: crypto.randomUUID(), clientId: client.id, branchId, isWalkIn: true, finalPrice: "500.00" });
-const s = (await get(dsess)).find((x) => !x.isVoided);
+const sid = crypto.randomUUID();
+await call("POST", "/api/sessions", { id: sid, clientId: client.id, branchId, isWalkIn: true, finalPrice: "500.00", otherConcerns: "neck" });
+const s = (await get(dsess)).find((x) => x.id === sid);
 if (s) {
     await step("session price", `dsess:${branchId}:${today}`, dsess, "PATCH", `/api/sessions/${s.id}/final-price`, {
         finalPrice: "777.00",
         version: s.version,
         reason: null,
     });
+    // A practitioner and an illness on it, then their changes.
+    await call("POST", `/api/sessions/${s.id}/practitioners`, { id: crypto.randomUUID(), practitionerId: me, reason: null });
+    await step("practitioner remarks", `dsess:${branchId}:${today}`, dsess, "PATCH", `/api/sessions/${s.id}/practitioners/${me}`, {
+        remarks: "left shoulder",
+        reason: null,
+    });
+    await step("practitioner remove", `dsess:${branchId}:${today}`, dsess, "DELETE", `/api/sessions/${s.id}/practitioners/${me}`, { reason: null });
+    const concernId = crypto.randomUUID();
+    await step("illness by name", `dsess:${branchId}:${today}`, dsess, "POST", `/api/sessions/${s.id}/promote-concern`, {
+        id: concernId,
+        label: ` Fixture ache ${Date.now() % 100000} `,
+        reason: null,
+    });
+    await step("illness remove", `dsess:${branchId}:${today}`, dsess, "DELETE", `/api/sessions/${s.id}/concerns/${concernId}`, { reason: null });
     await step("session void", `dsess:${branchId}:${today}`, dsess, "POST", `/api/sessions/${s.id}/void`, { id: crypto.randomUUID(), voidReason: "test" });
     await step("session unvoid", `dsess:${branchId}:${today}`, dsess, "POST", `/api/sessions/${s.id}/unvoid`, { unvoidedReason: "test" });
 } else console.error("no session on today's list: session cases skipped");

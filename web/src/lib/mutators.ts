@@ -8,7 +8,10 @@
  *
  * Covered, each checked against the server's answer in tests/unit/mutators.test.ts: expense add, change,
  * delete, restore; product sale change (same product), delete, restore; stock movement; client details;
- * session price, void, restore; booking change. New sessions, clients, marks, sales and clock-ins are
+ * session price, void, restore, practitioner remarks, practitioner removed, illness removed, new illness
+ * by name; booking change. Left to the server's answer, as the save holds too little to show them: a sale
+ * moved to another product (its name and price), a restock (no version to tell whether it landed), a
+ * practitioner added (name and slot) and an illness picked from the list (its label). New sessions, clients, marks, sales and clock-ins are
  * shown by Today and the client directory themselves (outbox.svelte.ts `pendingSessions`, `pendingClients`,
  * `heldMarks`, `pendingSales`, `heldClock`).
  */
@@ -28,6 +31,8 @@ type Mutator = {
     change?: Change;
     /** Adds a record to the document under `key`, if it is the list the record belongs in. */
     add?: (key: string, op: PendingOp) => Rec | undefined;
+    /** The change is what the record holds once the save lands, applied twice or not: a landed save whose answer is not the record applies it. */
+    settles?: true;
 };
 
 const seg = (n: number) => (op: PendingOp) => op.path.split("/")[n]!;
@@ -58,7 +63,72 @@ const CLIENT_FIELDS = [
     "medicalConditions",
 ];
 
+/**
+ * Changes the session's `list` entry whose `idField` is the path's sixth part; undefined when it is not there or
+ * nothing moves. The server leaves an empty list out, and moves the session's version when `bumps`.
+ */
+const onEntry =
+    (list: string, idField: string, bumps: boolean, f: (rows: Rec[], i: number, op: PendingOp) => Rec[] | undefined): Change =>
+    (r, op) => {
+        const rows = (r[list] as Rec[] | undefined) ?? [];
+        const i = rows.findIndex((x) => x[idField] === op.path.split("/")[5]);
+        const out = i < 0 ? undefined : f(rows, i, op);
+        if (!out) return undefined;
+        const next: Rec = { ...r, [list]: out };
+        if (!out.length) delete next[list];
+        if (bumps && typeof r.version === "number") next.version = r.version + 1;
+        return next;
+    };
+const dropEntry = (rows: Rec[], i: number) => rows.filter((_, j) => j !== i);
+
+const SESSION = ["session", "dsess", "dash"];
+
 const MUTATORS: Mutator[] = [
+    {
+        method: "PATCH",
+        path: /^\/api\/sessions\/[^/]+\/practitioners\/[^/]+$/,
+        families: SESSION,
+        id: seg(3),
+        settles: true,
+        change: onEntry("practitioners", "practitionerId", true, (rows, i, op) => {
+            const remarks = s(op.body.remarks) ?? null;
+            return rows[i]!.remarks === remarks ? undefined : rows.map((x, j) => (j === i ? { ...x, remarks } : x));
+        }),
+    },
+    {
+        method: "DELETE",
+        path: /^\/api\/sessions\/[^/]+\/practitioners\/[^/]+$/,
+        families: SESSION,
+        id: seg(3),
+        settles: true,
+        change: onEntry("practitioners", "practitionerId", true, dropEntry),
+    },
+    {
+        method: "DELETE",
+        path: /^\/api\/sessions\/[^/]+\/concerns\/[^/]+$/,
+        families: SESSION,
+        id: seg(3),
+        settles: true,
+        change: onEntry("concerns", "id", false, dropEntry),
+    },
+    {
+        method: "POST",
+        path: /^\/api\/sessions\/[^/]+\/promote-concern$/,
+        families: SESSION,
+        id: seg(3),
+        settles: true,
+        // A new illness by name: the op names its id and label. By default it also clears the free text it came from.
+        change: (r, op) => {
+            const rows = (r.concerns as Rec[] | undefined) ?? [];
+            const has = rows.some((x) => x.id === op.body.id);
+            const clear = op.body.clearOtherConcerns !== false && r.otherConcerns != null;
+            if (has && !clear) return undefined;
+            const out: Rec = { ...r };
+            if (!has) out.concerns = [...rows, { id: op.body.id, label: String(op.body.label).trim(), createdBy: op.user, createdAt: op.at }];
+            if (clear) out.otherConcerns = null;
+            return out;
+        },
+    },
     {
         method: "POST",
         path: /^\/api\/expenses$/,
@@ -115,12 +185,17 @@ const MUTATORS: Mutator[] = [
         path: /^\/api\/branches\/[^/]+\/inventory\/[^/]+\/movement$/,
         families: ["inv"],
         id: seg(5),
-        // Matched by product: the row's own id is not in the path.
+        // Matched by product: the row's own id is not in the path. The sheet's counts are 0 when the server leaves them out.
         change: fromVersion("expectedVersion", (r, op) => {
             const n = Number(op.body.quantityChange);
             const out: Rec = { ...r, currentStock: Number(r.currentStock) + n };
-            if (typeof r.available === "number") out.available = r.available + n;
-            if (op.body.reason === "ADJUSTMENT" && typeof r.adjustment === "number") out.adjustment = r.adjustment + n;
+            const count = (f: string) => {
+                const v = Number(r[f] ?? 0) + n;
+                if (v) out[f] = v;
+                else delete out[f];
+            };
+            count("available");
+            if (op.body.reason === "ADJUSTMENT") count("adjustment");
             return out;
         }),
     },
@@ -139,21 +214,21 @@ const MUTATORS: Mutator[] = [
     {
         method: "PATCH",
         path: /^\/api\/sessions\/[^/]+\/final-price$/,
-        families: ["session", "dsess", "dash"],
+        families: SESSION,
         id: seg(3),
         change: fromVersion("version", (r, op) => ({ ...r, finalPrice: money(op.body.finalPrice) })),
     },
     {
         method: "POST",
         path: /^\/api\/sessions\/[^/]+\/void$/,
-        families: ["session", "dsess", "dash"],
+        families: SESSION,
         id: seg(3),
         change: (r) => (r.isVoided ? undefined : { ...r, isVoided: true }),
     },
     {
         method: "POST",
         path: /^\/api\/sessions\/[^/]+\/unvoid$/,
-        families: ["session", "dsess", "dash"],
+        families: SESSION,
         id: seg(3),
         change: (r) => (r.isVoided ? { ...r, isVoided: false } : undefined),
     },
@@ -236,7 +311,9 @@ export const mutates = (key: string) => MUTATORS.some((m) => m.families.includes
  */
 export function takeAnswer(key: string, doc: unknown, op: PendingOp, answer: unknown): unknown {
     const m = mutatorOf(op);
-    if (!m || !answer || typeof answer !== "object" || !m.families.includes(family(key))) return doc;
+    if (!m || !m.families.includes(family(key))) return doc;
+    if (m.settles) return applyOp(key, doc, op);
+    if (!answer || typeof answer !== "object") return doc;
     const a = answer as Rec;
     if (m.add) {
         // A create: the answer is the new row, in place of the one shown here, or added if the page never showed it.
