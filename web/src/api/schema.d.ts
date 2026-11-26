@@ -2667,7 +2667,12 @@ export interface components {
         };
         RoleResponse: {
             name: string;
+            label: string;
             capabilities: string[];
+            assignable: boolean;
+            noAccess: boolean;
+            /** @enum {string|null} */
+            helper?: "DEFAULT" | "OFFERED" | null;
         };
         StartResponse: {
             me: components["schemas"]["MeResponse"];
@@ -2733,6 +2738,7 @@ export interface components {
             inviteExpiresAt?: string | null;
             assignments?: components["schemas"]["UserAssignmentResponse"][];
             roles?: string[];
+            canViewAs?: boolean;
         };
         ViewAsRequest: {
             userId: string;
@@ -2743,6 +2749,7 @@ export interface components {
             username: string;
             displayName: string;
             roles: string[];
+            roleLabels: string[];
             allowChanges: boolean;
         };
         FeedbackNoteResponse: {

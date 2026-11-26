@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.branch.BranchType
+import com.companyb.companyapp.contracts.identity.HelperChoice
 import com.companyb.companyapp.contracts.workforce.DelegateRole
 import java.util.UUID
 
@@ -31,39 +32,48 @@ private val MISSIONS_AND_TOURS = setOf(BranchType.MEDICAL_MISSION, BranchType.PR
  * what it changes.
  */
 enum class Role(
+    /** The app word (CONTEXT.md), what every screen shows for this role. */
+    val word: String,
     val everywhere: Set<String>,
     val atBranch: Set<String>,
     val worksUnassignedAt: Set<BranchType> = emptySet(),
     val works: Boolean = true,
 ) {
     SUPERUSER(
+        word = "Superuser",
         everywhere = setOf(VIEW, PAY, USERS, HELPERS, CATALOG, ERASE),
         atBranch = setOf(VIEW, EDIT, PAST_DAY, VOID, REMIT, PAY, STOCK, COMMISSION),
         worksUnassignedAt = BranchType.entries.toSet(),
     ),
     OWNER(
+        word = "Owner",
         everywhere = setOf(VIEW, PAY, USERS, HELPERS, CATALOG, ERASE),
         atBranch = setOf(VIEW, EDIT, PAY, STOCK),
         worksUnassignedAt = MISSIONS_AND_TOURS,
     ),
     MANAGER(
+        word = "Manager",
         everywhere = setOf(USERS, HELPERS, CATALOG, ERASE),
         atBranch = setOf(VIEW, EDIT, PAST_DAY, VOID, REMIT, PAY, STOCK),
         worksUnassignedAt = MISSIONS_AND_TOURS,
     ),
     COORDINATOR(
+        word = "Coordinator",
         everywhere = setOf(CATALOG, ERASE),
         atBranch = setOf(VIEW, EDIT, PAST_DAY, VOID, REMIT, PAY, STOCK, ALERTS),
     ),
     PRACTITIONER(
+        word = "Practitioner",
         everywhere = setOf(CATALOG),
         atBranch = setOf(VIEW, EDIT),
     ),
     ACCOUNTANT(
+        word = "Accountant",
         everywhere = setOf(VIEW),
         atBranch = setOf(VIEW),
     ),
     ONBOARDING(
+        word = "New (no access yet)",
         everywhere = emptySet(),
         atBranch = emptySet(),
         works = false,
@@ -207,6 +217,26 @@ object RoleRules {
 
     /** A helper's role when none is picked. */
     val DEFAULT_HELPER: DelegateRole = DelegateRole.PRACTITIONER
+
+    /** The app word for a role name; a name no role has reads as itself. */
+    fun word(name: String): String = Role.entries.firstOrNull { it.name == name }?.word ?: name
+
+    /** The Roles dialog offers every role but [TOP] (database only) and [NO_ACCESS] (what an empty pick saves). */
+    fun assignable(name: String): Boolean = name != TOP && name != NO_ACCESS
+
+    /** Whether a helper may be given [name], and whether it is [DEFAULT_HELPER]. */
+    fun helperChoice(name: String): HelperChoice? =
+        when {
+            name == DEFAULT_HELPER.name -> HelperChoice.DEFAULT
+            DelegateRole.entries.any { it.name == name } -> HelperChoice.OFFERED
+            else -> null
+        }
+
+    /** A viewer holding [TOP] may view as anyone who doesn't. */
+    fun mayViewAs(
+        viewerIsTop: Boolean,
+        targetRoles: Collection<String>,
+    ): Boolean = viewerIsTop && TOP !in targetRoles
 
     private val RANKS = setOf(Role.OWNER.name, Role.MANAGER.name)
     private val ABOVE_RANKS = setOf(Role.OWNER.name, TOP)

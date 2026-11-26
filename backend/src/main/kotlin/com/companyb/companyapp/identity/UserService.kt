@@ -272,7 +272,16 @@ object UserService {
         RoleRepository
             .findAllWithCapabilities()
             .filter { it.name != RoleRules.TOP }
-            .map { RoleResponse(name = it.name, capabilities = it.capabilities) }
+            .map {
+                RoleResponse(
+                    name = it.name,
+                    label = RoleRules.word(it.name),
+                    capabilities = it.capabilities,
+                    assignable = RoleRules.assignable(it.name),
+                    noAccess = it.name == RoleRules.NO_ACCESS,
+                    helper = RoleRules.helperChoice(it.name),
+                )
+            }
 
     /**
      * Full replace of the target's role memberships. SUPERUSER is never granted or removed here.
@@ -456,11 +465,13 @@ object UserService {
                     .groupBy { it.userId }
             val rolesByUser = RoleRepository.findRoleNamesByUser(users.map { UUID.fromString(it.id) })
             return users.map { user ->
+                val roles = rolesByUser[UUID.fromString(user.id)].orEmpty()
+                val status = personStatus(user.status, openInvites[UUID.fromString(user.id)], now)
                 UserSummaryResponse(
                     id = user.id,
                     username = user.username,
                     displayName = user.displayName,
-                    status = personStatus(user.status, openInvites[UUID.fromString(user.id)], now),
+                    status = status,
                     deactivatedAt =
                         user.deactivatedAt
                             ?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
@@ -479,7 +490,8 @@ object UserService {
                                     slot = assignment.slot,
                                 )
                             },
-                    roles = RoleRules.shownTo(rolesByUser[UUID.fromString(user.id)].orEmpty(), viewerIsSuperuser),
+                    roles = RoleRules.shownTo(roles, viewerIsSuperuser),
+                    canViewAs = status == PersonStatus.ACTIVE && RoleRules.mayViewAs(viewerIsSuperuser, roles),
                 )
             }
         }

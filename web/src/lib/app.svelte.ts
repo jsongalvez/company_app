@@ -32,7 +32,7 @@ export async function startViewAs(userId: string) {
     const v: ViewAs = {
         userId: r.userId,
         name: r.displayName,
-        roles: r.roles,
+        roles: r.roleLabels,
         allowChanges: false,
         until: Date.now() + VIEW_AS_MINUTES * 60_000,
         realName: app.me?.displayName ?? "",

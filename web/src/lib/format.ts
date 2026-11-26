@@ -114,18 +114,11 @@ const WORDS: Record<string, string> = {
     DECLINED: "Declined",
     RETRACTED: "Taken back",
     REVOKED: "Cancelled",
-    // Users and roles
+    // Users (role words come from the server: /api/roles, the view-as answer)
     ACTIVE: "Active",
     INACTIVE: "Deactivated",
     INVITED: "Invited",
     INVITE_EXPIRED: "Invite expired",
-    ONBOARDING: "New (no access yet)",
-    SUPERUSER: "Superuser",
-    OWNER: "Owner",
-    MANAGER: "Manager",
-    COORDINATOR: "Coordinator",
-    PRACTITIONER: "Practitioner",
-    ACCOUNTANT: "Accountant",
     // Change history
     INSERT: "Added",
     UPDATE: "Changed",

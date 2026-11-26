@@ -211,9 +211,17 @@
     const ha = new Action();
     let hOpen = $state(false);
     let hUser = $state("");
-    let hRole = $state<"PRACTITIONER" | "COORDINATOR">("PRACTITIONER");
+    type HelperRole = NonNullable<S["AssignDelegateRequest"]["role"]>;
+    // The roles a helper may be given, and the one picked first, are the server's.
+    const roleList = new Query<S["RoleResponse"][]>();
+    $effect(() => {
+        if (manageHelpers) roleList.load(load.roles().key, load.roles().fn);
+    });
+    const helperRoles = $derived((roleList.data ?? []).filter((r) => r.helper));
+    const firstHelperRole = () => (helperRoles.find((r) => r.helper === "DEFAULT")?.name ?? "") as HelperRole;
+    let hRole = $state("" as HelperRole);
     async function addHelper() {
-        const body = { delegateId: uuid(), targetUserId: hUser, branchId: sel, role: hRole };
+        const body = { delegateId: uuid(), targetUserId: hUser, branchId: sel, role: hRole || undefined };
         if (await ha.run(() => ok(api.POST("/api/delegates", { body })), "Helper added")) {
             hOpen = false;
             refresh();
@@ -315,7 +323,7 @@
                     <header>
                         <h2>Helpers</h2>
                         <span class="spacer"></span>
-                        {#if manageHelpers}<button class="sm" onclick={() => (ha.reset(), (hUser = ""), (hRole = "PRACTITIONER"), (hOpen = true))}
+                        {#if manageHelpers}<button class="sm" onclick={() => (ha.reset(), (hUser = ""), (hRole = firstHelperRole()), (hOpen = true))}
                                 >Add helper</button
                             >{/if}
                     </header>
@@ -394,8 +402,7 @@
     <label class="field"
         >Role here
         <select bind:value={hRole}>
-            <option value="PRACTITIONER">{label("PRACTITIONER")}</option>
-            <option value="COORDINATOR">{label("COORDINATOR")}</option>
+            {#each helperRoles as r (r.name)}<option value={r.name}>{r.label}</option>{/each}
         </select>
     </label>
 </Dialog>

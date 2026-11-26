@@ -40,6 +40,8 @@ data class ViewAsResponse(
     val username: String,
     val displayName: String,
     val roles: List<String>,
+    /** The app words for [roles]. */
+    val roleLabels: List<String>,
     val allowChanges: Boolean,
 )
 
@@ -54,6 +56,8 @@ data class UserSummaryResponse(
     val inviteExpiresAt: String? = null,
     val assignments: List<UserAssignmentResponse> = emptyList(),
     val roles: List<String> = emptyList(),
+    /** The viewer may "View as" this person. */
+    val canViewAs: Boolean = false,
 )
 
 @Serializable
@@ -97,8 +101,19 @@ data class UserRoleReplaceRequest(
 @Serializable
 data class RoleResponse(
     val name: String,
+    /** The app word for the role. */
+    val label: String,
     val capabilities: List<String>,
+    /** The Roles dialog offers it. */
+    val assignable: Boolean,
+    /** Holding only this is no access yet; it is what saving no roles gives. */
+    val noAccess: Boolean,
+    /** Whether a helper may be given this role, and whether it is the one picked when none is. */
+    val helper: HelperChoice? = null,
 )
+
+@Serializable
+enum class HelperChoice { DEFAULT, OFFERED }
 
 /** Self-service profile edit: the caller changes their own name and email. */
 @Serializable

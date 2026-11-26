@@ -13,13 +13,16 @@
 
     type U = S["UserSummaryResponse"];
     const q = new Query(load.users().key, load.users().fn);
-    let roles = $state<string[]>([]);
+    let roles = $state<S["RoleResponse"][]>([]);
     $effect(() => {
         const l = load.roles();
         fetchCached(l.key, l.fn)
-            .then((r) => (roles = r.map((x) => x.name)))
+            .then((r) => (roles = r))
             .catch(() => {});
     });
+    /** The server's word for a role; one it doesn't list (Superuser) reads as its name. */
+    const word = (r: string) => roles.find((x) => x.name === r)?.label ?? label(r);
+    const noAccess = (r: string) => !!roles.find((x) => x.name === r)?.noAccess;
 
     const nameVs = viewSetting("q", "");
     const offVs = viewSetting("inactive", "");
@@ -47,13 +50,13 @@
     function openRoles(u: U) {
         ra.reset();
         who = u;
-        picked = [...(u.roles ?? [])].filter((r) => r !== "ONBOARDING");
+        picked = [...(u.roles ?? [])].filter((r) => !noAccess(r));
         rOpen = true;
     }
     async function saveRoles() {
         const u = who;
         if (!u) return;
-        const body = { roles: rolesToSave(picked, u.roles ?? [], assignable) };
+        const body = { roles: rolesToSave(picked, u.roles ?? [], roles) };
         if (await ra.run(() => ok(api.PUT("/api/users/{userId}/roles", { params: { path: { userId: u.id } }, body })), "Roles saved")) {
             rOpen = false;
             refresh();
@@ -107,7 +110,7 @@
             /* not allowed: the code is on screen */
         }
     }
-    const assignable = $derived(roles.filter((r) => r !== "ONBOARDING" && r !== "SUPERUSER"));
+    const assignable = $derived(roles.filter((r) => r.assignable).map((r) => r.name));
 </script>
 
 <PageHead title="Users">
@@ -128,17 +131,17 @@
                             >{u.displayName}{#if u.id === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
                         >
                         <td class="muted hide-sm">{u.username}</td>
-                        <td>{(u.roles ?? []).map(label).join(", ")}</td>
+                        <td>{(u.roles ?? []).map(word).join(", ")}</td>
                         <td class="muted full">{(u.assignments ?? []).map((a) => a.branchName).join(", ")}</td>
                         <td>
                             {#if u.status === "INACTIVE"}<span class="mark plain" title={dateTime(u.deactivatedAt)}>Deactivated</span>{/if}
                             {#if u.status === "INVITED"}<span class="mark plain" title="Code works until {dateTime(u.inviteExpiresAt)}">Invited</span>{/if}
                             {#if u.status === "INVITE_EXPIRED"}<span class="mark warn" title={dateTime(u.inviteExpiresAt)}>Invite expired</span>{/if}
-                            {#if u.status === "ACTIVE" && (!u.roles?.length || u.roles.includes("ONBOARDING"))}<span class="mark warn">No access yet</span>{/if}
+                            {#if u.status === "ACTIVE" && (!u.roles?.length || u.roles.some(noAccess))}<span class="mark warn">No access yet</span>{/if}
                         </td>
                         <td class="right nowrap">
                             {#if u.id !== app.me?.id}
-                                {#if app.me?.canViewAs && u.status === "ACTIVE" && !u.roles?.includes("SUPERUSER")}
+                                {#if u.canViewAs}
                                     <button class="sm" onclick={() => act(() => startViewAs(u.id))} title="See the app as {u.displayName} does">View as</button>
                                 {/if}
                                 {#if u.status === "INVITED" || u.status === "INVITE_EXPIRED"}
@@ -162,7 +165,7 @@
 <Dialog bind:open={rOpen} title="Roles: {who?.displayName}" width={380} onsubmit={saveRoles} busy={ra.busy} error={ra.error}>
     <div class="col">
         {#each assignable as r (r)}
-            <label class="check"><input type="checkbox" value={r} bind:group={picked} />{label(r)}</label>
+            <label class="check"><input type="checkbox" value={r} bind:group={picked} />{word(r)}</label>
         {/each}
     </div>
 </Dialog>
@@ -192,7 +195,7 @@
         </div>
         <div class="muted">Roles</div>
         <div class="row wrap">
-            {#each assignable as r (r)}<label class="check"><input type="checkbox" value={r} bind:group={iRoles} />{label(r)}</label>{/each}
+            {#each assignable as r (r)}<label class="check"><input type="checkbox" value={r} bind:group={iRoles} />{word(r)}</label>{/each}
         </div>
     {/if}
 </Dialog>

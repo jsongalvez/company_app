@@ -84,7 +84,13 @@ object ViewAs {
                     val user = MeRepository.findUser(targetId) ?: throw NotFoundException("User not found")
                     if (user.status != UserStatus.ACTIVE) throw ValidationException("That account is not active")
                     val roles = RoleRepository.findRoleNamesForUserInTransaction(targetId)
-                    if (RoleRules.TOP in roles) throw ValidationException("Can't view as another superuser")
+                    if (!RoleRules.mayViewAs(
+                            viewerIsTop = true,
+                            roles,
+                        )
+                    ) {
+                        throw ValidationException("Can't view as another superuser")
+                    }
                     ViewAsAudit.record(
                         callerId,
                         targetId,
@@ -98,6 +104,7 @@ object ViewAs {
                         username = user.username,
                         displayName = user.displayName,
                         roles = roles,
+                        roleLabels = roles.map(RoleRules::word),
                         allowChanges = allowChanges,
                     )
                 }

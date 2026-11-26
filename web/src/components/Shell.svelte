@@ -207,7 +207,7 @@
     {#if app.viewAs}
         <div class="viewas" role="status">
             <span class="ellipsis"
-                >Viewing as <b>{app.viewAs.name}</b>{#if app.viewAs.roles.length}&nbsp;({app.viewAs.roles.map(label).join(", ")}){/if}</span
+                >Viewing as <b>{app.viewAs.name}</b>{#if app.viewAs.roles.length}&nbsp;({app.viewAs.roles.join(", ")}){/if}</span
             >
             <label class="check nowrap"
                 ><input type="checkbox" checked={app.viewAs.allowChanges} onchange={(e) => setViewAsChanges(e.currentTarget.checked)} />Allow changes</label

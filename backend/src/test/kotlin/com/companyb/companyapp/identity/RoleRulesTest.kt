@@ -2,6 +2,8 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.authorization.Role
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -130,6 +132,61 @@ class RoleRulesTest : BasePostgresTest() {
             )
         assertEquals(403, r.code, r.body.string())
         assertEquals(listOf("SUPERUSER"), rolesOf(superuser))
+    }
+
+    @Test
+    fun `the roles list gives each role's word and what the screens may offer, from the policy table`() {
+        val r = testServer.client.get(ApiRoutes.ROLES, asUser(owner))
+        val body = r.body.string()
+        assertEquals(200, r.code, body)
+        val rows =
+            Json
+                .parseToJsonElement(body)
+                .jsonArray
+                .map {
+                    it.jsonObject
+                }.associateBy { it.getValue("name").jsonPrimitive.content }
+
+        fun field(
+            role: String,
+            name: String,
+        ) = rows.getValue(role)[name]?.jsonPrimitive?.content
+        assertEquals(Role.entries.map { it.name }.toSet() - RoleRules.TOP, rows.keys)
+        Role.entries.filter { it.name != RoleRules.TOP }.forEach { assertEquals(it.word, field(it.name, "label")) }
+        assertEquals(
+            setOf("OWNER", "MANAGER", "COORDINATOR", "PRACTITIONER", "ACCOUNTANT"),
+            rows.keys
+                .filter {
+                    field(it, "assignable") ==
+                        "true"
+                }.toSet(),
+        )
+        assertEquals(setOf(RoleRules.NO_ACCESS), rows.keys.filter { field(it, "noAccess") == "true" }.toSet())
+        assertEquals(
+            mapOf("PRACTITIONER" to "DEFAULT", "COORDINATOR" to "OFFERED"),
+            rows.keys.mapNotNull { k -> field(k, "helper")?.takeIf { it != "null" }?.let { k to it } }.toMap(),
+        )
+    }
+
+    @Test
+    fun `only a Superuser may view as someone, and never as another Superuser`() {
+        assertEquals(setOf(owner, member, accountant, loner), viewable(asUser(superuser)))
+        assertEquals(emptySet(), viewable(asUser(owner)))
+    }
+
+    private fun viewable(caller: Consumer<Request.Builder>): Set<UUID> {
+        val r = testServer.client.get(ApiRoutes.USERS, caller)
+        val body = r.body.string()
+        assertEquals(200, r.code, body)
+        val mine = setOf(owner, superuser, member, accountant, loner, dual)
+        return Json
+            .parseToJsonElement(body)
+            .jsonArray
+            .map { it.jsonObject }
+            .filter { it["canViewAs"]?.jsonPrimitive?.content == "true" }
+            .map { UUID.fromString(it.getValue("id").jsonPrimitive.content) }
+            .filter { it in mine }
+            .toSet()
     }
 
     private fun listedRoles(
