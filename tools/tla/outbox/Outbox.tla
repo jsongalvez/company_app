@@ -4,6 +4,7 @@
   Code it describes (web/src, commit recorded in README.md):
     lib/outbox.svelte.ts : enqueue(), flush(), keepRecent(), heldSessions()
     lib/outbox-classify.ts: classify(status, body) -> retry | applied | failed
+    lib/outbox-versions.ts: landed() (ChainVersions, StartVersions), heldBehindRefused() (BlockBehindFailed)
     api/client.ts        : resilientFetch (mustQueue / canQueue)
     lib/cache.svelte.ts  : fetchCached seq guard, Query.refresh on SENT
     pages/Today.svelte   : `sessions` = server list + pendingSessions() (creates waiting or sent, until the list shows them)
@@ -274,7 +275,7 @@ ResLost ==
 Bump(q, it) == [j \in 1..Len(q) |-> IF q[j].kind = "mark" /\ q[j].ver = it.ver /\ q[j].id # it.id
                                     THEN [q[j] EXCEPT !.ver = it.ver + 1] ELSE q[j]]
 
-\* startVersions(): marks made on the session while its create waited were made from version 0.
+\* landed() on a create (outbox-versions.ts): marks made on the session while its create waited were made from version 0.
 Start(q, v) == [j \in 1..Len(q) |-> IF q[j].kind = "mark" /\ q[j].ver = 0 /\ q[j].failed = 0
                                    THEN [q[j] EXCEPT !.ver = v] ELSE q[j]]
 

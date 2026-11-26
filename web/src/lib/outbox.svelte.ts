@@ -10,6 +10,7 @@ import { label, nowIso } from "./format";
 import { classify, parseBody } from "./outbox-classify";
 import { disk } from "./disk";
 import { replayBody } from "./replay";
+import { discarded, heldBehindRefused, landed } from "./outbox-versions";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 import { traceparent } from "./telemetry";
 import { answered, QUEUED } from "./tables";
@@ -377,7 +378,7 @@ export function retry(id: string) {
 }
 
 export function discard(id: string) {
-    outbox.items = outbox.items.filter((i) => i.id !== id);
+    outbox.items = discarded(outbox.items, id);
     save();
 }
 
@@ -400,33 +401,6 @@ async function send(i: Item): Promise<Response> {
 
 const MARK = /^\/api\/sessions\/[^/]+\/status$/;
 const isMark = (method: string, path: string) => method === "PATCH" && MARK.test(path);
-/** The record a save changes: `/api/sessions/<id>` for every save under it, so a price and a mark share one version line. */
-const recordOf = (path: string) => path.split("/").slice(0, 4).join("/");
-
-/** Saves queued behind one that has just landed were made from the version it was made from: move them up. */
-function chainVersions(landed: Item, newVersion: number | undefined) {
-    const from = parseBody(landed.body).version;
-    if (typeof from !== "number") return;
-    const rec = recordOf(landed.path);
-    for (const x of outbox.items) {
-        if (x.id === landed.id || recordOf(x.path) !== rec || x.failed) continue;
-        const o = parseBody(x.body);
-        if (o.version === from) x.body = JSON.stringify({ ...o, version: newVersion ?? from + 1 });
-    }
-}
-
-/** A record made on this phone has landed: saves queued on it were made from version 0, the server's first is the answer's. */
-function startVersions(created: Item, version: number) {
-    const id = parseBody(created.body).id;
-    if (typeof id !== "string") return;
-    const rec = `${created.path}/${id}`;
-    for (const x of outbox.items) {
-        if (x.id === created.id || recordOf(x.path) !== rec || x.failed) continue;
-        const o = parseBody(x.body);
-        if (o.version === 0) x.body = JSON.stringify({ ...o, version });
-    }
-}
-
 /** The answer's JSON, or null when it has none. */
 async function readBody(res: Response): Promise<unknown> {
     try {
@@ -449,8 +423,8 @@ export async function flush(): Promise<void> {
             // The person replaced this one while earlier saves were going out: don't send the old one.
             const live = outbox.items.find((x) => x.id === i.id);
             if (!live || live.failed) continue;
-            // A mark made after one the server refused would only be refused too (it assumed that one landed).
-            if (live.method === "PATCH" && outbox.items.some((x) => x.failed && x.method === live.method && x.path === live.path)) continue;
+            // A save on a record behind one the server refused waits for the person (lib/outbox-versions.ts).
+            if (heldBehindRefused(outbox.items, live)) continue;
             live.tried = true;
             save();
             let res: Response;
@@ -472,8 +446,7 @@ export async function flush(): Promise<void> {
             reportNetOk();
             if (verdict.kind === "applied") {
                 const v = (body as { version?: unknown } | null)?.version;
-                if (i.method !== "POST" || recordOf(i.path) !== i.path) chainVersions(i, typeof v === "number" ? v : undefined);
-                else if (typeof v === "number") startVersions(i, v);
+                landed(outbox.items, live, typeof v === "number" ? v : undefined);
                 if (keepsAfterSend(i)) live.sentAt = Date.now();
                 else outbox.items = outbox.items.filter((x) => x.id !== i.id);
                 save();

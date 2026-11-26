@@ -19,8 +19,8 @@ import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
+import com.companyb.companyapp.contracts.session.AddSessionPractitionerRequest
 import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.CreateSessionRequest
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
@@ -196,7 +196,7 @@ private fun requireSessionMoney(
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_practitioners",
     security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AddPractitionerRequest::class)]),
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AddSessionPractitionerRequest::class)]),
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = SessionPractitionerResponse::class)]),
         OpenApiResponse(status = "201", content = [OpenApiContent(from = SessionPractitionerResponse::class)]),
@@ -567,7 +567,7 @@ object SessionRoutes {
     private fun handleAddPractitioner(context: Context) {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
-        val request = context.bodyAsClass<AddPractitionerRequest>()
+        val request = context.bodyAsClass<AddSessionPractitionerRequest>()
 
         val practitionerId = uuidOrThrow(request.practitionerId, "practitioner id")
         val id = uuidOrThrow(request.id, "id")
@@ -580,6 +580,7 @@ object SessionRoutes {
                 practitionerId = practitionerId,
                 remarks = request.remarks,
                 reason = request.reason,
+                version = request.version,
             )
 
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
@@ -599,6 +600,7 @@ object SessionRoutes {
                 practitionerId = practitionerId,
                 remarks = request.remarks,
                 reason = request.reason,
+                version = request.version,
             )
 
         context.status(HttpStatus.OK)
@@ -609,13 +611,14 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val practitionerId = context.pathParamAsUuid("practitionerId")
-        val reason = context.bodyIfPresent<RemovePractitionerRequest>()?.reason
+        val request = context.bodyIfPresent<RemovePractitionerRequest>()
 
         SessionPractitionerService.removePractitioner(
             callerId = callerId,
             sessionId = sessionId,
             practitionerId = practitionerId,
-            reason = reason,
+            reason = request?.reason,
+            version = request?.version,
         )
 
         context.status(HttpStatus.NO_CONTENT)

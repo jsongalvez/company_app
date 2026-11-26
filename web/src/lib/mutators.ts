@@ -65,11 +65,13 @@ const CLIENT_FIELDS = [
 
 /**
  * Changes the session's `list` entry whose `idField` is the path's sixth part; undefined when it is not there or
- * nothing moves. The server leaves an empty list out, and moves the session's version when `bumps`.
+ * nothing moves. The server leaves an empty list out, and moves the session's version when `bumps`: a save that
+ * names the version it was made from applies only to that version, so one already in the answer is not applied twice.
  */
 const onEntry =
     (list: string, idField: string, bumps: boolean, f: (rows: Rec[], i: number, op: PendingOp) => Rec[] | undefined): Change =>
     (r, op) => {
+        if (bumps && typeof op.body.version === "number" && r.version !== op.body.version) return undefined;
         const rows = (r[list] as Rec[] | undefined) ?? [];
         const i = rows.findIndex((x) => x[idField] === op.path.split("/")[5]);
         const out = i < 0 ? undefined : f(rows, i, op);

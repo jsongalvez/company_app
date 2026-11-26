@@ -147,15 +147,30 @@ data class AddPractitionerRequest(
     val reason: String? = null,
 )
 
+/** A practitioner added to a saved session. */
+@Serializable
+data class AddSessionPractitionerRequest(
+    val id: String,
+    val practitionerId: String,
+    val remarks: String? = null,
+    val reason: String? = null,
+    /** The session version the save was made from: when given, a session changed since is refused (409). */
+    val version: Int? = null,
+)
+
 @Serializable
 data class UpdatePractitionerRemarksRequest(
     val remarks: String? = null,
     val reason: String? = null,
+    /** The session version the save was made from: when given, a session changed since is refused (409). */
+    val version: Int? = null,
 )
 
 @Serializable
 data class RemovePractitionerRequest(
     val reason: String? = null,
+    /** The session version the save was made from: when given, a session changed since is refused (409). */
+    val version: Int? = null,
 )
 
 @Serializable

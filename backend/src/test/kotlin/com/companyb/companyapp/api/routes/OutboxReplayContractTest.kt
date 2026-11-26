@@ -132,7 +132,11 @@ class OutboxReplayContractTest : BasePostgresTest() {
     ) = run {
         val who = Consumer<Request.Builder> { it.header("X-Test-User", user.toString()) }
         val c = testServer.client
-        if (method == "PATCH") c.patch(path, body, who) else c.post(path, body, who)
+        when (method) {
+            "PATCH" -> c.patch(path, body, who)
+            "DELETE" -> c.delete(path, body, who)
+            else -> c.post(path, body, who)
+        }
     }
 
     @Test
@@ -209,6 +213,80 @@ class OutboxReplayContractTest : BasePostgresTest() {
         )
         assertEquals(1, count(SessionPractitionerTable) { (it.sessionId eq sessionId) and (it.practitionerId eq mate) })
     }
+
+    @Test
+    fun `a practitioner added from the session version it was shown moves it on once, sent twice`() {
+        val sessionId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        val version = sessionVersion(sessionId)
+        replay(
+            staff,
+            "POST",
+            "/api/sessions/$sessionId/practitioners",
+            mapOf("id" to TestFixtures.uuid().toString(), "practitionerId" to mate.toString(), "version" to version),
+        )
+        assertEquals(version + 1, sessionVersion(sessionId))
+        val price =
+            call(
+                staff,
+                "PATCH",
+                "/api/sessions/$sessionId/final-price",
+                mapOf(
+                    "finalPrice" to "900",
+                    "version" to version + 1,
+                ),
+            )
+        assertEquals(200, price.code, price.body.string())
+    }
+
+    /** Someone else moved the session on: a practitioner change made from the old version is refused. */
+    @Test
+    fun `practitioner changes made from an older session version are refused`() {
+        val sessionId = TestFixtures.uuid()
+        SessionClientFixtures.insertTestSession(sessionId, clientId, branchDayId)
+        val shown = sessionVersion(sessionId)
+        val first =
+            call(
+                staff,
+                "POST",
+                "/api/sessions/$sessionId/practitioners",
+                mapOf("id" to TestFixtures.uuid().toString(), "practitionerId" to mate.toString()),
+            )
+        assertEquals(201, first.code, first.body.string())
+        val stale =
+            listOf(
+                call(
+                    staff,
+                    "POST",
+                    "/api/sessions/$sessionId/practitioners",
+                    mapOf(
+                        "id" to TestFixtures.uuid().toString(),
+                        "practitionerId" to clerk.toString(),
+                        "version" to shown,
+                    ),
+                ),
+                call(
+                    staff,
+                    "PATCH",
+                    "/api/sessions/$sessionId/practitioners/$mate",
+                    mapOf(
+                        "remarks" to "x",
+                        "version" to shown,
+                    ),
+                ),
+                call(staff, "DELETE", "/api/sessions/$sessionId/practitioners/$mate", mapOf("version" to shown)),
+            )
+        assertEquals(listOf(409, 409, 409), stale.map { it.code })
+        assertEquals(shown + 1, sessionVersion(sessionId))
+        assertEquals(
+            0,
+            count(SessionPractitionerTable) { (it.sessionId eq sessionId) and (it.practitionerId eq clerk) },
+        )
+        assertEquals(1, count(SessionPractitionerTable) { (it.sessionId eq sessionId) and (it.practitionerId eq mate) })
+    }
+
+    private fun sessionVersion(sessionId: UUID) =
+        transaction { SessionTable.selectAll().where { SessionTable.id eq sessionId }.single()[SessionTable.version] }
 
     @Test
     fun `PATCH sessions slash id slash status`() {

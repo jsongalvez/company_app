@@ -135,7 +135,7 @@
                 ok(
                     api.POST("/api/sessions/{sessionId}/practitioners", {
                         params: { path: { sessionId: id } },
-                        body: { id: uuid(), practitionerId: addPid, reason: rs || null },
+                        body: { id: uuid(), practitionerId: addPid, reason: rs || null, version: s?.version },
                     }),
                 ),
             )
@@ -153,7 +153,7 @@
                 ok(
                     api.DELETE("/api/sessions/{sessionId}/practitioners/{practitionerId}", {
                         params: { path: { sessionId: id, practitionerId: p.practitionerId } },
-                        body: { reason: rs || null },
+                        body: { reason: rs || null, version: s?.version },
                     }),
                 ),
             )
@@ -170,7 +170,7 @@
                 ok(
                     api.PATCH("/api/sessions/{sessionId}/practitioners/{practitionerId}", {
                         params: { path: { sessionId: id, practitionerId: p.practitionerId } },
-                        body: { remarks: v.trim() || null, reason: rs || null },
+                        body: { remarks: v.trim() || null, reason: rs || null, version: s?.version },
                     }),
                 ),
             )

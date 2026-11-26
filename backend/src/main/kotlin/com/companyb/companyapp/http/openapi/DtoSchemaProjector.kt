@@ -106,6 +106,7 @@ import com.companyb.companyapp.contracts.reporting.MyHistoryResponse
 import com.companyb.companyapp.contracts.reporting.MyShift
 import com.companyb.companyapp.contracts.session.AddPractitionerRequest
 import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
+import com.companyb.companyapp.contracts.session.AddSessionPractitionerRequest
 import com.companyb.companyapp.contracts.session.BookingResponse
 import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.CreateBookingRequest
@@ -185,6 +186,7 @@ internal object DtoSchemaProjector {
             "SetBranchPriceRequest" to SetBranchPriceRequest.serializer(),
             "AddPractitionerRequest" to AddPractitionerRequest.serializer(),
             "AddSessionConcernRequest" to AddSessionConcernRequest.serializer(),
+            "AddSessionPractitionerRequest" to AddSessionPractitionerRequest.serializer(),
             "AllowanceResponse" to AllowanceResponse.serializer(),
             "AssignDelegateRequest" to AssignDelegateRequest.serializer(),
             "AssignmentResponse" to AssignmentResponse.serializer(),

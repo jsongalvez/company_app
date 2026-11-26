@@ -50,6 +50,7 @@ internal object SessionPractitionerService {
         remarks: String?,
         reason: String? = null,
         write: DayWrite = DayWrite.FIX,
+        version: Int? = null,
     ): AddPractitionerResult {
         if (!AccountReads.userExists(practitionerId)) {
             throw NotFoundException("User not found")
@@ -88,6 +89,7 @@ internal object SessionPractitionerService {
                         remarks = remarks,
                     )
                 if (result.created) {
+                    SessionPractitionerRepository.incrementSessionVersion(sessionId, version)
                     SessionPractitionerAudit.inserted(
                         AuditContext(callerId, branchDay.branchId, isRemitted, reason),
                         result.practitioner,
@@ -103,12 +105,14 @@ internal object SessionPractitionerService {
         }
     }
 
+    @Suppress("LongParameterList") // #593
     fun updatePractitionerRemarks(
         callerId: UUID,
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
         reason: String? = null,
+        version: Int? = null,
     ): SessionPractitioner =
         traced("SessionPractitionerService.updatePractitionerRemarks") {
             transaction {
@@ -124,6 +128,7 @@ internal object SessionPractitionerService {
                         sessionId = sessionId,
                         practitionerId = practitionerId,
                         remarks = remarks,
+                        version = version,
                     )
 
                 SessionPractitionerAudit.updated(
@@ -146,6 +151,7 @@ internal object SessionPractitionerService {
         sessionId: UUID,
         practitionerId: UUID,
         reason: String? = null,
+        version: Int? = null,
     ) {
         traced("SessionPractitionerService.removePractitioner") {
             transaction {
@@ -154,7 +160,7 @@ internal object SessionPractitionerService {
                 // Transaction-local before-state (ADR-0019): read inside the command's transaction;
                 // the store operation returns the removed row for the delete audit.
                 val removed =
-                    SessionPractitionerRepository.removeInTransaction(sessionId, practitionerId)
+                    SessionPractitionerRepository.removeInTransaction(sessionId, practitionerId, version)
                         ?: throw NotFoundException("Practitioner not found in session")
 
                 SessionPractitionerAudit.deleted(

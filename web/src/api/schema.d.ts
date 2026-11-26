@@ -3070,6 +3070,13 @@ export interface components {
             concernId: string;
             reason?: string | null;
         };
+        AddSessionPractitionerRequest: {
+            id: string;
+            practitionerId: string;
+            remarks?: string | null;
+            reason?: string | null;
+            version?: number | null;
+        };
         BookingResponse: {
             id: string;
             branchId: string;
@@ -3176,6 +3183,7 @@ export interface components {
         };
         RemovePractitionerRequest: {
             reason?: string | null;
+            version?: number | null;
         };
         RemoveSessionConcernRequest: {
             reason?: string | null;
@@ -3272,6 +3280,7 @@ export interface components {
         UpdatePractitionerRemarksRequest: {
             remarks?: string | null;
             reason?: string | null;
+            version?: number | null;
         };
         UpdateSessionFinalPriceRequest: {
             finalPrice: string;
@@ -9921,7 +9930,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["AddPractitionerRequest"];
+                "application/json": components["schemas"]["AddSessionPractitionerRequest"];
             };
         };
         responses: {

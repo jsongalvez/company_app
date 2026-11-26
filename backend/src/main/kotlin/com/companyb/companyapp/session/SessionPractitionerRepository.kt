@@ -54,11 +54,6 @@ internal object SessionPractitionerRepository {
                 }.insertedCount
         val created = insertedCount > 0
 
-        if (created) {
-            val sessionVersion = readSessionVersion(sessionId)
-            incrementSessionVersion(sessionId, sessionVersion)
-        }
-
         val practitioner =
             findBySessionAndPractitionerInTransaction(sessionId, practitionerId)
                 ?: throw ConflictException("Session practitioner request ID already exists")
@@ -75,6 +70,7 @@ internal object SessionPractitionerRepository {
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        version: Int? = null,
     ): SessionPractitioner {
         val updated =
             SessionPractitionerTable.update({
@@ -88,8 +84,7 @@ internal object SessionPractitionerRepository {
             throw VersionMismatchException(SessionPractitionerTable.tableName, practitionerId)
         }
 
-        val sessionVersion = readSessionVersion(sessionId)
-        incrementSessionVersion(sessionId, sessionVersion)
+        incrementSessionVersion(sessionId, version)
 
         return SessionPractitionerTable
             .selectAll()
@@ -107,6 +102,7 @@ internal object SessionPractitionerRepository {
     fun removeInTransaction(
         sessionId: UUID,
         practitionerId: UUID,
+        version: Int? = null,
     ): SessionPractitioner? {
         val existing = findBySessionAndPractitionerInTransaction(sessionId, practitionerId)
 
@@ -117,8 +113,7 @@ internal object SessionPractitionerRepository {
             }
 
         if (deleted > 0) {
-            val sessionVersion = readSessionVersion(sessionId)
-            incrementSessionVersion(sessionId, sessionVersion)
+            incrementSessionVersion(sessionId, version)
             return existing
         }
         if (existing != null) {
@@ -177,10 +172,15 @@ internal object SessionPractitionerRepository {
             slotAtTime = this[SessionPractitionerTable.slotAtTime],
         )
 
+    /**
+     * Moves the session one version on from [madeFrom], the version the save was made from;
+     * a session changed since is refused. Null moves it on from whatever it holds.
+     */
     internal fun incrementSessionVersion(
         sessionId: UUID,
-        expectedVersion: Int,
+        madeFrom: Int?,
     ) {
+        val expectedVersion = madeFrom ?: readSessionVersion(sessionId)
         val updated =
             SessionTable.update({
                 (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)

@@ -1,13 +1,13 @@
 # Offline save queue: TLA+ model
 
 `Outbox.tla` models what a phone does with saves made while the signal is bad: the queue
-(`web/src/lib/outbox.svelte.ts`), the 202 "saved on this phone" answer (`api/client.ts`
+(`web/src/lib/outbox.svelte.ts`, `web/src/lib/outbox-versions.ts`), the 202 "saved on this phone" answer (`api/client.ts`
 `resilientFetch`), the list cache that refreshes after a send (`lib/cache.svelte.ts`) and what
 `#/today` shows (`pages/Today.svelte`). One person, one phone, one session, one product sale.
 The server side is the rules of `SessionService.updateStatus`, `SessionRoutes.handleCreateSession`,
 `ProductSaleService.sell` and `BranchDayService.assertEditableBranchDay`.
 
-Last checked against the code at **4999e610** (master). When any file named above changes after
+Last checked against the code at **3cc8b3bc** (master), and again with the change that moved the version logic into `web/src/lib/outbox-versions.ts` (the model's marks behave as before). When any file named above changes after
 that commit, reread the matching action in `Outbox.tla` before trusting a pass, then move the
 commit forward here.
 
@@ -42,7 +42,7 @@ A new session starts at version 1 on the server (`SessionTable.version`), but it
 says 0 until the phone learns the real one. Two pieces of code cover that, and the model fails
 without either (`ablate.sh`):
 
-- `StartVersions` (`startVersions()` in `outbox.svelte.ts`): a mark made on a session whose create is
+- `StartVersions` (`landed()` in `outbox-versions.ts`): a mark made on a session whose create is
   still waiting goes out at the version the create answered with.
 - `AnswerSeedsList` (`takeLanded` -> `seedTodayScreen`): the create's answer brings Today's list
   (`withToday=true`), so a mark made right after it lands, even with no signal, uses the server's
@@ -97,7 +97,11 @@ answer. The model's server instead re-judges a resend (a repeated create or mark
 resent on a later day goes through the day gate), which refuses at least as often, so a pass still
 holds with the op log. The site hub (`site.svelte.ts`) only mirrors saves to other phones and never
 sends them to the server, so it is outside the model. Several sessions or branches; other people editing at the same time (the 409 "someone else changed
-it" path is only checked for the person's own marks); clock-in gating of new sessions; expenses,
+it" path is only checked for the person's own marks); saves other than marks that move a record's version
+(price, practitioners, expenses, sales, pay): `ChainVersions` and `BlockBehindFailed` here are the mark case of
+`web/src/lib/outbox-versions.ts`, which moves and holds every save on the same record by its `version` or
+`expectedVersion`, and its sequences, someone else's change included, are replayed in
+`web/tests/unit/outbox-versions.test.ts`; clock-in gating of new sessions; expenses,
 allowances and attendance saves (they take the same queue but have no ordering rule); the direct
 online path of a save (modeled as enqueue-then-send); the 120 s / 24 h timers are only "later than
 the refresh"; token expiry (401); 5xx. A pass covers one session, at most two marks, one reload,
