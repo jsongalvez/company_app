@@ -3,7 +3,7 @@
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
     import { today } from "../lib/today.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { peso, num, time, dateTime, label, operationalDate } from "../lib/format";
@@ -73,7 +73,6 @@
     const names = $derived(Object.fromEntries((inv.data ?? []).map((i) => [i.productId, i.productName])));
 
     function refresh() {
-        wrote("stock", bid);
         inv.refresh();
         moves.refresh();
         older = [];

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { can } from "../lib/app.svelte";
-    import { Query, wrote } from "../lib/cache.svelte";
+    import { Query } from "../lib/cache.svelte";
     import { load, warm } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { route, go } from "../lib/router.svelte";
@@ -39,7 +39,6 @@
     async function create() {
         let made: S["ClientResponse"] | undefined;
         if (await a.run(async () => (made = await ok(api.POST("/api/clients", { body: createBody(uuid(), draft) }))), "Client created")) {
-            wrote("clientAdded");
             open = false;
             if (made) go(`/clients/${made.id}`);
         }

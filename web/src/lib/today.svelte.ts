@@ -3,12 +3,12 @@
  * Only this file changes it. Screens read `today` and call the actions below.
  */
 import { ApiError, api, ok, uuid, errText, type S } from "../api/client";
-import { key } from "./keys";
-import { wrote, fetchCached, peek, seed } from "./cache.svelte";
+import { all, key } from "./keys";
+import { fetchCached, forgetShown, peek, rereadStale, seed } from "./cache.svelte";
 import { doneText, heldClock, heldSoFar, LANDED, type Landed } from "./outbox.svelte";
 import { parseBody } from "./outbox-classify";
 import { operationalDate } from "./format";
-import { seedTodayScreen } from "./data";
+import { read, seedTodayScreen } from "./data";
 import { act } from "./act.svelte";
 import { app, branchName, onToday, pull, takeStart, toast } from "./app.svelte";
 import { worksAt } from "./rights";
@@ -55,16 +55,14 @@ export function resetDay() {
     Object.assign(s, { day: null, shift: null, shiftKnown: false, marking: null });
 }
 
-/** A new session or sale went out from the queue: its answer brings Today (`withToday`), and what it changed goes stale. */
+/** A new session went out from the queue: its answer brings Today (`withToday`). What it changed went stale as the answer came. */
 function takeLanded(e: Event) {
     const { item, answer } = (e as CustomEvent<Landed>).detail;
     const b = parseBody(item.body);
     if (item.path === "/api/sessions") {
         const screen = (answer as S["SessionResponse"] | null)?.todayScreen;
         if (screen && typeof b.branchId === "string") takeLists(b.branchId, screen);
-        if (Array.isArray(b.newConcerns) && b.newConcerns.length) wrote("concerns");
-        wrote("sessionAdded", String(b.clientId), String(b.id));
-    } else if (item.path === "/api/product-sales") wrote("productSale", app.branchId, String(b.branchDayId));
+    }
 }
 export function watchLanded() {
     window.addEventListener(LANDED, takeLanded);
@@ -100,7 +98,7 @@ export async function refreshDay() {
     const k = key.bootToday(id, operationalDate());
     if (!s.day) s.day = peek<Day>(k) ?? null;
     try {
-        const t = await fetchCached(k, () => ok(api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } })), true);
+        const t = await fetchCached(k, (seen) => read(seen, api.GET("/api/branches/{branchId}/today", { params: { path: { branchId: id } } })), true);
         if (app.branchId === id) s.day = t;
     } catch (e) {
         // No signal: keep the day we knew.
@@ -152,7 +150,7 @@ function showMark(userId: string, present: boolean, branchId: string, attendance
 async function applyStart(st: S["StartResponse"] | null | undefined) {
     if (!st) return;
     takeStart(st, onToday());
-    await wrote("clockApplied");
+    await rereadStale();
     s.marking = null;
 }
 
@@ -184,7 +182,7 @@ export async function clockOut(): Promise<boolean> {
         const r = await ok(
             api.POST("/api/attendance/clock-out", { params: { query: { branchId: app.branchId || undefined, withToday: onToday() } }, body: { attendanceId } }),
         );
-        if (heldSoFar() > before) return (applyHeldClock(), (s.shiftKnown = true), wrote("clockOutHeld"), toast(doneText(before)!), true);
+        if (heldSoFar() > before) return (applyHeldClock(), (s.shiftKnown = true), forgetShown([all("dash"), all("roster")]), toast(doneText(before)!), true);
         toast(doneText(before, "Clocked out")!);
         // Today's list needs a clock-in: the new state takes it off screen (and off the phone).
         void applyStart(r.start);

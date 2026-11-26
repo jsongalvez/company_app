@@ -2,7 +2,7 @@
     import { keepReason, lastReason } from "../lib/ask.svelte";
     import { api, ok, uuid, type S } from "../api/client";
     import { can } from "../lib/app.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action } from "../lib/act.svelte";
     import { peso, sum } from "../lib/format";
@@ -48,7 +48,6 @@
     }
     const startReason = () => (reason = closed ? lastReason() : "");
     function refresh(list: "comp" | "allow") {
-        wrote("pay", list, dayId);
         if (list === "allow") return allow.refresh();
         comp.refresh();
         onpay?.();

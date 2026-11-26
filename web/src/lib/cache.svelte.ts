@@ -3,7 +3,7 @@ import { RECONNECTED } from "./net.svelte";
 import { SENT, tokenUser } from "./outbox.svelte";
 import { disk } from "./disk";
 import type { Key } from "./keys";
-import { writes, type Write, type WriteArgs } from "./writes";
+import { onChanged, Seen, staleKeys, stillStale, type Tables } from "./tables";
 /**
  * Tiny query cache, McMaster-style snappiness: show cached data instantly,
  * revalidate in the background, prefetch on hover. Keys are strings.
@@ -19,6 +19,8 @@ type Entry = {
     inflightAt?: number;
     inflightSeq?: number;
     staleAt?: number;
+    /** Tables the answer read (`X-Reads`); none recorded (seeded, restored from the phone) counts as every table. */
+    reads?: Tables;
 };
 const store = new Map<Key, Entry>();
 const FRESH_MS = 15_000;
@@ -72,13 +74,14 @@ export function saveNow() {
 }
 
 let seq = 0;
-export function fetchCached<T>(key: Key, fn: () => Promise<T>, force = false): Promise<T> {
+export function fetchCached<T>(key: Key, fn: (seen: Seen) => Promise<T>, force = false): Promise<T> {
     const e = store.get(key);
     // A forced read (after a save) must not reuse a request that started before the save.
     if (e?.inflight && !(force && e.inflightAt! < (e.staleAt ?? 0))) return e.inflight as Promise<T>;
     if (!force && e && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data as T);
     const mine = ++seq;
-    const p = fn().then(
+    const seen = new Seen();
+    const p = fn(seen).then(
         (data) => {
             const cur = store.get(key);
             // An older request finishing late never overwrites a newer answer.
@@ -92,6 +95,7 @@ export function fetchCached<T>(key: Key, fn: () => Promise<T>, force = false): P
                 got: Date.now(),
                 seq: mine,
                 staleAt: cur?.staleAt,
+                reads: seen.tables,
                 ...(newer ? { inflight: cur!.inflight, inflightAt: cur!.inflightAt, inflightSeq: cur!.inflightSeq } : {}),
             });
             saveSoon();
@@ -118,19 +122,25 @@ export function peek<T>(key: Key): T | undefined {
     return store.get(key)?.data as T | undefined;
 }
 
-/** Mark cached keys starting with any prefix as stale (after a write): the next read fetches,
- *  but what we had keeps showing meanwhile, and stays if there's no signal. */
-function invalidate(prefixes: Key[]) {
-    for (const [k, e] of store)
-        if (prefixes.some((p) => k.startsWith(p))) {
-            e.at = 0;
-            e.staleAt = seq + 1;
-        }
+function markStale(e: Entry) {
+    e.at = 0;
+    e.staleAt = seq + 1;
+}
+
+/** A save's answer named the tables it changed: every entry whose reads meet them is stale. The next read asks again,
+ *  but what we had keeps showing meanwhile, and stays if there's no signal. Pages re-read what they show themselves. */
+onChanged((changed) => {
+    for (const k of staleKeys(store, changed)) markStale(store.get(k)!);
+});
+
+/** Rights or branches changed: any answer may differ. */
+export function everythingStale() {
+    for (const e of store.values()) markStale(e);
 }
 
 /** Drop cached keys starting with any prefix (on the phone too), and reload screens showing them:
  *  for data that is no longer allowed (e.g. Today after clocking out), not merely stale. */
-function forget(prefixes: Key[]) {
+export function forgetShown(prefixes: Key[]) {
     const hit = (k: string) => prefixes.some((p) => k.startsWith(p));
     for (const k of [...store.keys()]) if (hit(k)) store.delete(k);
     saveSoon();
@@ -140,25 +150,16 @@ function forget(prefixes: Key[]) {
     }
 }
 
-/** Re-read screens showing keys starting with any prefix, in place: what they show stays until the answer
- *  comes, so the page doesn't blank and refill. A refusal still clears the screen and the phone's copy. */
-function reread(prefixes: Key[]): Promise<unknown> {
+/** Re-read, in place, the screens whose entry a save made stale and nothing has refreshed since. Call it once the
+ *  save's answer is taken in: what the answer seeded, or a page re-read itself, is not asked for again. */
+export function rereadStale(): Promise<unknown> {
     const done: Promise<void>[] = [];
     for (const r of live) {
         const q = r.deref();
-        if (q && prefixes.some((p) => q.key.startsWith(p))) done.push(q.refresh());
+        const e = q && store.get(q.key);
+        if (q && e && stillStale(e)) done.push(q.refresh());
     }
     return Promise.all(done);
-}
-
-/** A save changed what these keys read: see the table in writes.ts. Resolves once rereads are in. */
-export function wrote<W extends Write>(write: W, ...args: WriteArgs<W>): Promise<unknown> {
-    const row = writes[write];
-    const prefixes = (row.keys as (...a: unknown[]) => Key[])(...args);
-    if (row.mode === "reread") return reread(prefixes);
-    if (row.mode === "forget") forget(prefixes);
-    else invalidate(prefixes);
-    return Promise.resolve();
 }
 
 /** Sign-out: forget everything, on the phone too. */
@@ -174,10 +175,7 @@ const live = new Set<WeakRef<Query<unknown>>>();
 /** After held saves go out, what's cached is out of date: refresh what's on screen. */
 export function refreshOnSent() {
     window.addEventListener(SENT, () => {
-        for (const e of store.values()) {
-            e.at = 0;
-            e.staleAt = seq + 1;
-        }
+        everythingStale();
         for (const r of live) {
             const q = r.deref();
             if (q) q.refresh();
@@ -193,13 +191,13 @@ export class Query<T> {
     /** No signal and nothing saved for this yet: it loads by itself once the signal is back. */
     waiting = $state(false);
     #key = "" as Key;
-    #fn: () => Promise<T>;
+    #fn: (seen: Seen) => Promise<T>;
     get key() {
         return this.#key;
     }
 
     /** With no args, nothing loads until load() (call it from an $effect). */
-    constructor(key?: Key, fn?: () => Promise<T>) {
+    constructor(key?: Key, fn?: (seen: Seen) => Promise<T>) {
         this.#fn = fn ?? (() => Promise.reject(new Error("no loader")));
         live.add(new WeakRef(this as Query<unknown>));
         if (key !== undefined && fn) this.load(key, fn);
@@ -207,7 +205,7 @@ export class Query<T> {
     }
 
     /** inPlace (a refresh): keep showing what's on screen, data or refusal, until the answer comes. */
-    load(key: Key, fn: () => Promise<T> = this.#fn, force = false, inPlace = false): Promise<void> {
+    load(key: Key, fn: (seen: Seen) => Promise<T> = this.#fn, force = false, inPlace = false): Promise<void> {
         this.#key = key;
         this.#fn = fn;
         if (!inPlace) {

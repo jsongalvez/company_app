@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app, branchName, refreshRights } from "../lib/app.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { day, label, operationalDate, addDays } from "../lib/format";
@@ -28,7 +28,6 @@
     });
 
     function refresh() {
-        wrote("relief");
         mine.refresh();
         invites.refresh();
         if (member) {

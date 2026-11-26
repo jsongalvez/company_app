@@ -1,7 +1,7 @@
 <script lang="ts">
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can, canRead, refreshBranchNames } from "../lib/app.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { go, route } from "../lib/router.svelte";
@@ -94,7 +94,6 @@
         const id = uuid();
         if (await ba.run(() => ok(api.POST("/api/branches", { body: { id, name: bName.trim(), branchType: bType } })), "Branch created")) {
             bOpen = false;
-            wrote("branches");
             list.refresh();
             go("/branches", { id });
         }
@@ -114,7 +113,6 @@
         const branchId = branch.id;
         if (await ra.run(() => ok(api.PATCH("/api/branches/{branchId}", { params: { path: { branchId } }, body: { name: rName.trim() } })), "Branch renamed")) {
             rOpen = false;
-            wrote("branches");
             list.refresh();
             void refreshBranchNames();
         }
@@ -148,7 +146,6 @@
             sPicked.length === 1 ? "Added" : `Added ${sPicked.length} people`,
         );
         if (added.size) {
-            wrote("assignments", sel, true);
             refresh();
         }
         if (done) sOpen = false;
@@ -162,7 +159,6 @@
                 "Removed",
             )
         ) {
-            wrote("assignments", sel, true);
             refresh();
         }
     }
@@ -184,7 +180,6 @@
             );
             if (swapped) {
                 staff.data = staff.data?.map((x) => (x.id === a.id ? { ...x, slot: b.slot } : x.id === b.id ? { ...x, slot: a.slot } : x));
-                wrote("assignments", sel, false);
                 refresh();
             }
         } finally {
@@ -208,7 +203,6 @@
         const body = { id: uuid(), sessionType: pType, rate: pRate.trim() };
         if (await pa.run(() => ok(api.POST("/api/branches/{branchId}/rates", { params: { path: { branchId: sel } }, body })), "Price saved")) {
             pOpen = false;
-            wrote("rates", sel);
             refresh();
         }
     }
@@ -222,14 +216,12 @@
         const body = { delegateId: uuid(), targetUserId: hUser, branchId: sel, role: hRole };
         if (await ha.run(() => ok(api.POST("/api/delegates", { body })), "Helper added")) {
             hOpen = false;
-            wrote("delegates", sel);
             refresh();
         }
     }
     async function removeHelper(d: S["DelegateResponse"]) {
         if (!confirm(`Remove ${nameOf[d.targetUser] ?? "this helper"}?`)) return;
         if (await act(() => ok(api.DELETE("/api/delegates/{delegateId}", { params: { path: { delegateId: d.id } } })), "Helper removed")) {
-            wrote("delegates", sel);
             refresh();
         }
     }

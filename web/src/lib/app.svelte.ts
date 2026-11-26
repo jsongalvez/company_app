@@ -2,7 +2,7 @@ import { api, ok, refreshToken, setToken, getToken, setUnauthorizedHandler, getV
 import { forgetSnapshot } from "./snapshot";
 import { pullBranch } from "./data";
 import { key } from "./keys";
-import { wrote, clearCache, peek, restoreCache, seed } from "./cache.svelte";
+import { clearCache, everythingStale, peek, restoreCache, seed } from "./cache.svelte";
 import { allowDirectory, refreshDirectory, resetDirectory } from "./clientdir.svelte";
 import { RECONNECTED } from "./net.svelte";
 import { SENT } from "./outbox.svelte";
@@ -207,7 +207,7 @@ export async function refreshBranchNames() {
 
 export async function refreshRights() {
     [app.rights, app.branches] = await Promise.all([ok(api.GET("/api/me/capabilities")), ok(api.GET("/api/me/branches"))]);
-    wrote("rights");
+    everythingStale();
 }
 
 export async function refreshUnread() {

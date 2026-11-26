@@ -5,7 +5,7 @@
     import { api, ok, uuid, BASE_STATUS, type S } from "../api/client";
     import { app, can } from "../lib/app.svelte";
     import { today } from "../lib/today.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act, Action } from "../lib/act.svelte";
     import { peso, dateTime, day, label, clientName } from "../lib/format";
@@ -75,7 +75,6 @@
     }
 
     function refresh() {
-        wrote("sessionChanged", id);
         sq.refresh();
     }
 
@@ -219,7 +218,6 @@
             )
         ) {
             cText = "";
-            wrote("concerns");
             cq.refresh();
             refresh();
         }
@@ -249,7 +247,6 @@
     async function removeFromList(c: S["ConcernResponse"]) {
         if (!confirm(`Take "${c.label}" off the illness list for everyone? Past sessions keep it.`)) return;
         if (await act(() => ok(api.DELETE("/api/concerns/{concernId}", { params: { path: { concernId: c.id } } })), "Taken off the list")) {
-            wrote("concerns");
             cq.refresh();
         }
     }
@@ -270,7 +267,6 @@
                 "Illness added",
             )
         ) {
-            wrote("concerns");
             cq.refresh();
             refresh();
         }

@@ -2,7 +2,7 @@
     import { api, ok, uuid, ApiError, type S } from "../api/client";
     import { can, branchName, toast } from "../lib/app.svelte";
     import { refreshDay } from "../lib/today.svelte";
-    import { Query, wrote } from "../lib/cache.svelte";
+    import { Query } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { remittable } from "../lib/remittable";
     import { Action, act } from "../lib/act.svelte";
@@ -102,7 +102,6 @@
     }
 
     function reload() {
-        wrote("remittance", id);
         q.refresh();
         void loadPicker();
     }
@@ -211,7 +210,6 @@
             )
         ) {
             sOpen = false;
-            wrote("remitted");
             reload();
             void refreshDay();
         }

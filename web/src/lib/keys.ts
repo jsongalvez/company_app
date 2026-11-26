@@ -1,5 +1,5 @@
 /**
- * Every cache key, and every prefix a save drops, is built here. A key is a family name and its parts joined by ":".
+ * Every cache key, and every prefix the app drops when data is no longer allowed, is built here. A key is a family name and its parts joined by ":".
  * Called with fewer parts, a builder gives the prefix for all keys that start with them; with none, the whole family.
  * Each builder is named after its loader in data.ts. Raw strings are not keys, so a typo fails typecheck.
  */

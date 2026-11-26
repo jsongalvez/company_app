@@ -4,7 +4,7 @@
     import { rememberClient } from "../lib/clientdir.svelte";
     import { app, can } from "../lib/app.svelte";
     import { today, takeLists } from "../lib/today.svelte";
-    import { wrote, fetchCached } from "../lib/cache.svelte";
+    import { fetchCached } from "../lib/cache.svelte";
     import { deferredSoFar, whenLanded } from "../lib/outbox.svelte";
     import { onDestroy, untrack } from "svelte";
     import { load } from "../lib/data";
@@ -153,7 +153,6 @@
                 if (creating) {
                     c = await ok(api.POST("/api/clients", { body: createBody(uuid(), draft) }));
                     rememberClient(c);
-                    wrote("clientAdded");
                     client = c;
                     creating = false;
                     // Price comes from the preview; stop here so the user sees it first.
@@ -211,16 +210,13 @@
                           ).catch(() => {})
                         : null,
                 ]);
-                wrote("bookings");
                 // The queue took it (the usual case): Today shows it now and takes the server's answer when it lands.
                 if (deferredSoFar() > queued) {
                     open = false;
                     return;
                 }
                 landed();
-                if (fresh.length) wrote("concerns");
                 if (withToday && s.todayScreen) takeLists(app.branchId, s.todayScreen);
-                wrote("sessionAdded", c.id, s.id);
                 open = false;
                 onsaved();
             },

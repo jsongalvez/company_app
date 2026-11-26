@@ -4,7 +4,7 @@
     import { today } from "../lib/today.svelte";
     import { deferredSoFar, whenLanded } from "../lib/outbox.svelte";
     import { onDestroy } from "svelte";
-    import { wrote, fetchCached, peek } from "../lib/cache.svelte";
+    import { fetchCached, peek } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { askReason } from "../lib/ask.svelte";
     import { Action } from "../lib/act.svelte";
@@ -80,7 +80,6 @@
     const most = $derived((item?.currentStock ?? 999) + (sale && productId === sale.productId ? sale.quantity : 0));
 
     function refreshAfter() {
-        wrote("productSale", app.branchId);
         open = false;
         onsaved();
     }

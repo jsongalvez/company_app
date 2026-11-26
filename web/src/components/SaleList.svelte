@@ -2,7 +2,7 @@
     import { api, ok, type S } from "../api/client";
     import { app } from "../lib/app.svelte";
     import { askReason } from "../lib/ask.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { peso, dateTime, sum } from "../lib/format";
@@ -64,7 +64,6 @@
     }
 
     function changed() {
-        wrote("productSale", app.branchId, dayId);
         q.refresh();
         onchanged();
     }

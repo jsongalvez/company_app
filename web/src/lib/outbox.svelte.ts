@@ -12,6 +12,7 @@ import { disk } from "./disk";
 import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 import { traceparent } from "./telemetry";
+import { answered, QUEUED } from "./tables";
 
 export type Item = {
     id: string;
@@ -330,7 +331,7 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
     if (held) queuedCount++;
     deferredCount++;
     setTimeout(() => void flush(), 0);
-    return new Response(JSON.stringify(r.echo ? r.echo(b) : b), { status: 202, headers: { "Content-Type": "application/json", "X-Queued": "1" } });
+    return new Response(JSON.stringify(r.echo ? r.echo(b) : b), { status: 202, headers: { "Content-Type": "application/json", [QUEUED]: "1" } });
 }
 
 function bodyStatus(i: Item): string | undefined {
@@ -447,6 +448,8 @@ export async function flush(): Promise<void> {
                 reportNetFailure();
                 return;
             }
+            // It went out past the client's middleware: report what it changed here, before Landed takes the answer in.
+            answered(live.method, res.headers);
             const body = await readBody(res);
             const verdict = classify(res.status, body);
             if (res.status === 401 && (await refreshToken())) {

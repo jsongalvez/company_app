@@ -2,7 +2,7 @@
     import { api, ok, type S } from "../api/client";
     import { app, refreshUnread, branchName } from "../lib/app.svelte";
     import { selectBranch } from "../lib/today.svelte";
-    import { Query, wrote } from "../lib/cache.svelte";
+    import { Query } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { go } from "../lib/router.svelte";
@@ -34,7 +34,6 @@
     const unread = $derived(rows.filter((n) => !n.isRead).length);
 
     function refresh() {
-        wrote("notifications");
         q.refresh();
         void refreshUnread();
     }

@@ -5,6 +5,7 @@ import { jittered } from "../lib/backoff";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
 import { canQueue, eager, enqueue as hold, mustQueue, newOp, OCCURRED_AT, OP_ID, onlyEagerAhead, waiting } from "../lib/outbox.svelte";
 import { traceparent } from "../lib/telemetry";
+import { answered, NOT_SENT } from "../lib/tables";
 
 export type S = components["schemas"];
 
@@ -114,6 +115,8 @@ const auth: Middleware = {
             if (response.status >= 400 && response.status !== 401) lastError.value = entry;
         }
         if (response.status === 401 && path.startsWith("/api/")) onUnauthorized();
+        // Before the caller takes the answer in, so what the answer brings counts as fresh.
+        answered(request.method, response.headers);
         return response;
     },
 };
@@ -161,7 +164,7 @@ function offlineRefused(method: string, path: string) {
 
 function refusedHere(method: string, path: string, status: number, error: string): Response {
     offlineRefused(method, path);
-    return new Response(JSON.stringify({ error }), { status, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error }), { status, headers: { "Content-Type": "application/json", [NOT_SENT]: "1" } });
 }
 
 /**

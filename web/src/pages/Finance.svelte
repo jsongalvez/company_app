@@ -4,7 +4,7 @@
     import { api, ok, uuid, type S } from "../api/client";
     import { app, can, canRead } from "../lib/app.svelte";
     import { today } from "../lib/today.svelte";
-    import { Query, wrote, fetchCached } from "../lib/cache.svelte";
+    import { Query, fetchCached } from "../lib/cache.svelte";
     import { load, type Loader } from "../lib/data";
     import { Action, act } from "../lib/act.svelte";
     import { route, go, viewSetting } from "../lib/router.svelte";
@@ -98,7 +98,6 @@
     // Other people's edits to the other lists show when Finance is opened again or the app reloads.
     function refresh(...lists: ("exp" | "split" | "summary")[]) {
         const shown = { exp, split, summary };
-        wrote("finance", bid, date, dayId, lists);
         for (const c of lists) shown[c].refresh();
     }
 
@@ -136,7 +135,6 @@
         if (done) {
             eOpen = false;
             if (!dayId) {
-                wrote("dayRow", bid, date);
                 dayQ.refresh();
                 return;
             }
