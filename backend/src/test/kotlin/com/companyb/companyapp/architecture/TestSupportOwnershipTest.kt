@@ -76,9 +76,9 @@ class TestSupportOwnershipTest {
                 "audit/AuditFieldCoveragePostgresTest.kt",
                 "session/ConcernServicePostgresTest.kt",
                 "session/SessionReadsPostgresTest.kt",
-                "session/SessionServicePostgresTest.kt",
+                "session/SessionServicePostgresBase.kt",
                 "notification/NextAppointmentSchedulerPostgresTest.kt",
-                "remittance/RemittanceLineServicePostgresTest.kt",
+                "remittance/RemittanceLineServicePostgresBase.kt",
             )
         for (path in consumers) {
             val source = testSource(path)

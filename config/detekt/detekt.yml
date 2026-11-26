@@ -726,16 +726,12 @@ style:
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefInviteAuthzTest.kt' #465 frozen #598 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceAuthzTest.kt' #465 frozen #595 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/api/routes/RouteValidationTest.kt' #465 frozen #600 ticketed LargeClass
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryServicePostgresTest.kt' #465 frozen #597 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/client/ClientServicePostgresTest.kt' #465 frozen #599 ticketed LongParameterList
       - '**/backend/src/test/kotlin/com/companyb/companyapp/session/ConcernServicePostgresTest.kt' #465 frozen #593 ticketed LongParameterList
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/finance/ExpenseServicePostgresTest.kt' #465 frozen #596 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/ProductSaleServicePostgresTest.kt' #465 frozen #597 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/relief/ReliefAccessServicePostgresTest.kt' #465 frozen #598 ticketed LargeClass
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceLineServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceReadBackServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/remittance/RemittanceServicePostgresTest.kt' #465 frozen #595 ticketed LargeClass+SameParameterValue
-      - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionServicePostgresTest.kt' #465 frozen #593 ticketed LargeClass+LongParameterList
+      - '**/backend/src/test/kotlin/com/companyb/companyapp/session/SessionServicePostgresBase.kt' #465 frozen #593 ticketed LongParameterList
       - '**/backend/src/test/kotlin/com/companyb/companyapp/workforce/UserBranchAssignmentServicePostgresTest.kt' #465 frozen #598 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/IdentityFixtures.kt' #552 split from the retired mixed helper
       - '**/backend/src/test/kotlin/com/companyb/companyapp/testsupport/fixtures/BranchWorkforceFixtures.kt' #552 split from the retired mixed helper

@@ -4,7 +4,7 @@
 **Date:** 2026-08-21
 **Amends:** [ADR-0013](./0013-audit-callback-pattern.md) (audit-callback pattern becomes transitional), [ADR-0019](./0019-repository-owns-before-state-capture.md) (invariant preserved; ownership moves to the command)
 **Ticket:** [#319](https://github.com/jsongalvez/company_app/issues/319) (map #317 Foundation B)
-**Proof path:** Expense feature (commit `ref #319`, tests `ExpenseServicePostgresTest` §#319 contract proofs + `ExpenseCommandOwnershipArchitectureTest`)
+**Proof path:** Expense feature (commit `ref #319`, tests `ExpenseCommandTransactionPostgresTest` §#319 contract proofs + `ExpenseCommandOwnershipArchitectureTest`)
 
 ## Context
 

@@ -234,7 +234,7 @@ class VoidedProductSaleCoherencePostgresTest : BasePostgresTest() {
 
     /**
      * Stock card for the sell-gate test via the production seam (same shape as
-     * RemittanceLineServicePostgresTest.ensureBranchInventory): ensureCard opens
+     * RemittanceLineServicePostgresBase.ensureBranchInventory): ensureCard opens
      * the card, then the stock bump + version step makes expectedVersion
      * deterministic on a fresh schema.
      */

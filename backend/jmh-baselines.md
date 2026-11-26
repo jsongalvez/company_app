@@ -68,7 +68,7 @@ Median of 5 CI runs; range = observed min–max across those runs.
 | `AttendanceServicePostgresTest.clockIn` | < 5s | resolveOrCreate + hasCapability + audit |
 | `SessionServicePostgresTest.create` | < 10s | computeSessionType + resolveOrCreate + hasCapability + audit |
 | `CommissionServicePostgresTest.recal` | < 5s | splitCommission + recalculate + inclusive |
-| `RemittanceServicePostgresTest.submit` | < 15s | SERIALIZABLE submit + snapshot + branch day transition |
+| `RemittanceSubmitPostgresTest.submit` | < 15s | SERIALIZABLE submit + snapshot + branch day transition |
 
 ---
 
