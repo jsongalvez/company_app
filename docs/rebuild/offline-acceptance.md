@@ -18,6 +18,7 @@ Evidence words, as in the plan: checked (ran it, or read the CI run), inferred, 
 | Offline saves, marks, clashes and search | `web/tests/outbox.e2e.ts`, `web/tests/offline-search.e2e.ts` | `browser.yml`, Chromium only |
 | In iPhone Safari's engine the app asks to keep its data (`navigator.storage.persist`, `web/src/lib/disk.ts`) and shows how to add it to the Home Screen | `web/tests/iphone.e2e.ts` | `browser.yml` WebKit job, with WebKit playing an iPhone; skipped in Firefox (no mobile emulation) |
 | Four phones on a laptop's hotspot with no internet see each other's unsent work through the site hub; the hub is killed and refilled by the phones; once the signal is back the cloud holds what the same work done online holds | `web/tests/site-hub.e2e.ts`, relay `hub/` | `browser.yml` "site hub" job: one phone per engine (Chromium, WebKit, Firefox), relay in a container |
+| Many phones sending their queues at once: six phones opening a fresh day together make one day and every save lands; one save sent four times at once is done once (the copies still running are told to send again, then all get the first answer); six phones' mixed late queues from yesterday, resends included, land once each on yesterday, flagged, with the same days, shifts, sessions, sale and expense totals and stock as the same queues sent one at a time | `backend/src/test/kotlin/com/companyb/companyapp/integration/ConcurrentReplayPostgresTest.kt` | backend test through the real sign-in, `X-Op-Id`, `X-Occurred-At` and routes against Postgres, threads released by one latch, 4 rounds each; CI `quality.yml`. It fails when the day's first write inserts instead of insert-or-skip (500s). No bug found |
 
 What the browser runs prove has limits:
 
@@ -25,6 +26,7 @@ What the browser runs prove has limits:
 - The site hub job blocks service workers in every engine (`serviceWorkers: "block"` in `web/tests/site-hub.e2e.ts`). Each phone is a desktop browser context that reaches the hub through a proxy, not a phone on a hotspot. Since `95b2ef1a`, each phone waits for a tap on Find site hub before it asks for the local network, in every engine.
 - The browsers are Playwright's builds of each engine on Linux, not Safari on iOS or Chrome on Android.
 - `effb28f2` lets the test sign-in open the page once more when Firefox fails to open it right after the state is cleared. That is a retry in the test harness, not a fix in the app.
+- The many-phones test runs threads in one process against a local Postgres with a 3-connection pool, not phones on cell radios against the production database. A new client belongs to no day, so it carries no late flag. With the "still saving" answer removed, each write was still done once, because each route also keys its row on the phone's id.
 - Last green `browser.yml` run with every job above: `95b2ef1a` and `d31d2514` (Nov 21).
 
 ## Not checked
@@ -36,4 +38,3 @@ What the browser runs prove has limits:
 | Chrome on Android keeping storage under pressure, and whether `persist()` is granted | An eviction loses queued work the same way | Real Android phones with the disk nearly full |
 | Service workers in Safari and Firefox with no signal: the app opening from its cache | Every non-Chromium browser run has workers off (above) | A browser test that cuts the network another way, or a real device |
 | Several real phones on one site hub with no internet: a real hotspot, local-network permission prompts, phones sleeping and waking | The CI job uses proxies and desktop contexts | A trial with a laptop and three or more phones away from any signal |
-| Many phones' late work landing at once | Not modelled (one person, one phone in the model), not load-tested | A model or load test with several phones replaying together |
