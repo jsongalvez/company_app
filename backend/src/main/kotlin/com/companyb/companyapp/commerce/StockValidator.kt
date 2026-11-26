@@ -11,20 +11,20 @@ internal object StockValidator {
      * ([checkBranchDayEditableInTransaction]) so the gate serializes with
      * remittance's REMITTED transition instead of racing it.
      */
-    @Suppress("LongParameterList") // #597
     fun validateMovement(
         callerId: UUID,
-        branchDayId: UUID,
-        movementType: MovementType,
-        quantityChange: Int,
-        notes: String?,
-        reason: String? = null,
+        new: NewInventoryMovement,
     ): Boolean {
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason)
+        val (_, isRemitted) =
+            BranchDayService.checkBranchDayEditableInTransaction(
+                callerId,
+                new.branchDayId,
+                new.reason,
+            )
 
-        requireSign(movementType, quantityChange)
-        requireNonZeroQuantity(quantityChange)
-        requireMissingNotes(movementType, notes)
+        requireSign(new.movementType, new.quantityChange)
+        requireNonZeroQuantity(new.quantityChange)
+        requireMissingNotes(new.movementType, new.notes)
 
         return isRemitted
     }

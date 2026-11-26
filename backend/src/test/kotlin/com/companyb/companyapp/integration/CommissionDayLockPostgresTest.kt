@@ -5,10 +5,12 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.commission.CommissionManualInclusionRepository
 import com.companyb.companyapp.commission.CommissionManualInclusionTable
 import com.companyb.companyapp.commission.CommissionService
+import com.companyb.companyapp.commission.NewManualInclusion
 import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -70,11 +72,13 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = inclusionId,
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
         }
         assertNull(
@@ -93,11 +97,13 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = inclusionId,
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = true,
-                reason = "Coordinator correction",
+                NewManualInclusion(
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(inclusion)
@@ -128,11 +134,13 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                productSaleId = pastSaleId,
-                userId = targetUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = TestFixtures.uuid(),
+                    productSaleId = pastSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
         }
     }
@@ -152,11 +160,13 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
                 LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     CommissionService.createManualInclusion(
                         callerId = callerId,
-                        id = blockedId,
-                        productSaleId = productSaleId,
-                        userId = targetUserId,
-                        isIncluded = true,
-                        reason = null,
+                        NewManualInclusion(
+                            id = blockedId,
+                            productSaleId = productSaleId,
+                            userId = targetUserId,
+                            isIncluded = true,
+                            reason = null,
+                        ),
                     )
                 }
             }.exceptionOrNull()
@@ -174,12 +184,14 @@ class CommissionDayLockPostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today.minusDays(1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today.minusDays(1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,

@@ -80,12 +80,14 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val otherRemittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = otherRemittanceId,
-            type = RemittanceType.SESSION,
-            branchId = otherBranchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = otherRemittanceId,
+                type = RemittanceType.SESSION,
+                branchId = otherBranchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
 
         val result = RemittanceService.listRemittances(branchId, null)
@@ -99,12 +101,14 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val draftId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = draftId,
-            type = RemittanceType.PRODUCT,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = draftId,
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         val submittedId = TestFixtures.uuid()
         createSubmittedSessionRemittance(submittedId, BigDecimal("100.00"))
@@ -301,12 +305,14 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         // #483 — the covered day must sit inside the draft range; use the query window itself.
         RemittanceService.createDraft(
             callerId = callerId,
-            id = submittedId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = today.minusDays(15),
-            dateRangeEnd = today.plusDays(15),
+            NewRemittance(
+                id = submittedId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = today.minusDays(15),
+                dateRangeEnd = today.plusDays(15),
+            ),
         )
         val breakdownId = TestFixtures.uuid()
         RemittanceService.addDayBreakdown(callerId, submittedId, breakdownId, remittedDayId)
@@ -398,12 +404,14 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         createDraftRemittance(remittanceId)
         RemittanceService.createDraft(
             callerId = callerId,
-            id = otherRemittanceId,
-            type = RemittanceType.PRODUCT,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = otherRemittanceId,
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
@@ -568,12 +576,14 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
     private fun createDraftRemittance(remittanceId: UUID) {
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
     }
 
@@ -599,12 +609,14 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         val breakdownId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.PRODUCT,
-            branchId = branchId,
-            method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         val dayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, branchDayDate)
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, dayId)
@@ -649,11 +661,13 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sId,
-            productSaleId = null,
-            amount = amount,
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sId,
+                productSaleId = null,
+                amount = amount,
+            ),
         )
     }
 
@@ -666,11 +680,13 @@ class RemittanceReadBackServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.PRODUCT_SALE,
-            sessionId = null,
-            productSaleId = psId,
-            amount = amount,
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.PRODUCT_SALE,
+                sessionId = null,
+                productSaleId = psId,
+                amount = amount,
+            ),
         )
     }
 

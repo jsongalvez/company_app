@@ -71,13 +71,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                sessionId = sessionId,
-                clientId = null,
-                isWalkIn = false,
-                productId = productId,
-                quantity = 2,
+                NewProductSale(
+                    id = TestFixtures.uuid(),
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = null,
+                    isWalkIn = false,
+                    productId = productId,
+                    quantity = 2,
+                ),
                 expectedVersion = 1,
             )
 
@@ -99,15 +101,17 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = remittedDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = remittedDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 1,
+                    reason = "Coordinator correction",
+                ),
                 expectedVersion = 1,
-                reason = "Coordinator correction",
             )
 
         assertNotNull(sale)
@@ -145,15 +149,17 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
         ProductSaleService.sell(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            branchDayId = remittedDayId,
-            sessionId = null,
-            clientId = null,
-            isWalkIn = true,
-            productId = productId,
-            quantity = 1,
+            NewProductSale(
+                id = TestFixtures.uuid(),
+                branchDayId = remittedDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                reason = "Coordinator correction",
+            ),
             expectedVersion = 1,
-            reason = "Coordinator correction",
         )
 
         val persisted = CommissionService.getByBranchDayId(remittedDayId)
@@ -170,13 +176,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = sessionId,
-                clientId = null,
-                isWalkIn = false,
-                productId = productId,
-                quantity = 3,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = null,
+                    isWalkIn = false,
+                    productId = productId,
+                    quantity = 3,
+                ),
                 expectedVersion = 1,
             )
 
@@ -222,13 +230,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         repeat(2) {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 2,
+                walkInSale(TestFixtures.uuid(), 2),
                 expectedVersion = null,
             )
         }
@@ -257,13 +259,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                walkInSale(saleId, 1),
                 expectedVersion = 1,
             )
         }
@@ -307,13 +303,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = foreignSessionId,
-                clientId = null,
-                isWalkIn = false,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = foreignSessionId,
+                    clientId = null,
+                    isWalkIn = false,
+                    productId = productId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
         }
@@ -354,13 +352,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val firstSale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                walkInSale(saleId, 1),
                 expectedVersion = 1,
             )
 
@@ -371,13 +363,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = foreignBranchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = foreignBranchDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
         }
@@ -396,13 +390,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                sessionId = sessionId,
-                clientId = null,
-                isWalkIn = false,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = TestFixtures.uuid(),
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = null,
+                    isWalkIn = false,
+                    productId = productId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
 
@@ -415,13 +411,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = TestFixtures.uuid(),
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = TestFixtures.uuid(),
+                    branchDayId = TestFixtures.uuid(),
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
         }
@@ -432,13 +430,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = TestFixtures.uuid(),
-                quantity = 1,
+                NewProductSale(
+                    id = TestFixtures.uuid(),
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = TestFixtures.uuid(),
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
         }
@@ -457,13 +457,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = unstockedProductId,
-                quantity = 1,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = unstockedProductId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
         }
@@ -492,13 +494,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = unknownClientId,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = unknownClientId,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
         }
@@ -527,13 +531,15 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = clientId,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                NewProductSale(
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = clientId,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 1,
+                ),
                 expectedVersion = 1,
             )
 
@@ -547,13 +553,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 100,
+                walkInSale(TestFixtures.uuid(), 100),
                 expectedVersion = 1,
             )
         }
@@ -564,13 +564,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                walkInSale(TestFixtures.uuid(), 1),
                 expectedVersion = 99,
             )
         }
@@ -583,26 +577,14 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val first =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 2,
+                walkInSale(saleId, 2),
                 expectedVersion = 1,
             )
 
         val second =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 2,
+                walkInSale(saleId, 2),
                 expectedVersion = 1,
             )
 
@@ -626,13 +608,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
-            id = saleId,
-            branchDayId = branchDayId,
-            sessionId = null,
-            clientId = null,
-            isWalkIn = true,
-            productId = productId,
-            quantity = 1,
+            walkInSale(saleId, 1),
             expectedVersion = 1,
         )
 
@@ -642,13 +618,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             ProductSaleService.sell(
                 callerId = foreignCallerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                walkInSale(saleId, 1),
                 expectedVersion = 1,
             )
         }
@@ -670,26 +640,14 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
-            id = saleId,
-            branchDayId = branchDayId,
-            sessionId = null,
-            clientId = null,
-            isWalkIn = true,
-            productId = productId,
-            quantity = 1,
+            walkInSale(saleId, 1),
             expectedVersion = 1,
         )
 
         assertFailsWith<ConflictException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 2,
+                walkInSale(saleId, 2),
                 expectedVersion = 1,
             )
         }
@@ -718,26 +676,14 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                             Callable {
                                 ProductSaleService.sell(
                                     callerId = callerId,
-                                    id = saleId,
-                                    branchDayId = branchDayId,
-                                    sessionId = null,
-                                    clientId = null,
-                                    isWalkIn = true,
-                                    productId = productId,
-                                    quantity = 1,
+                                    walkInSale(saleId, 1),
                                     expectedVersion = 1,
                                 )
                             },
                             Callable {
                                 ProductSaleService.sell(
                                     callerId = callerId,
-                                    id = saleId,
-                                    branchDayId = branchDayId,
-                                    sessionId = null,
-                                    clientId = null,
-                                    isWalkIn = true,
-                                    productId = productId,
-                                    quantity = 1,
+                                    walkInSale(saleId, 1),
                                     expectedVersion = 1,
                                 )
                             },
@@ -768,13 +714,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             transaction {
                 ProductSaleService.sell(
                     callerId = callerId,
-                    id = saleId,
-                    branchDayId = branchDayId,
-                    sessionId = null,
-                    clientId = null,
-                    isWalkIn = true,
-                    productId = productId,
-                    quantity = 2,
+                    walkInSale(saleId, 2),
                     expectedVersion = 1,
                 )
                 error("injected commission trigger failure")
@@ -813,13 +753,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             assertFailsWith<IllegalStateException> {
                 ProductSaleService.sell(
                     callerId = callerId,
-                    id = saleId,
-                    branchDayId = branchDayId,
-                    sessionId = null,
-                    clientId = null,
-                    isWalkIn = true,
-                    productId = productId,
-                    quantity = 1,
+                    walkInSale(saleId, 1),
                     expectedVersion = 1,
                 )
             }
@@ -837,13 +771,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
         ProductSaleService.sell(
             callerId = callerId,
-            id = saleId,
-            branchDayId = branchDayId,
-            sessionId = null,
-            clientId = null,
-            isWalkIn = true,
-            productId = productId,
-            quantity = 2,
+            walkInSale(saleId, 2),
             expectedVersion = 1,
         )
 
@@ -866,13 +794,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 1,
+                walkInSale(saleId, 1),
                 expectedVersion = 1,
             )
 
@@ -887,13 +809,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = saleId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 40000,
+                walkInSale(saleId, 40000),
                 expectedVersion = 1,
             )
         }
@@ -945,16 +861,24 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = blockedId,
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = maxProductId,
-                quantity = 2,
+                NewProductSale(
+                    id = blockedId,
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = maxProductId,
+                    quantity = 2,
+                ),
                 expectedVersion = 1,
             )
         }
         assertNull(ProductSaleRepository.findById(blockedId))
     }
+
+    /** A walk-in sale of [productId] on [branchDayId]. */
+    private fun walkInSale(
+        id: UUID,
+        quantity: Int,
+    ) = NewProductSale(id, branchDayId, null, null, true, productId, quantity)
 }

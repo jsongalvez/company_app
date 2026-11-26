@@ -256,12 +256,15 @@ object RemittanceRoutes {
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = id,
-                type = header.type,
-                branchId = branchId,
-                method = header.method,
-                dateRangeStart = header.dateRangeStart,
-                dateRangeEnd = header.dateRangeEnd,
+                new =
+                    NewRemittance(
+                        id = id,
+                        type = header.type,
+                        branchId = branchId,
+                        method = header.method,
+                        dateRangeStart = header.dateRangeStart,
+                        dateRangeEnd = header.dateRangeEnd,
+                    ),
             )
 
         context.status(HttpStatus.CREATED)
@@ -389,11 +392,14 @@ object RemittanceRoutes {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittanceId,
-                id = id,
-                type = type,
-                sessionId = sessionId,
-                productSaleId = productSaleId,
-                amount = amount,
+                new =
+                    NewRemittanceLine(
+                        id = id,
+                        type = type,
+                        sessionId = sessionId,
+                        productSaleId = productSaleId,
+                        amount = amount,
+                    ),
             )
 
         context.status(HttpStatus.CREATED)
@@ -497,10 +503,13 @@ object RemittanceRoutes {
             RemittanceService.updateHeader(
                 callerId = callerId,
                 remittanceId = remittanceId,
-                type = header.type,
-                method = header.method,
-                dateRangeStart = header.dateRangeStart,
-                dateRangeEnd = header.dateRangeEnd,
+                edit =
+                    RemittanceHeader(
+                        type = header.type,
+                        method = header.method,
+                        dateRangeStart = header.dateRangeStart,
+                        dateRangeEnd = header.dateRangeEnd,
+                    ),
                 expectedVersion = request.expectedVersion,
             )
 

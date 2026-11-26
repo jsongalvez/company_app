@@ -133,11 +133,14 @@ object ProductRoutes {
         val result =
             ProductService.create(
                 callerId = callerId,
-                id = productId,
-                name = name,
-                productCategoryId = categoryId,
-                unitPrice = unitPrice,
-                commissionAmount = commissionAmount,
+                new =
+                    NewProduct(
+                        id = productId,
+                        name = name,
+                        productCategoryId = categoryId,
+                        unitPrice = unitPrice,
+                        commissionAmount = commissionAmount,
+                    ),
             )
 
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
@@ -171,11 +174,14 @@ object ProductRoutes {
             ProductService.update(
                 callerId = callerId,
                 productId = productId,
-                name = updateName,
-                productCategoryId = categoryId,
-                unitPrice = unitPrice,
-                commissionAmount = commissionAmount,
-                isActive = request.isActive,
+                edit =
+                    ProductEdit(
+                        name = updateName,
+                        productCategoryId = categoryId,
+                        unitPrice = unitPrice,
+                        commissionAmount = commissionAmount,
+                        isActive = request.isActive,
+                    ),
             )
         context.json(result.toResponse())
     }

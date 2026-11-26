@@ -151,15 +151,18 @@ object ProductSaleRoutes {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = id,
-                branchDayId = branchDayId,
-                sessionId = sessionId,
-                clientId = clientId,
-                isWalkIn = request.isWalkIn,
-                productId = productId,
-                quantity = request.quantity,
+                new =
+                    NewProductSale(
+                        id = id,
+                        branchDayId = branchDayId,
+                        sessionId = sessionId,
+                        clientId = clientId,
+                        isWalkIn = request.isWalkIn,
+                        productId = productId,
+                        quantity = request.quantity,
+                        reason = request.reason,
+                    ),
                 expectedVersion = request.expectedVersion,
-                reason = request.reason,
             )
 
         context.status(HttpStatus.CREATED)

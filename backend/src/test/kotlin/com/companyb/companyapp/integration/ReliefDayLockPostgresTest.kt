@@ -10,6 +10,7 @@ import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.notification.NotificationTable
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -275,12 +276,14 @@ class ReliefDayLockPostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = memberId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today.minusDays(1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today.minusDays(1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = memberId,

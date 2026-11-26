@@ -336,16 +336,19 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = seededBranchId,
-            isWalkIn = true,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = seededBranchId,
+                isWalkIn = true,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         // Session create lazily bootstraps today's branch day; reset clears both rows.
     }

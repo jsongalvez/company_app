@@ -83,88 +83,64 @@ object SessionService {
         return sessionType to price
     }
 
-    @Suppress("LongParameterList") // #593
     fun create(
         callerId: UUID,
-        id: UUID,
-        clientId: UUID,
-        branchId: UUID,
-        isWalkIn: Boolean,
-        requestedPractitionerId: UUID?,
-        finalPrice: BigDecimal,
-        remarks: String?,
-        otherConcerns: String?,
-        nextAppointmentDate: LocalDate?,
-        // the branch day the route gate resolved (find-only). When provided, the create
-        // writes to THIS day instead of re-resolving today — the gate and the write share one
-        // resolution so a request straddling the Manila midnight boundary can't be gated
-        // against the granted day while landing on the next (the mixed-resolution-base class).
-        // Must belong to [branchId] — a foreign or missing day fails closed with 404
-        // (parent-child convention).
-        gatedBranchDayId: UUID? = null,
-        // REMITTED-day reason (BR §Day State Machine): PAST needs coordinator-only,
-        // REMITTED needs coordinator + reason. Plumbed route→service like every sibling
-        // session mutation; null on OPEN days.
-        reason: String? = null,
-        // No one adds a session without clocking in. Only test fixtures that predate the rule opt out.
-        requireClockIn: Boolean = true,
-        // What the caller already read in this transaction, so the create does not read it again.
-        knownBranchType: BranchType? = null,
-        knownGatedBranchDay: BranchDay? = null,
+        new: NewSession,
+        context: SessionCreateContext = SessionCreateContext(),
     ): SessionCreateResult =
         traced("SessionService.create") {
-            val branchType = knownBranchType ?: requireBranchType(branchId)
+            val branchType = context.knownBranchType ?: requireBranchType(new.branchId)
 
-            requestedPractitionerId?.let { requireRequestedPractitioner(branchId, it) }
+            new.requestedPractitionerId?.let { requireRequestedPractitioner(new.branchId, it) }
 
-            val existing = SessionRepository.findById(id)
+            val existing = SessionRepository.findById(new.id)
             if (existing != null) {
-                return@traced fastPathReplay(existing, clientId, branchId, callerId, gatedBranchDayId)
+                return@traced fastPathReplay(existing, new.clientId, new.branchId, callerId, context.gatedBranchDayId)
             }
 
             val today = BranchDayService.currentOperationalDate()
-            val branchDay = resolveBranchDay(branchId, today, gatedBranchDayId, knownGatedBranchDay)
+            val branchDay = resolveBranchDay(new.branchId, today, context.gatedBranchDayId, context.knownGatedBranchDay)
 
             return@traced transaction {
                 // client-first lock order preserved (see requireActiveClientInTransaction):
                 // the client row is locked before the day gate's day row.
-                val lockedClient = requireActiveClientInTransaction(clientId)
-                val found = SessionRepository.findByIdInTransaction(id)
-                idempotentReplayOrNull(found, clientId, branchDay.id, callerId)?.let { return@transaction it }
+                val lockedClient = requireActiveClientInTransaction(new.clientId)
+                val found = SessionRepository.findByIdInTransaction(new.id)
+                idempotentReplayOrNull(found, new.clientId, branchDay.id, callerId)?.let { return@transaction it }
                 val (sessionType, effectiveFinalPrice) =
                     typeAndPriceInTransaction(
                         branchType,
-                        clientId,
+                        new.clientId,
                         lockedClient.earlierVisits,
-                        finalPrice,
+                        new.finalPrice,
                     )
 
-                val basePrice = resolveDefaultBasePriceInTransaction(branchId, clientId, sessionType)
+                val basePrice = resolveDefaultBasePriceInTransaction(new.branchId, new.clientId, sessionType)
                 val (lockedDay, isRemitted) =
-                    BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDay.id, reason)
-                if (requireClockIn) {
+                    BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDay.id, new.reason)
+                if (context.requireClockIn) {
                     WorkforceReads.requireClockedInInTransaction(callerId, lockedDay.id, lockedDay.date == today)
                 }
                 val result =
                     SessionRepository.createInTransaction(
                         SessionCreateParams(
-                            id = id,
-                            clientId = clientId,
+                            id = new.id,
+                            clientId = new.clientId,
                             branchDayId = branchDay.id,
-                            requestedPractitionerId = requestedPractitionerId,
+                            requestedPractitionerId = new.requestedPractitionerId,
                             sessionType = sessionType,
-                            isWalkIn = isWalkIn,
+                            isWalkIn = new.isWalkIn,
                             basePrice = basePrice,
                             finalPrice = effectiveFinalPrice,
-                            remarks = remarks,
-                            otherConcerns = otherConcerns,
-                            nextAppointmentDate = nextAppointmentDate,
+                            remarks = new.remarks,
+                            otherConcerns = new.otherConcerns,
+                            nextAppointmentDate = new.nextAppointmentDate,
                             changedBy = callerId,
                         ),
                     )
                 if (result.created) {
                     SessionAudit.inserted(
-                        AuditContext(callerId, lockedDay.branchId, isRemitted, reason),
+                        AuditContext(callerId, lockedDay.branchId, isRemitted, new.reason),
                         result.session,
                     )
                 }
@@ -700,3 +676,18 @@ internal object SessionAudit {
         auditFields = SessionVoidTable::auditFields,
     )
 }
+
+data class SessionCreateContext(
+    // the branch day the route gate resolved (find-only). When provided, the create
+    // writes to THIS day instead of re-resolving today — the gate and the write share one
+    // resolution so a request straddling the Manila midnight boundary can't be gated
+    // against the granted day while landing on the next (the mixed-resolution-base class).
+    // Must belong to [NewSession.branchId] — a foreign or missing day fails closed with 404
+    // (parent-child convention).
+    val gatedBranchDayId: UUID? = null,
+    // No one adds a session without clocking in. Only test fixtures that predate the rule opt out.
+    val requireClockIn: Boolean = true,
+    // What the caller already read in this transaction, so the create does not read it again.
+    val knownBranchType: BranchType? = null,
+    val knownGatedBranchDay: BranchDay? = null,
+)

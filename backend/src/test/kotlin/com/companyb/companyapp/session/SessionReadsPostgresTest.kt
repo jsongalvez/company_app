@@ -237,16 +237,19 @@ class SessionReadsPostgresTest : BasePostgresTest() {
         val result =
             SessionService.create(
                 callerId = callerId,
-                id = newSessionId,
-                clientId = clientId,
-                branchId = branchId,
-                isWalkIn = false,
-                requestedPractitionerId = null,
-                finalPrice = BigDecimal("1234.56"),
-                remarks = null,
-                otherConcerns = null,
-                nextAppointmentDate = null,
-                requireClockIn = false,
+                NewSession(
+                    id = newSessionId,
+                    clientId = clientId,
+                    branchId = branchId,
+                    isWalkIn = false,
+                    requestedPractitionerId = null,
+                    finalPrice = BigDecimal("1234.56"),
+                    remarks = null,
+                    otherConcerns = null,
+                    nextAppointmentDate = null,
+                ),
+                context =
+                    SessionCreateContext(requireClockIn = false),
             )
 
         assertEquals(SessionType.SECOND_SESSION, result.session.sessionType)

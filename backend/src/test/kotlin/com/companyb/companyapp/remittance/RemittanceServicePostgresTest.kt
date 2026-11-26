@@ -81,12 +81,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
+                draft(remittanceId, dateRangeStart, dateRangeEnd),
             )
 
         assertNotNull(remittance)
@@ -110,12 +105,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.PRODUCT,
-                branchId = branchId,
-                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
+                draft(
+                    remittanceId,
+                    dateRangeStart,
+                    dateRangeEnd,
+                    RemittanceType.PRODUCT,
+                    RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                ),
             )
 
         assertEquals(RemittanceType.PRODUCT, remittance.type)
@@ -130,23 +126,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val first =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
+                draft(remittanceId, dateRangeStart, dateRangeEnd),
             )
 
         val second =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
+                draft(remittanceId, dateRangeStart, dateRangeEnd),
             )
 
         assertEquals(first.id, second.id)
@@ -161,24 +147,14 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = dateRangeStart,
-            dateRangeEnd = dateRangeEnd,
+            draft(remittanceId, dateRangeStart, dateRangeEnd),
         )
 
         // #927 — same-UUID divergent header must 409, never ack the stale row (#922 class).
         assertFailsWith<ConflictException> {
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.PRODUCT,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
+                draft(remittanceId, dateRangeStart, dateRangeEnd, RemittanceType.PRODUCT),
             )
         }
     }
@@ -189,24 +165,19 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            draft(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 15)),
         )
 
         // #927 — method divergence alone 409s.
         assertFailsWith<ConflictException> {
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                draft(
+                    remittanceId,
+                    LocalDate.of(2026, 7, 1),
+                    LocalDate.of(2026, 7, 15),
+                    method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                ),
             )
         }
 
@@ -214,12 +185,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 2),
-                dateRangeEnd = LocalDate.of(2026, 7, 16),
+                draft(remittanceId, LocalDate.of(2026, 7, 2), LocalDate.of(2026, 7, 16)),
             )
         }
     }
@@ -232,23 +198,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            draft(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 15)),
         )
 
         assertFailsWith<ConflictException> {
             RemittanceService.createDraft(
                 callerId = otherCallerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                draft(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 15)),
             )
         }
     }
@@ -258,12 +214,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                draft(TestFixtures.uuid(), LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 15)),
             )
 
         assertNotNull(remittance)
@@ -276,12 +227,14 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                type = RemittanceType.SESSION,
-                branchId = nonexistentBranchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                NewRemittance(
+                    id = TestFixtures.uuid(),
+                    type = RemittanceType.SESSION,
+                    branchId = nonexistentBranchId,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = LocalDate.of(2026, 7, 1),
+                    dateRangeEnd = LocalDate.of(2026, 7, 15),
+                ),
             )
         }
     }
@@ -292,12 +245,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            draft(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 15)),
         )
 
         val auditCount =
@@ -432,20 +380,24 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = voidedSessionId,
-            productSaleId = null,
-            amount = BigDecimal("1000.00"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = voidedSessionId,
+                productSaleId = null,
+                amount = BigDecimal("1000.00"),
+            ),
         )
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = activeSessionId,
-            productSaleId = null,
-            amount = BigDecimal("400.00"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = activeSessionId,
+                productSaleId = null,
+                amount = BigDecimal("400.00"),
+            ),
         )
         SessionService.voidSession(callerId, voidedSessionId, TestFixtures.uuid(), "Created in error")
 
@@ -489,11 +441,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = completedSessionId,
-            productSaleId = null,
-            amount = BigDecimal("2500.00"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = completedSessionId,
+                productSaleId = null,
+                amount = BigDecimal("2500.00"),
+            ),
         )
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -911,13 +865,15 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private fun createDraftRemittance(remittanceId: UUID) {
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            // #483 — covers both the fixed July fixtures and the operational-today breakdown.
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                // #483 — covers both the fixed July fixtures and the operational-today breakdown.
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
     }
 
@@ -944,11 +900,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = secondSessionId,
-            productSaleId = null,
-            amount = BigDecimal("99999999.99"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = secondSessionId,
+                productSaleId = null,
+                amount = BigDecimal("99999999.99"),
+            ),
         )
 
         val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -984,11 +942,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.PRODUCT_SALE,
-            sessionId = null,
-            productSaleId = secondSaleId,
-            amount = BigDecimal("99999999.99"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.PRODUCT_SALE,
+                sessionId = null,
+                productSaleId = secondSaleId,
+                amount = BigDecimal("99999999.99"),
+            ),
         )
 
         val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -1002,13 +962,15 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private fun createDraftProductRemittance(remittanceId: UUID) {
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.PRODUCT,
-            branchId = branchId,
-            method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            // #483 — same widened range as the SESSION draft helper above.
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                // #483 — same widened range as the SESSION draft helper above.
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
     }
 
@@ -1045,11 +1007,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sId,
-            productSaleId = null,
-            amount = amount,
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sId,
+                productSaleId = null,
+                amount = amount,
+            ),
         )
     }
 
@@ -1062,11 +1026,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.PRODUCT_SALE,
-            sessionId = null,
-            productSaleId = psId,
-            amount = amount,
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.PRODUCT_SALE,
+                sessionId = null,
+                productSaleId = psId,
+                amount = amount,
+            ),
         )
     }
 
@@ -1180,4 +1146,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private companion object {
         private const val EXECUTOR_TERMINATION_SECONDS = 30L
     }
+
+    /** A remittance for [branchId]. */
+    private fun draft(
+        id: UUID,
+        dateRangeStart: LocalDate,
+        dateRangeEnd: LocalDate,
+        type: RemittanceType = RemittanceType.SESSION,
+        method: RemittanceMethod = RemittanceMethod.BANK_TRANSFER,
+    ) = NewRemittance(id, type, branchId, method, dateRangeStart, dateRangeEnd)
 }

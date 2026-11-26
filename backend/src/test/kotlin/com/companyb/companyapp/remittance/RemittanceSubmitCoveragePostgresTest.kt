@@ -114,12 +114,14 @@ class RemittanceSubmitCoveragePostgresTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = id,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = id,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         return id
     }
@@ -143,11 +145,13 @@ class RemittanceSubmitCoveragePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = amount,
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = amount,
+            ),
         )
     }
 

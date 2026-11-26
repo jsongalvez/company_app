@@ -33,18 +33,20 @@ class ClientRecentPostgresTest : BasePostgresTest() {
         clients.forEachIndexed { i, id ->
             ClientService.create(
                 callerId = callerId,
-                id = id,
-                firstName = "Recent$i",
-                lastName = "Client",
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = Gender.F,
-                age = 30,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
+                NewClient(
+                    id = id,
+                    firstName = "Recent$i",
+                    lastName = "Client",
+                    middleName = null,
+                    suffix = null,
+                    phoneNumber = null,
+                    address = null,
+                    gender = Gender.F,
+                    age = 30,
+                    systolicBp = null,
+                    diastolicBp = null,
+                    medicalConditions = null,
+                ),
             )
         }
         val rows = seedSessions(clients)

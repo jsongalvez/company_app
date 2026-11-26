@@ -14,6 +14,8 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
+import com.companyb.companyapp.session.NewSession
+import com.companyb.companyapp.session.SessionCreateContext
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -133,34 +135,39 @@ class ClientAnonymizeVoidReasonPostgresTest : BasePostgresTest() {
     private fun createClient() {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = "ZqxVoid",
-            lastName = "Client",
-            middleName = null,
-            suffix = null,
-            phoneNumber = "09170000000",
-            address = "Cavite",
-            gender = Gender.F,
-            age = RETAINED_AGE,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = clientId,
+                firstName = "ZqxVoid",
+                lastName = "Client",
+                middleName = null,
+                suffix = null,
+                phoneNumber = "09170000000",
+                address = "Cavite",
+                gender = Gender.F,
+                age = RETAINED_AGE,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
     private fun createCompletedSession(id: UUID) {
         SessionService.create(
             callerId = callerId,
-            id = id,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = id,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionService.updateStatus(callerId, id, SessionStatus.COMPLETED, expectedVersion = 1)
     }
@@ -168,16 +175,19 @@ class ClientAnonymizeVoidReasonPostgresTest : BasePostgresTest() {
     private fun createPendingSession() {
         SessionService.create(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = TestFixtures.uuid(),
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
     }
 

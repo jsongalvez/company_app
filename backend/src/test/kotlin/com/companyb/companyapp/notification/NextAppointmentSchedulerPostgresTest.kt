@@ -10,7 +10,9 @@ import com.companyb.companyapp.identity.UserRoleTable
 import com.companyb.companyapp.notification.NotificationCreateParams
 import com.companyb.companyapp.notification.NotificationRepository
 import com.companyb.companyapp.notification.NotificationTable
+import com.companyb.companyapp.session.NewSession
 import com.companyb.companyapp.session.SessionBaseRateRepository
+import com.companyb.companyapp.session.SessionCreateContext
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionVoidTable
 import com.companyb.companyapp.test.TestFixtures
@@ -314,16 +316,19 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = appointmentDate,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = appointmentDate,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
         return sessionId
@@ -333,16 +338,19 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = appointmentDate,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = appointmentDate,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         return sessionId
     }

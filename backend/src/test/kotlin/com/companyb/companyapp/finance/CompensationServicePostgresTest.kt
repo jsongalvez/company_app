@@ -50,12 +50,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = "Daily compensation",
+                newCompensation(compId, BigDecimal("1500.00"), "Daily compensation"),
             )
 
         assertNotNull(comp)
@@ -75,12 +70,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1000.00"),
-                note = null,
+                newCompensation(compId, BigDecimal("1000.00"), null),
             )
 
         assertNotNull(comp)
@@ -94,23 +84,13 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val first =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = "First",
+                newCompensation(compId, BigDecimal("1500.00"), "First"),
             )
 
         val second =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = "First",
+                newCompensation(compId, BigDecimal("1500.00"), "First"),
             )
 
         assertEquals(first.id, second.id)
@@ -122,23 +102,13 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = "First",
+            newCompensation(compId, BigDecimal("1500.00"), "First"),
         )
 
         assertFailsWith<ConflictException> {
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("9999.00"),
-                note = "First",
+                newCompensation(compId, BigDecimal("9999.00"), "First"),
             )
         }
     }
@@ -148,24 +118,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val firstId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = firstId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(firstId, BigDecimal("1500.00"), null),
         )
 
         val secondId = TestFixtures.uuid()
         assertFailsWith<ConflictException> {
             CompensationService.create(
                 callerId = callerId,
-                id = secondId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("2000.00"),
-                note = null,
+                newCompensation(secondId, BigDecimal("2000.00"), null),
             )
         }
     }
@@ -184,12 +144,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                     try {
                         CompensationService.create(
                             callerId = callerId,
-                            id = id,
-                            workBranchDayId = workBranchDayId,
-                            payingBranchDayId = payingBranchDayId,
-                            userId = targetUserId,
-                            amount = BigDecimal("1500.00"),
-                            note = null,
+                            newCompensation(id, BigDecimal("1500.00"), null),
                         )
                         results += null
                     } catch (error: Throwable) {
@@ -216,12 +171,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                newCompensation(compId, BigDecimal("1500.00"), null),
             )
 
         assertNotNull(comp)
@@ -232,12 +182,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = TestFixtures.uuid(),
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = TestFixtures.uuid(),
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -247,12 +199,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = TestFixtures.uuid(),
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = TestFixtures.uuid(),
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -265,12 +219,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
-                id = blockedId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = unknownUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = blockedId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = unknownUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
         val stored = transaction { CompensationRepository.findByIdInTransaction(blockedId) }
@@ -294,20 +250,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val created =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = "Original note",
+                newCompensation(compId, BigDecimal("1500.00"), "Original note"),
             )
 
         val updated =
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("2000.00"),
-                note = "Updated note",
+                CompensationEdit(amount = BigDecimal("2000.00"), note = "Updated note"),
                 expectedVersion = created.version,
             )
 
@@ -321,20 +271,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(compId, BigDecimal("1500.00"), null),
         )
 
         assertFailsWith<ConflictException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("2000.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("2000.00"), note = null),
                 expectedVersion = 999,
             )
         }
@@ -349,12 +293,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = otherBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = otherBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -368,12 +314,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = otherWorkDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = otherWorkDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -400,8 +348,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("900.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("900.00"), note = null),
                 expectedVersion = 1,
             )
         }
@@ -413,8 +360,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = TestFixtures.uuid(),
-                amount = BigDecimal("2000.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("2000.00"), note = null),
                 expectedVersion = 1,
             )
         }
@@ -425,20 +371,14 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(compId, BigDecimal("1500.00"), null),
         )
 
         val updated =
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("2000.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("2000.00"), note = null),
                 expectedVersion = 1,
             )
 
@@ -452,21 +392,18 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
         CompensationService.create(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(TestFixtures.uuid(), BigDecimal("1500.00"), null),
         )
         CompensationService.create(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = secondUser,
-            amount = BigDecimal("1200.00"),
-            note = null,
+            NewCompensation(
+                id = TestFixtures.uuid(),
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = secondUser,
+                amount = BigDecimal("1200.00"),
+                note = null,
+            ),
         )
 
         val rows = CompensationService.findByPayingBranchDayId(payingBranchDayId)
@@ -484,21 +421,18 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
         CompensationService.create(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(TestFixtures.uuid(), BigDecimal("1500.00"), null),
         )
         CompensationService.create(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            workBranchDayId = otherBranchDayId,
-            payingBranchDayId = otherBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("800.00"),
-            note = null,
+            NewCompensation(
+                id = TestFixtures.uuid(),
+                workBranchDayId = otherBranchDayId,
+                payingBranchDayId = otherBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("800.00"),
+                note = null,
+            ),
         )
 
         val rows = CompensationService.findByPayingBranchDayId(payingBranchDayId)
@@ -531,12 +465,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(compId, BigDecimal("1500.00"), null),
         )
 
         val auditCount =
@@ -557,19 +486,13 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val created =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                newCompensation(compId, BigDecimal("1500.00"), null),
             )
 
         CompensationService.update(
             callerId = callerId,
             compensationId = compId,
-            amount = BigDecimal("2000.00"),
-            note = "Updated",
+            CompensationEdit(amount = BigDecimal("2000.00"), note = "Updated"),
             expectedVersion = created.version,
         )
 
@@ -596,12 +519,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             CompensationService.create(
                 callerId = callerId,
-                id = blockedId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("9999999999.99"),
-                note = null,
+                newCompensation(blockedId, BigDecimal("9999999999.99"), null),
             )
         }
         assertNull(CompensationRepository.findById(blockedId))
@@ -612,12 +530,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("99999999.99"),
-                note = null,
+                newCompensation(TestFixtures.uuid(), BigDecimal("99999999.99"), null),
             )
 
         assertEquals("99999999.99", comp.amount.toPlainString())
@@ -628,22 +541,23 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            newCompensation(compId, BigDecimal("1500.00"), null),
         )
 
         assertFailsWith<ValidationException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("100000000"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("100000000"), note = null),
                 expectedVersion = 1,
             )
         }
     }
+
+    /** A compensation for [targetUserId], worked on [workBranchDayId] and paid on [payingBranchDayId]. */
+    private fun newCompensation(
+        id: UUID,
+        amount: BigDecimal,
+        note: String?,
+    ) = NewCompensation(id, workBranchDayId, payingBranchDayId, targetUserId, amount, note)
 }

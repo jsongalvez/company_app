@@ -432,16 +432,19 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             SessionService.create(
                 callerId = callerId,
-                id = sessionId,
-                clientId = clientId,
-                branchId = unknownBranchId,
-                isWalkIn = false,
-                requestedPractitionerId = null,
-                finalPrice = BigDecimal("2500.00"),
-                remarks = null,
-                otherConcerns = null,
-                nextAppointmentDate = null,
-                requireClockIn = false,
+                NewSession(
+                    id = sessionId,
+                    clientId = clientId,
+                    branchId = unknownBranchId,
+                    isWalkIn = false,
+                    requestedPractitionerId = null,
+                    finalPrice = BigDecimal("2500.00"),
+                    remarks = null,
+                    otherConcerns = null,
+                    nextAppointmentDate = null,
+                ),
+                context =
+                    SessionCreateContext(requireClockIn = false),
             )
         }
     }
@@ -476,16 +479,19 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val result =
             SessionService.create(
                 callerId = callerId,
-                id = mmSessionId,
-                clientId = mmClientId,
-                branchId = mmBranchId,
-                isWalkIn = false,
-                requestedPractitionerId = null,
-                finalPrice = BigDecimal.ZERO,
-                remarks = null,
-                otherConcerns = null,
-                nextAppointmentDate = null,
-                requireClockIn = false,
+                NewSession(
+                    id = mmSessionId,
+                    clientId = mmClientId,
+                    branchId = mmBranchId,
+                    isWalkIn = false,
+                    requestedPractitionerId = null,
+                    finalPrice = BigDecimal.ZERO,
+                    remarks = null,
+                    otherConcerns = null,
+                    nextAppointmentDate = null,
+                ),
+                context =
+                    SessionCreateContext(requireClockIn = false),
             )
 
         assertEquals(SessionType.MEDICAL_MISSION, result.session.sessionType)
@@ -507,16 +513,19 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val mmResult =
             SessionService.create(
                 callerId = callerId,
-                id = mmSessionId,
-                clientId = clientId,
-                branchId = mmBranchId,
-                isWalkIn = false,
-                requestedPractitionerId = null,
-                finalPrice = BigDecimal.ZERO,
-                remarks = null,
-                otherConcerns = null,
-                nextAppointmentDate = null,
-                requireClockIn = false,
+                NewSession(
+                    id = mmSessionId,
+                    clientId = clientId,
+                    branchId = mmBranchId,
+                    isWalkIn = false,
+                    requestedPractitionerId = null,
+                    finalPrice = BigDecimal.ZERO,
+                    remarks = null,
+                    otherConcerns = null,
+                    nextAppointmentDate = null,
+                ),
+                context =
+                    SessionCreateContext(requireClockIn = false),
             )
 
         assertEquals(SessionType.MEDICAL_MISSION, mmResult.session.sessionType)
@@ -1225,10 +1234,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val result =
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = requestId,
+                NewSessionPractitioner(id = requestId, practitionerId = practitionerId, remarks = "Test remarks"),
                 sessionId = practitionerSessionId,
-                practitionerId = practitionerId,
-                remarks = "Test remarks",
             )
 
         assertTrue(result.created)
@@ -1246,18 +1253,14 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val first =
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = requestId,
+                NewSessionPractitioner(id = requestId, practitionerId = practitionerId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = practitionerId,
-                remarks = null,
             )
         val duplicate =
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = requestId,
+                NewSessionPractitioner(id = requestId, practitionerId = practitionerId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = practitionerId,
-                remarks = null,
             )
 
         assertTrue(first.created)
@@ -1275,10 +1278,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val result =
             SessionPractitionerService.addPractitioner(
                 callerId = otherCaller,
-                id = TestFixtures.uuid(),
+                NewSessionPractitioner(id = TestFixtures.uuid(), practitionerId = practitionerId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = practitionerId,
-                remarks = null,
             )
 
         assertTrue(result.created)
@@ -1289,10 +1290,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
+                NewSessionPractitioner(id = TestFixtures.uuid(), practitionerId = practitionerId, remarks = null),
                 sessionId = TestFixtures.uuid(),
-                practitionerId = practitionerId,
-                remarks = null,
             )
         }
     }
@@ -1306,10 +1305,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = requestId,
+                NewSessionPractitioner(id = requestId, practitionerId = unknownPractitionerId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = unknownPractitionerId,
-                remarks = null,
             )
         }
         val stored =
@@ -1343,10 +1340,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = requestId,
+                NewSessionPractitioner(id = requestId, practitionerId = inactiveId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = inactiveId,
-                remarks = null,
             )
         }
         val stored =
@@ -1379,10 +1374,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = requestId,
+                NewSessionPractitioner(id = requestId, practitionerId = inactiveOutsiderId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = inactiveOutsiderId,
-                remarks = null,
             )
         }
         val stored =
@@ -1406,10 +1399,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val result =
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
+                NewSessionPractitioner(id = TestFixtures.uuid(), practitionerId = outsiderId, remarks = null),
                 sessionId = practitionerSessionId,
-                practitionerId = outsiderId,
-                remarks = null,
             )
 
         assertTrue(result.created)
@@ -1422,10 +1413,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val practitionerEntityId = TestFixtures.uuid()
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = practitionerEntityId,
+            NewSessionPractitioner(
+                id = practitionerEntityId,
+                practitionerId = practitionerId,
+                remarks = "Initial remarks",
+            ),
             sessionId = practitionerSessionId,
-            practitionerId = practitionerId,
-            remarks = "Initial remarks",
         )
 
         val updated =
@@ -1433,7 +1426,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 callerId = callerId,
                 sessionId = practitionerSessionId,
                 practitionerId = practitionerId,
-                remarks = "Updated remarks",
+                RemarksEdit(remarks = "Updated remarks"),
             )
 
         assertEquals("Updated remarks", updated.remarks)
@@ -1452,7 +1445,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 callerId = callerId,
                 sessionId = practitionerSessionId,
                 practitionerId = TestFixtures.uuid(),
-                remarks = "Some remarks",
+                RemarksEdit(remarks = "Some remarks"),
             )
         }
     }
@@ -1463,10 +1456,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val practitionerEntityId = TestFixtures.uuid()
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = practitionerEntityId,
+            NewSessionPractitioner(id = practitionerEntityId, practitionerId = practitionerId, remarks = null),
             sessionId = practitionerSessionId,
-            practitionerId = practitionerId,
-            remarks = null,
         )
 
         SessionPractitionerService.removePractitioner(
@@ -1514,15 +1505,17 @@ class SessionServicePostgresTest : BasePostgresTest() {
         fun create(id: UUID) =
             SessionService.create(
                 callerId = callerId,
-                id = id,
-                clientId = clientId,
-                branchId = branchId,
-                isWalkIn = false,
-                requestedPractitionerId = null,
-                finalPrice = BigDecimal("2500.00"),
-                remarks = null,
-                otherConcerns = null,
-                nextAppointmentDate = null,
+                NewSession(
+                    id = id,
+                    clientId = clientId,
+                    branchId = branchId,
+                    isWalkIn = false,
+                    requestedPractitionerId = null,
+                    finalPrice = BigDecimal("2500.00"),
+                    remarks = null,
+                    otherConcerns = null,
+                    nextAppointmentDate = null,
+                ),
             )
 
         val ex = assertFailsWith<ForbiddenException> { create(TestFixtures.uuid()) }
@@ -1554,18 +1547,20 @@ class SessionServicePostgresTest : BasePostgresTest() {
         reason: String? = null,
     ) = SessionService.create(
         callerId = callerId,
-        id = id,
-        clientId = clientId,
-        branchId = branchId,
-        isWalkIn = isWalkIn,
-        requestedPractitionerId = requestedPractitionerId,
-        finalPrice = finalPrice,
-        remarks = "Test session",
-        otherConcerns = null,
-        nextAppointmentDate = nextAppointmentDate,
-        gatedBranchDayId = gatedBranchDayId,
-        reason = reason,
-        requireClockIn = false,
+        NewSession(
+            id = id,
+            clientId = clientId,
+            branchId = branchId,
+            isWalkIn = isWalkIn,
+            requestedPractitionerId = requestedPractitionerId,
+            finalPrice = finalPrice,
+            remarks = "Test session",
+            otherConcerns = null,
+            nextAppointmentDate = nextAppointmentDate,
+            reason = reason,
+        ),
+        context =
+            SessionCreateContext(gatedBranchDayId = gatedBranchDayId, requireClockIn = false),
     )
 
     private fun databaseNow() =

@@ -20,33 +20,28 @@ import java.util.UUID
 object ProductService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList") // #597
     fun create(
         callerId: UUID,
-        id: UUID,
-        name: String,
-        productCategoryId: UUID,
-        unitPrice: BigDecimal,
-        commissionAmount: BigDecimal,
+        new: NewProduct,
     ): ProductCreateResult {
         return traced("ProductService.create") {
-            val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
+            val categoryExists = ProductCategoryRepository.findById(new.productCategoryId) != null
             if (!categoryExists) {
                 throw NotFoundException("Product category not found")
             }
 
-            validateMoneyAmount(unitPrice, "unitPrice")
-            validateMoneyAmount(commissionAmount, "commissionAmount")
+            validateMoneyAmount(new.unitPrice, "unitPrice")
+            validateMoneyAmount(new.commissionAmount, "commissionAmount")
 
             return@traced transaction {
                 val result =
                     ProductRepository.createInTransaction(
                         ProductCreateParams(
-                            id = id,
-                            name = name,
-                            productCategoryId = productCategoryId,
-                            unitPrice = unitPrice,
-                            commissionAmount = commissionAmount,
+                            id = new.id,
+                            name = new.name,
+                            productCategoryId = new.productCategoryId,
+                            unitPrice = new.unitPrice,
+                            commissionAmount = new.commissionAmount,
                             changedBy = callerId,
                         ),
                     )
@@ -66,23 +61,18 @@ object ProductService {
     fun findById(productId: UUID): Product =
         ProductRepository.findById(productId) ?: throw NotFoundException("Product not found")
 
-    @Suppress("LongParameterList") // #597
     fun update(
         callerId: UUID,
         productId: UUID,
-        name: String?,
-        productCategoryId: UUID?,
-        unitPrice: BigDecimal?,
-        commissionAmount: BigDecimal?,
-        isActive: Boolean?,
+        edit: ProductEdit,
     ): Product {
-        if (productCategoryId != null && ProductCategoryRepository.findById(productCategoryId) == null) {
+        if (edit.productCategoryId != null && ProductCategoryRepository.findById(edit.productCategoryId) == null) {
             throw NotFoundException("Product category not found")
         }
 
         return traced("ProductService.update") {
-            unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
-            commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
+            edit.unitPrice?.let { validateMoneyAmount(it, "unitPrice") }
+            edit.commissionAmount?.let { validateMoneyAmount(it, "commissionAmount") }
 
             return@traced transaction {
                 // Locked before-state: SELECT FOR UPDATE serializes concurrent
@@ -96,11 +86,11 @@ object ProductService {
                         productId = productId,
                         update =
                             ProductUpdate(
-                                name = name?.takeIf { it.isNotEmpty() },
-                                productCategoryId = productCategoryId,
-                                unitPrice = unitPrice,
-                                commissionAmount = commissionAmount,
-                                isActive = isActive,
+                                name = edit.name?.takeIf { it.isNotEmpty() },
+                                productCategoryId = edit.productCategoryId,
+                                unitPrice = edit.unitPrice,
+                                commissionAmount = edit.commissionAmount,
+                                isActive = edit.isActive,
                             ),
                     )
 
@@ -140,3 +130,19 @@ internal object ProductAudit {
         auditFields = ProductTable::auditFields,
     )
 }
+
+data class NewProduct(
+    val id: UUID,
+    val name: String,
+    val productCategoryId: UUID,
+    val unitPrice: BigDecimal,
+    val commissionAmount: BigDecimal,
+)
+
+data class ProductEdit(
+    val name: String?,
+    val productCategoryId: UUID?,
+    val unitPrice: BigDecimal?,
+    val commissionAmount: BigDecimal?,
+    val isActive: Boolean?,
+)

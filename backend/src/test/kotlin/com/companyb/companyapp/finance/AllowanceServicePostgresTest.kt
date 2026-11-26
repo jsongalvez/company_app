@@ -58,11 +58,13 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         val allowance =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = remittedDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
-                reason = "Coordinator correction",
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = remittedDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(allowance)
@@ -86,10 +88,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         val allowance =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
 
         assertNotNull(allowance)
@@ -107,19 +111,23 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         val first =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
 
         val second =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
 
         assertEquals(first.id, second.id)
@@ -131,19 +139,23 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
+            NewAllowance(
+                id = allowanceId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+            ),
         )
 
         assertFailsWith<ConflictException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("999.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("999.00"),
+                ),
             )
         }
     }
@@ -158,16 +170,18 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
             )
         BranchWorkforceFixtures.grantEditPastDay(callerId, branchId)
 
-        AllowanceService.create(callerId, allowanceId, branchDayId, targetUserId, BigDecimal("500.00"))
+        AllowanceService.create(callerId, NewAllowance(allowanceId, branchDayId, targetUserId, BigDecimal("500.00")))
 
         assertFailsWith<NotFoundException> {
             AllowanceService.create(
                 callerId,
-                allowanceId,
-                otherDayId,
-                targetUserId,
-                BigDecimal("500.00"),
-                reason = "Coordinator correction",
+                NewAllowance(
+                    allowanceId,
+                    otherDayId,
+                    targetUserId,
+                    BigDecimal("500.00"),
+                    reason = "Coordinator correction",
+                ),
             )
         }
 
@@ -201,11 +215,13 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
                     try {
                         AllowanceService.create(
                             callerId,
-                            allowanceId,
-                            requestedDayId,
-                            targetUserId,
-                            BigDecimal("500.00"),
-                            reason = if (requestedDayId == otherDayId) "Coordinator correction" else null,
+                            NewAllowance(
+                                allowanceId,
+                                requestedDayId,
+                                targetUserId,
+                                BigDecimal("500.00"),
+                                reason = if (requestedDayId == otherDayId) "Coordinator correction" else null,
+                            ),
                         )
                         results += null
                     } catch (error: Throwable) {
@@ -246,10 +262,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         val allowance =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
 
         assertNotNull(allowance)
@@ -261,10 +279,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = TestFixtures.uuid(),
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = TestFixtures.uuid(),
+                    branchDayId = TestFixtures.uuid(),
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
     }
@@ -277,10 +297,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = blockedId,
-                branchDayId = branchDayId,
-                userId = unknownUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = blockedId,
+                    branchDayId = branchDayId,
+                    userId = unknownUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
         val stored = transaction { AllowanceRepository.findByIdInTransaction(blockedId) }
@@ -304,17 +326,21 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId1,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
+            NewAllowance(
+                id = allowanceId1,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+            ),
         )
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId2,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("300.00"),
+            NewAllowance(
+                id = allowanceId2,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("300.00"),
+            ),
         )
 
         val results = AllowanceService.findByBranchDayId(branchDayId)
@@ -344,10 +370,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
+            NewAllowance(
+                id = allowanceId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+            ),
         )
 
         val auditCount =
@@ -372,10 +400,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = blockedId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("9999999999.99"),
+                NewAllowance(
+                    id = blockedId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("9999999999.99"),
+                ),
             )
         }
         assertNull(transaction { AllowanceRepository.findByIdInTransaction(blockedId) })
@@ -386,10 +416,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         val allowance =
             AllowanceService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("99999999.99"),
+                NewAllowance(
+                    id = TestFixtures.uuid(),
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("99999999.99"),
+                ),
             )
 
         assertEquals("99999999.99", allowance.amount.toPlainString())

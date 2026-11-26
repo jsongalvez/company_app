@@ -6,9 +6,11 @@ import com.companyb.companyapp.contracts.branchday.DayStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.session.ConcernRepository
 import com.companyb.companyapp.session.ConcernTable
+import com.companyb.companyapp.session.NewSessionPractitioner
 import com.companyb.companyapp.session.SessionConcernService
 import com.companyb.companyapp.session.SessionConcernTable
 import com.companyb.companyapp.session.SessionPractitionerRepository
@@ -70,10 +72,8 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
+                NewSessionPractitioner(id = TestFixtures.uuid(), practitionerId = practitionerId, remarks = null),
                 sessionId = sessionId,
-                practitionerId = practitionerId,
-                remarks = null,
             )
         }
         assertEquals(auditsBefore, callerAuditCount(), "rejected add writes no audit rows")
@@ -107,11 +107,13 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
         val result =
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
+                NewSessionPractitioner(
+                    id = TestFixtures.uuid(),
+                    practitionerId = practitionerId,
+                    remarks = null,
+                    reason = "Coordinator correction",
+                ),
                 sessionId = sessionId,
-                practitionerId = practitionerId,
-                remarks = null,
-                reason = "Coordinator correction",
             )
 
         assertTrue(result.created)
@@ -162,10 +164,12 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
                 LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     SessionPractitionerService.addPractitioner(
                         callerId = callerId,
-                        id = TestFixtures.uuid(),
+                        NewSessionPractitioner(
+                            id = TestFixtures.uuid(),
+                            practitionerId = practitionerId,
+                            remarks = null,
+                        ),
                         sessionId = sessionId,
-                        practitionerId = practitionerId,
-                        remarks = null,
                     )
                 }
             }.exceptionOrNull()
@@ -199,12 +203,14 @@ class SessionSubEntityDayLockPostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today.minusDays(1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today.minusDays(1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,

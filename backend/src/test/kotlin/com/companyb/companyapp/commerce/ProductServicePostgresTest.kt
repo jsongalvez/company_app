@@ -38,11 +38,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val result =
             ProductService.create(
                 callerId = callerId,
-                id = productId,
-                name = "Test Product",
-                productCategoryId = categoryId,
-                unitPrice = BigDecimal("250.00"),
-                commissionAmount = BigDecimal("25.00"),
+                NewProduct(
+                    id = productId,
+                    name = "Test Product",
+                    productCategoryId = categoryId,
+                    unitPrice = BigDecimal("250.00"),
+                    commissionAmount = BigDecimal("25.00"),
+                ),
             )
 
         assertTrue(result.created)
@@ -61,21 +63,25 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val first =
             ProductService.create(
                 callerId = callerId,
-                id = productId,
-                name = "Test Product",
-                productCategoryId = categoryId,
-                unitPrice = BigDecimal("250.00"),
-                commissionAmount = BigDecimal("25.00"),
+                NewProduct(
+                    id = productId,
+                    name = "Test Product",
+                    productCategoryId = categoryId,
+                    unitPrice = BigDecimal("250.00"),
+                    commissionAmount = BigDecimal("25.00"),
+                ),
             )
 
         val duplicate =
             ProductService.create(
                 callerId = callerId,
-                id = productId,
-                name = "Changed Name",
-                productCategoryId = categoryId,
-                unitPrice = BigDecimal("100.00"),
-                commissionAmount = BigDecimal("10.00"),
+                NewProduct(
+                    id = productId,
+                    name = "Changed Name",
+                    productCategoryId = categoryId,
+                    unitPrice = BigDecimal("100.00"),
+                    commissionAmount = BigDecimal("10.00"),
+                ),
             )
 
         assertTrue(first.created)
@@ -89,19 +95,23 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `list returns active products`() {
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Product A",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("100.00"),
-            commissionAmount = BigDecimal("10.00"),
+            NewProduct(
+                id = productId,
+                name = "Product A",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("100.00"),
+                commissionAmount = BigDecimal("10.00"),
+            ),
         )
         ProductService.create(
             callerId = callerId,
-            id = productId2,
-            name = "Product B",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("200.00"),
-            commissionAmount = BigDecimal("20.00"),
+            NewProduct(
+                id = productId2,
+                name = "Product B",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("200.00"),
+                commissionAmount = BigDecimal("20.00"),
+            ),
         )
 
         val all = ProductService.findAllActive()
@@ -115,28 +125,34 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `findAll includes deactivated row while findAllActive omits it`() {
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Active Product",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("100.00"),
-            commissionAmount = BigDecimal("10.00"),
+            NewProduct(
+                id = productId,
+                name = "Active Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("100.00"),
+                commissionAmount = BigDecimal("10.00"),
+            ),
         )
         ProductService.create(
             callerId = callerId,
-            id = productId2,
-            name = "Soon Inactive",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("200.00"),
-            commissionAmount = BigDecimal("20.00"),
+            NewProduct(
+                id = productId2,
+                name = "Soon Inactive",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("200.00"),
+                commissionAmount = BigDecimal("20.00"),
+            ),
         )
         ProductService.update(
             callerId = callerId,
             productId = productId2,
-            name = null,
-            productCategoryId = null,
-            unitPrice = null,
-            commissionAmount = null,
-            isActive = false,
+            ProductEdit(
+                name = null,
+                productCategoryId = null,
+                unitPrice = null,
+                commissionAmount = null,
+                isActive = false,
+            ),
         )
 
         val activeIds = ProductService.findAllActive().map { it.id }.toSet()
@@ -152,11 +168,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `find by id returns persisted product`() {
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Test Product",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("250.00"),
-            commissionAmount = BigDecimal("25.00"),
+            NewProduct(
+                id = productId,
+                name = "Test Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
+            ),
         )
 
         val found = ProductService.findById(productId)
@@ -167,22 +185,26 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `update persists changes and writes audit row`() {
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Original Name",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("100.00"),
-            commissionAmount = BigDecimal("10.00"),
+            NewProduct(
+                id = productId,
+                name = "Original Name",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("100.00"),
+                commissionAmount = BigDecimal("10.00"),
+            ),
         )
 
         val updated =
             ProductService.update(
                 callerId = callerId,
                 productId = productId,
-                name = "Updated Name",
-                productCategoryId = null,
-                unitPrice = BigDecimal("200.00"),
-                commissionAmount = null,
-                isActive = false,
+                ProductEdit(
+                    name = "Updated Name",
+                    productCategoryId = null,
+                    unitPrice = BigDecimal("200.00"),
+                    commissionAmount = null,
+                    isActive = false,
+                ),
             )
 
         assertEquals("Updated Name", updated.name)
@@ -196,11 +218,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
             ProductService.update(
                 callerId = callerId,
                 productId = productId,
-                name = null,
-                productCategoryId = null,
-                unitPrice = null,
-                commissionAmount = null,
-                isActive = true,
+                ProductEdit(
+                    name = null,
+                    productCategoryId = null,
+                    unitPrice = null,
+                    commissionAmount = null,
+                    isActive = true,
+                ),
             )
 
         assertTrue(reactivated.isActive)
@@ -217,11 +241,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val result =
             ProductService.create(
                 callerId = callerId,
-                id = newProductId,
-                name = "New Product",
-                productCategoryId = categoryId,
-                unitPrice = BigDecimal("250.00"),
-                commissionAmount = BigDecimal("25.00"),
+                NewProduct(
+                    id = newProductId,
+                    name = "New Product",
+                    productCategoryId = categoryId,
+                    unitPrice = BigDecimal("250.00"),
+                    commissionAmount = BigDecimal("25.00"),
+                ),
             )
 
         assertTrue(result.created)
@@ -238,11 +264,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val newProductId = TestFixtures.uuid()
         ProductService.create(
             callerId = callerId,
-            id = newProductId,
-            name = "Find Product",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("250.00"),
-            commissionAmount = BigDecimal("25.00"),
+            NewProduct(
+                id = newProductId,
+                name = "Find Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
+            ),
         )
 
         val otherCaller = TestFixtures.uuid()
@@ -257,11 +285,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductService.create(
                 callerId = callerId,
-                id = productId,
-                name = "Test Product",
-                productCategoryId = TestFixtures.uuid(),
-                unitPrice = BigDecimal("250.00"),
-                commissionAmount = BigDecimal("25.00"),
+                NewProduct(
+                    id = productId,
+                    name = "Test Product",
+                    productCategoryId = TestFixtures.uuid(),
+                    unitPrice = BigDecimal("250.00"),
+                    commissionAmount = BigDecimal("25.00"),
+                ),
             )
         }
         assertEquals(0L, auditEntryCount(productId))
@@ -271,11 +301,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `update with non-existent category returns not found with zero audit`() {
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Test Product",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("250.00"),
-            commissionAmount = BigDecimal("25.00"),
+            NewProduct(
+                id = productId,
+                name = "Test Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
+            ),
         )
         val auditsBefore = auditEntryCount(productId)
 
@@ -283,11 +315,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
             ProductService.update(
                 callerId = callerId,
                 productId = productId,
-                name = null,
-                productCategoryId = TestFixtures.uuid(),
-                unitPrice = null,
-                commissionAmount = null,
-                isActive = null,
+                ProductEdit(
+                    name = null,
+                    productCategoryId = TestFixtures.uuid(),
+                    unitPrice = null,
+                    commissionAmount = null,
+                    isActive = null,
+                ),
             )
         }
         assertEquals(auditsBefore, auditEntryCount(productId))
@@ -313,11 +347,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ProductService.create(
                 callerId = callerId,
-                id = blockedId,
-                name = "Over Max Product",
-                productCategoryId = categoryId,
-                unitPrice = BigDecimal("9999999999.99"),
-                commissionAmount = BigDecimal("25.00"),
+                NewProduct(
+                    id = blockedId,
+                    name = "Over Max Product",
+                    productCategoryId = categoryId,
+                    unitPrice = BigDecimal("9999999999.99"),
+                    commissionAmount = BigDecimal("25.00"),
+                ),
             )
         }
         assertNull(ProductRepository.findById(blockedId))
@@ -328,11 +364,13 @@ class ProductServicePostgresTest : BasePostgresTest() {
         val result =
             ProductService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                name = "Max Product",
-                productCategoryId = categoryId,
-                unitPrice = BigDecimal("99999999.99"),
-                commissionAmount = BigDecimal("99999999.99"),
+                NewProduct(
+                    id = TestFixtures.uuid(),
+                    name = "Max Product",
+                    productCategoryId = categoryId,
+                    unitPrice = BigDecimal("99999999.99"),
+                    commissionAmount = BigDecimal("99999999.99"),
+                ),
             )
 
         assertTrue(result.created)
@@ -344,22 +382,26 @@ class ProductServicePostgresTest : BasePostgresTest() {
     fun `update product rejects unitPrice over NUMERIC(10,2) range`() {
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Test Product",
-            productCategoryId = categoryId,
-            unitPrice = BigDecimal("250.00"),
-            commissionAmount = BigDecimal("25.00"),
+            NewProduct(
+                id = productId,
+                name = "Test Product",
+                productCategoryId = categoryId,
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
+            ),
         )
 
         assertFailsWith<ValidationException> {
             ProductService.update(
                 callerId = callerId,
                 productId = productId,
-                name = null,
-                productCategoryId = null,
-                unitPrice = BigDecimal("100000000"),
-                commissionAmount = null,
-                isActive = null,
+                ProductEdit(
+                    name = null,
+                    productCategoryId = null,
+                    unitPrice = BigDecimal("100000000"),
+                    commissionAmount = null,
+                    isActive = null,
+                ),
             )
         }
     }

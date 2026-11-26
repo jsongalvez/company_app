@@ -5,6 +5,7 @@ import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.client.DEFAULT_CLIENT_ADDRESS
 import com.companyb.companyapp.contracts.audit.AuditAction
+import com.companyb.companyapp.database.ilike
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.observability.traced
@@ -655,19 +656,3 @@ private fun redactKeys(
         }
     return if (changed) scrubbed.toString() else raw
 }
-
-private class AuditILikeOp(
-    expr1: Expression<*>,
-    expr2: Expression<*>,
-) : ComparisonOp(expr1, expr2, "ILIKE")
-
-@Suppress("UNCHECKED_CAST") // #600 String-backed columns narrow to IColumnType<String> per #467
-private fun <T : String?> ilike(
-    col: Column<T>,
-    pattern: String,
-): Op<Boolean> =
-    AuditILikeOp(
-        col,
-        // SAFETY: ilike takes String-backed columns; columnType narrows to IColumnType<String> #467
-        QueryParameter(pattern, col.columnType as IColumnType<String>),
-    )

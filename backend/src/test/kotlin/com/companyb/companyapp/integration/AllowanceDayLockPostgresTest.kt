@@ -14,6 +14,8 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.AllowanceRepository
 import com.companyb.companyapp.finance.AllowanceService
 import com.companyb.companyapp.finance.AllowanceTable
+import com.companyb.companyapp.finance.NewAllowance
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -62,10 +64,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
         assertEquals(auditsBefore, callerAuditCount(), "rejected create writes no audit rows")
@@ -84,11 +88,13 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         val allowance =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
-                reason = "Coordinator correction",
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(allowance)
@@ -110,10 +116,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         val allowanceId = TestFixtures.uuid()
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
+            NewAllowance(
+                id = allowanceId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+            ),
         )
 
         submitRemittanceCoveringDay(branchDayId)
@@ -122,10 +130,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         val replayed =
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
 
         assertEquals(allowanceId, replayed.id)
@@ -141,19 +151,23 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = pastDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = TestFixtures.uuid(),
+                    branchDayId = pastDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
         AllowanceService.create(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            branchDayId = pastDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
-            reason = "paid late",
+            NewAllowance(
+                id = TestFixtures.uuid(),
+                branchDayId = pastDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+                reason = "paid late",
+            ),
         )
     }
 
@@ -162,10 +176,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         val allowanceId = TestFixtures.uuid()
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
+            NewAllowance(
+                id = allowanceId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+            ),
         )
 
         val otherCaller = TestFixtures.uuid()
@@ -174,10 +190,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             AllowanceService.create(
                 callerId = otherCaller,
-                id = allowanceId,
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = branchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
     }
@@ -187,10 +205,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         val allowanceId = TestFixtures.uuid()
         AllowanceService.create(
             callerId = callerId,
-            id = allowanceId,
-            branchDayId = branchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
+            NewAllowance(
+                id = allowanceId,
+                branchDayId = branchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("500.00"),
+            ),
         )
 
         val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
@@ -198,10 +218,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = allowanceId,
-                branchDayId = otherDayId,
-                userId = targetUserId,
-                amount = BigDecimal("500.00"),
+                NewAllowance(
+                    id = allowanceId,
+                    branchDayId = otherDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
     }
@@ -220,10 +242,12 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
                 LockBarrier.withDayRemitBarrier(branchDayId, callerId) {
                     AllowanceService.create(
                         callerId = callerId,
-                        id = blockedId,
-                        branchDayId = branchDayId,
-                        userId = targetUserId,
-                        amount = BigDecimal("500.00"),
+                        NewAllowance(
+                            id = blockedId,
+                            branchDayId = branchDayId,
+                            userId = targetUserId,
+                            amount = BigDecimal("500.00"),
+                        ),
                     )
                 }
             }.exceptionOrNull()
@@ -241,12 +265,14 @@ class AllowanceDayLockPostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today.minusDays(1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today.minusDays(1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,

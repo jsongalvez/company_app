@@ -13,6 +13,9 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
+import com.companyb.companyapp.session.NewSession
+import com.companyb.companyapp.session.NewSessionPractitioner
+import com.companyb.companyapp.session.SessionCreateContext
 import com.companyb.companyapp.session.SessionPractitionerService
 import com.companyb.companyapp.session.SessionPractitionerTable
 import com.companyb.companyapp.session.SessionService
@@ -117,23 +120,28 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
         createClient()
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = "call $PHONE_MARKER after lunch",
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = "call $PHONE_MARKER after lunch",
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = practitionerRowId,
+            NewSessionPractitioner(
+                id = practitionerRowId,
+                practitionerId = practitionerId,
+                remarks = "practitioner note $PHONE_MARKER",
+            ),
             sessionId = sessionId,
-            practitionerId = practitionerId,
-            remarks = "practitioner note $PHONE_MARKER",
         )
         SessionPractitionerService.removePractitioner(callerId, sessionId, practitionerId)
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, expectedVersion = 3)
@@ -158,16 +166,19 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
         createClient()
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = "call $PHONE_MARKER after lunch",
-            otherConcerns = "follow up with $NAME_MARKER",
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = "call $PHONE_MARKER after lunch",
+                otherConcerns = "follow up with $NAME_MARKER",
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
 
         assertFailsWith<ConflictException> {
@@ -191,41 +202,48 @@ class ClientAnonymizeSessionTextPostgresTest : BasePostgresTest() {
     private fun createClient() {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = "ZqxSession",
-            lastName = "Client",
-            middleName = null,
-            suffix = null,
-            phoneNumber = PHONE_MARKER,
-            address = "Cavite",
-            gender = Gender.F,
-            age = RETAINED_AGE,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = clientId,
+                firstName = "ZqxSession",
+                lastName = "Client",
+                middleName = null,
+                suffix = null,
+                phoneNumber = PHONE_MARKER,
+                address = "Cavite",
+                gender = Gender.F,
+                age = RETAINED_AGE,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
     private fun createCompletedMarkedSession() {
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = "call $PHONE_MARKER after lunch",
-            otherConcerns = "follow up with $NAME_MARKER",
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = "call $PHONE_MARKER after lunch",
+                otherConcerns = "follow up with $NAME_MARKER",
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = practitionerRowId,
+            NewSessionPractitioner(
+                id = practitionerRowId,
+                practitionerId = practitionerId,
+                remarks = "practitioner note $PHONE_MARKER",
+            ),
             sessionId = sessionId,
-            practitionerId = practitionerId,
-            remarks = "practitioner note $PHONE_MARKER",
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, expectedVersion = 2)
     }

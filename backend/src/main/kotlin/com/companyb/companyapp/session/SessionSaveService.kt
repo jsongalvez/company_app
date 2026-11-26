@@ -28,7 +28,7 @@ data class NewSession(
     val remarks: String?,
     val otherConcerns: String?,
     val nextAppointmentDate: LocalDate?,
-    val reason: String?,
+    val reason: String? = null,
     /** The day to add to; null means today. */
     val date: LocalDate? = null,
 )
@@ -57,19 +57,13 @@ internal object SessionSaveService {
                 val result =
                     SessionService.create(
                         callerId = callerId,
-                        id = new.id,
-                        clientId = new.clientId,
-                        branchId = new.branchId,
-                        isWalkIn = new.isWalkIn,
-                        requestedPractitionerId = new.requestedPractitionerId,
-                        finalPrice = new.finalPrice,
-                        remarks = new.remarks,
-                        otherConcerns = new.otherConcerns,
-                        nextAppointmentDate = new.nextAppointmentDate,
-                        gatedBranchDayId = day?.id,
-                        reason = new.reason,
-                        knownBranchType = branch.branchType,
-                        knownGatedBranchDay = day,
+                        new = new,
+                        context =
+                            SessionCreateContext(
+                                gatedBranchDayId = day?.id,
+                                knownBranchType = branch.branchType,
+                                knownGatedBranchDay = day,
+                            ),
                     )
                 // A session just written has no concerns yet; only a repeat of an earlier save reads them.
                 val concerns = if (result.created) emptyList() else concernsOfEarlierSave(callerId, new.id)

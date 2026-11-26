@@ -66,18 +66,20 @@ class ClientAgePostgresTest : BasePostgresTest() {
     private fun create(id: UUID): ClientCreateResult =
         ClientService.create(
             callerId = callerId,
-            id = id,
-            firstName = "Age",
-            lastName = "Tester",
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = Gender.F,
-            age = 30,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = id,
+                firstName = "Age",
+                lastName = "Tester",
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = Gender.F,
+                age = 30,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
 
     private fun update(
@@ -87,16 +89,18 @@ class ClientAgePostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = id,
-            firstName = null,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = null,
-            age = age,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = age,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
 }

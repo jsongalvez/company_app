@@ -27,46 +27,33 @@ import java.util.UUID
 object ClientService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList") // #599
     fun create(
         callerId: UUID,
-        id: UUID,
-        firstName: String,
-        lastName: String,
-        middleName: String?,
-        suffix: String?,
-        phoneNumber: String?,
-        address: String?,
-        gender: Gender,
-        age: Int,
-        earlierVisits: Int = 0,
-        systolicBp: Short?,
-        diastolicBp: Short?,
-        medicalConditions: String?,
+        new: NewClient,
     ): ClientCreateResult =
         traced("ClientService.create") {
             transaction {
                 // range pre-gate (mirrors the client CHECKs / varchar width) —
                 // fail closed with 400 before the insert instead of surfacing the DB
                 // violation as a 500 (auto-file).
-                validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
-                validateEarlierVisits(earlierVisits)
+                validateClientRanges(new.age, new.systolicBp, new.diastolicBp, new.phoneNumber)
+                validateEarlierVisits(new.earlierVisits)
                 val result =
                     ClientRepository.createInTransaction(
                         ClientCreateParams(
-                            id = id,
-                            firstName = firstName,
-                            lastName = lastName,
-                            middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
-                            suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
-                            phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
-                            address = address?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CLIENT_ADDRESS,
-                            gender = gender,
-                            age = age,
-                            earlierVisits = earlierVisits,
-                            systolicBp = systolicBp,
-                            diastolicBp = diastolicBp,
-                            medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
+                            id = new.id,
+                            firstName = new.firstName,
+                            lastName = new.lastName,
+                            middleName = new.middleName?.trim()?.takeIf { it.isNotEmpty() },
+                            suffix = new.suffix?.trim()?.takeIf { it.isNotEmpty() },
+                            phoneNumber = new.phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
+                            address = new.address?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CLIENT_ADDRESS,
+                            gender = new.gender,
+                            age = new.age,
+                            earlierVisits = new.earlierVisits,
+                            systolicBp = new.systolicBp,
+                            diastolicBp = new.diastolicBp,
+                            medicalConditions = new.medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
                             changedBy = callerId,
                         ),
                     )
@@ -90,31 +77,18 @@ object ClientService {
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
 
-    @Suppress("LongParameterList") // #599
     fun update(
         callerId: UUID,
         clientId: UUID,
-        firstName: String?,
-        lastName: String?,
-        middleName: String?,
-        suffix: String?,
-        phoneNumber: String?,
-        address: String?,
-        gender: Gender?,
-        age: Int?,
-        earlierVisits: Int? = null,
-        systolicBp: Short?,
-        diastolicBp: Short?,
-        medicalConditions: String?,
-        clearFields: Set<String> = emptySet(),
+        edit: ClientEdit,
     ): Client =
         traced("ClientService.update") {
             transaction {
                 // same range pre-gate as create — age/BP/phone bypass patch
                 // shape resolution as raw values, so the update command owns the
                 // bounds for direct callers too (route mirrors with BadRequestResponse).
-                validateClientRanges(age, systolicBp, diastolicBp, phoneNumber)
-                validateEarlierVisits(earlierVisits)
+                validateClientRanges(edit.age, edit.systolicBp, edit.diastolicBp, edit.phoneNumber)
+                validateEarlierVisits(edit.earlierVisits)
                 // Locked before-state: SELECT FOR UPDATE serializes concurrent
                 // writers so the audit diff attributes only this actor's changes.
                 val before =
@@ -122,18 +96,7 @@ object ClientService {
                         ?: throw NotFoundException("Client not found")
 
                 val patch =
-                    resolveClientPatch(
-                        firstName = firstName,
-                        lastName = lastName,
-                        middleName = middleName,
-                        suffix = suffix,
-                        phoneNumber = phoneNumber,
-                        address = address,
-                        systolicBp = systolicBp,
-                        diastolicBp = diastolicBp,
-                        medicalConditions = medicalConditions,
-                        clearFields = clearFields,
-                    )
+                    resolveClientPatch(edit)
 
                 val (updatedCount, after) =
                     ClientRepository.updateInTransaction(
@@ -145,9 +108,9 @@ object ClientService {
                             suffix = patch.suffix,
                             phoneNumber = patch.phoneNumber,
                             address = patch.address,
-                            gender = gender,
-                            age = age,
-                            earlierVisits = earlierVisits,
+                            gender = edit.gender,
+                            age = edit.age,
+                            earlierVisits = edit.earlierVisits,
                             systolicBp = patch.systolicBp,
                             diastolicBp = patch.diastolicBp,
                             medicalConditions = patch.medicalConditions,
@@ -337,51 +300,39 @@ internal fun checkClearShape(clearFields: Set<String>) {
     }
 }
 
-@Suppress("LongParameterList") // #599
-internal fun resolveClientPatch(
-    firstName: String?,
-    lastName: String?,
-    middleName: String?,
-    suffix: String?,
-    phoneNumber: String?,
-    address: String?,
-    systolicBp: Short?,
-    diastolicBp: Short?,
-    medicalConditions: String?,
-    clearFields: Set<String>,
-): ResolvedClientPatch {
-    checkClearShape(clearFields)
+internal fun resolveClientPatch(edit: ClientEdit): ResolvedClientPatch {
+    checkClearShape(edit.clearFields)
     val bp =
         resolveBpPatch(
-            systolicBp,
-            diastolicBp,
-            ClientPatchField.SYSTOLIC_BP in clearFields,
-            ClientPatchField.DIASTOLIC_BP in clearFields,
+            edit.systolicBp,
+            edit.diastolicBp,
+            ClientPatchField.SYSTOLIC_BP in edit.clearFields,
+            ClientPatchField.DIASTOLIC_BP in edit.clearFields,
         )
     return ResolvedClientPatch(
-        firstName = resolveRequiredName(firstName, "First name"),
-        lastName = resolveRequiredName(lastName, "Last name"),
+        firstName = resolveRequiredName(edit.firstName, "First name"),
+        lastName = resolveRequiredName(edit.lastName, "Last name"),
         middleName =
             resolveClearableText(
                 "Middle name",
-                middleName,
-                ClientPatchField.MIDDLE_NAME in clearFields,
+                edit.middleName,
+                ClientPatchField.MIDDLE_NAME in edit.clearFields,
                 "middleName",
             ),
         suffix =
-            resolveClearableText("Suffix", suffix, ClientPatchField.SUFFIX in clearFields, "suffix"),
+            resolveClearableText("Suffix", edit.suffix, ClientPatchField.SUFFIX in edit.clearFields, "suffix"),
         phoneNumber =
             resolveClearableText(
                 "Phone number",
-                phoneNumber,
-                ClientPatchField.PHONE_NUMBER in clearFields,
+                edit.phoneNumber,
+                ClientPatchField.PHONE_NUMBER in edit.clearFields,
                 "phoneNumber",
             ),
         address =
             resolveClearableText(
                 "Address",
-                address,
-                ClientPatchField.ADDRESS in clearFields,
+                edit.address,
+                ClientPatchField.ADDRESS in edit.clearFields,
                 "address",
             ),
         systolicBp = bp.systolicBp,
@@ -389,17 +340,17 @@ internal fun resolveClientPatch(
         medicalConditions =
             resolveClearableText(
                 "Medical conditions",
-                medicalConditions,
-                ClientPatchField.MEDICAL_CONDITIONS in clearFields,
+                edit.medicalConditions,
+                ClientPatchField.MEDICAL_CONDITIONS in edit.clearFields,
                 "medicalConditions",
             ),
-        clearMiddleName = ClientPatchField.MIDDLE_NAME in clearFields,
-        clearSuffix = ClientPatchField.SUFFIX in clearFields,
-        clearPhoneNumber = ClientPatchField.PHONE_NUMBER in clearFields,
-        clearAddress = ClientPatchField.ADDRESS in clearFields,
-        clearMedicalConditions = ClientPatchField.MEDICAL_CONDITIONS in clearFields,
+        clearMiddleName = ClientPatchField.MIDDLE_NAME in edit.clearFields,
+        clearSuffix = ClientPatchField.SUFFIX in edit.clearFields,
+        clearPhoneNumber = ClientPatchField.PHONE_NUMBER in edit.clearFields,
+        clearAddress = ClientPatchField.ADDRESS in edit.clearFields,
+        clearMedicalConditions = ClientPatchField.MEDICAL_CONDITIONS in edit.clearFields,
         clearBp = bp.clear,
-        clearedFields = (clearFields intersect ClientPatchField.clearable).toSortedSet(),
+        clearedFields = (edit.clearFields intersect ClientPatchField.clearable).toSortedSet(),
     )
 }
 
@@ -504,3 +455,35 @@ internal fun validateEarlierVisits(earlierVisits: Int?) {
         throw ValidationException("Earlier visits must be between 0 and $CLIENT_EARLIER_VISITS_MAX")
     }
 }
+
+data class NewClient(
+    val id: UUID,
+    val firstName: String,
+    val lastName: String,
+    val middleName: String?,
+    val suffix: String?,
+    val phoneNumber: String?,
+    val address: String?,
+    val gender: Gender,
+    val age: Int,
+    val earlierVisits: Int = 0,
+    val systolicBp: Short?,
+    val diastolicBp: Short?,
+    val medicalConditions: String?,
+)
+
+data class ClientEdit(
+    val firstName: String?,
+    val lastName: String?,
+    val middleName: String?,
+    val suffix: String?,
+    val phoneNumber: String?,
+    val address: String?,
+    val gender: Gender?,
+    val age: Int?,
+    val earlierVisits: Int? = null,
+    val systolicBp: Short?,
+    val diastolicBp: Short?,
+    val medicalConditions: String?,
+    val clearFields: Set<String> = emptySet(),
+)

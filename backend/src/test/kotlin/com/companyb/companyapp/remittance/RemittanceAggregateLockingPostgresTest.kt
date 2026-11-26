@@ -223,10 +223,12 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
                     RemittanceService.updateHeader(
                         callerId = callerId,
                         remittanceId = remittanceId,
-                        type = RemittanceType.SESSION,
-                        method = RemittanceMethod.BANK_TRANSFER,
-                        dateRangeStart = rangeStart,
-                        dateRangeEnd = dayDateA,
+                        RemittanceHeader(
+                            type = RemittanceType.SESSION,
+                            method = RemittanceMethod.BANK_TRANSFER,
+                            dateRangeStart = rangeStart,
+                            dateRangeEnd = dayDateA,
+                        ),
                         expectedVersion = draftVersion,
                     )
                 }.map { }
@@ -282,10 +284,12 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
                         RemittanceService.updateHeader(
                             callerId = callerId,
                             remittanceId = remittanceId,
-                            type = RemittanceType.SESSION,
-                            method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-                            dateRangeStart = rangeStart,
-                            dateRangeEnd = rangeEnd,
+                            RemittanceHeader(
+                                type = RemittanceType.SESSION,
+                                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                                dateRangeStart = rangeStart,
+                                dateRangeEnd = rangeEnd,
+                            ),
                             expectedVersion = draftVersion,
                         )
                     }.map { }
@@ -336,12 +340,14 @@ class RemittanceAggregateLockingPostgresTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = id,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = id,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         return id
     }

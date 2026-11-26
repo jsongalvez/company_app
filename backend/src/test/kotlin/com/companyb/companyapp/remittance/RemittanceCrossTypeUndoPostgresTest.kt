@@ -217,12 +217,14 @@ class RemittanceCrossTypeUndoPostgresTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = id,
-            type = type,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = id,
+                type = type,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         return id
     }

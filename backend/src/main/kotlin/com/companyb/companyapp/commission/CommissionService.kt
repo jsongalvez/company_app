@@ -99,26 +99,21 @@ object CommissionService {
         return CommissionSplitRepository.findByBranchDayId(branchDayId)
     }
 
-    @Suppress("LongParameterList") // #596
     fun createManualInclusion(
         callerId: UUID,
-        id: UUID,
-        productSaleId: UUID,
-        userId: UUID,
-        isIncluded: Boolean,
-        reason: String?,
+        new: NewManualInclusion,
     ): CommissionManualInclusion {
-        if (!AccountReads.userExists(userId)) {
+        if (!AccountReads.userExists(new.userId)) {
             throw NotFoundException("User not found")
         }
         return traced("CommissionService.createManualInclusion") {
             val params =
                 CommissionManualInclusionUpsertParams(
-                    id = id,
-                    productSaleId = productSaleId,
-                    userId = userId,
-                    isIncluded = isIncluded,
-                    reason = reason,
+                    id = new.id,
+                    productSaleId = new.productSaleId,
+                    userId = new.userId,
+                    isIncluded = new.isIncluded,
+                    reason = new.reason,
                     assignedBy = callerId,
                 )
             return@traced transaction { createManualInclusionInTransaction(params) }
@@ -289,3 +284,11 @@ internal object CommissionAudit {
         auditFields = CommissionManualInclusionTable::auditFields,
     )
 }
+
+data class NewManualInclusion(
+    val id: UUID,
+    val productSaleId: UUID,
+    val userId: UUID,
+    val isIncluded: Boolean,
+    val reason: String?,
+)

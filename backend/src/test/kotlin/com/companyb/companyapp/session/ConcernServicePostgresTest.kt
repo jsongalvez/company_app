@@ -389,16 +389,19 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         finalPrice: BigDecimal = BigDecimal("2500.00"),
     ) = SessionService.create(
         callerId = callerId,
-        id = id,
-        clientId = clientId,
-        branchId = branchId,
-        isWalkIn = isWalkIn,
-        requestedPractitionerId = null,
-        finalPrice = finalPrice,
-        remarks = "Test session",
-        otherConcerns = null,
-        nextAppointmentDate = null,
-        requireClockIn = false,
+        NewSession(
+            id = id,
+            clientId = clientId,
+            branchId = branchId,
+            isWalkIn = isWalkIn,
+            requestedPractitionerId = null,
+            finalPrice = finalPrice,
+            remarks = "Test session",
+            otherConcerns = null,
+            nextAppointmentDate = null,
+        ),
+        context =
+            SessionCreateContext(requireClockIn = false),
     )
 
     private fun insertSystemConcern() {

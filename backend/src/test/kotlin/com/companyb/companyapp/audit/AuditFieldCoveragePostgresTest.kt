@@ -3,14 +3,20 @@ package com.companyb.companyapp.audit
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.audit.AuditValues
+import com.companyb.companyapp.client.ClientEdit
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
+import com.companyb.companyapp.client.NewClient
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.client.ClientPatchField
 import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
+import com.companyb.companyapp.finance.ExpenseEdit
 import com.companyb.companyapp.finance.ExpenseService
 import com.companyb.companyapp.finance.ExpenseTable
+import com.companyb.companyapp.finance.NewExpense
+import com.companyb.companyapp.session.NewSession
+import com.companyb.companyapp.session.SessionCreateContext
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.session.SessionVoidTable
@@ -76,17 +82,19 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = clientId,
-            firstName = null,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = "09179999999",
-            address = null,
-            gender = null,
-            age = null,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = "09179999999",
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
 
         val update = latestUpdate(ClientTable.tableName, clientId)
@@ -102,17 +110,19 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = clientId,
-            firstName = null,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = Gender.M,
-            age = 31,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = Gender.M,
+                age = 31,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
 
         val update = latestUpdate(ClientTable.tableName, clientId)
@@ -130,18 +140,20 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = clientId,
-            firstName = null,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = null,
-            age = null,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
-            clearFields = setOf(ClientPatchField.PHONE_NUMBER),
+            ClientEdit(
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+                clearFields = setOf(ClientPatchField.PHONE_NUMBER),
+            ),
         )
 
         val entries = clientEntries()
@@ -162,18 +174,20 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         ClientService.create(
             callerId = callerId,
-            id = id,
-            firstName = "ZqxCovFirst",
-            lastName = "ZqxCovLast",
-            middleName = "ZqxCovMid",
-            suffix = "Jr",
-            phoneNumber = "09170001111",
-            address = "ZqxCovAddr",
-            gender = Gender.F,
-            age = 42,
-            systolicBp = 120.toShort(),
-            diastolicBp = 80.toShort(),
-            medicalConditions = "ZqxCovCond",
+            NewClient(
+                id = id,
+                firstName = "ZqxCovFirst",
+                lastName = "ZqxCovLast",
+                middleName = "ZqxCovMid",
+                suffix = "Jr",
+                phoneNumber = "09170001111",
+                address = "ZqxCovAddr",
+                gender = Gender.F,
+                age = 42,
+                systolicBp = 120.toShort(),
+                diastolicBp = 80.toShort(),
+                medicalConditions = "ZqxCovCond",
+            ),
         )
         ClientService.anonymize(callerId, id)
 
@@ -209,19 +223,19 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("100.00"),
-            category = ExpenseCategory.MISCELLANEOUS,
-            notes = null,
+            NewExpense(
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("100.00"),
+                category = ExpenseCategory.MISCELLANEOUS,
+                notes = null,
+            ),
         )
         val created = ExpenseService.findByBranchDayId(branchDayId).single { it.id == expenseId }
         ExpenseService.update(
             callerId = callerId,
             expenseId = expenseId,
-            amount = created.amount,
-            category = created.category,
-            notes = "null",
+            ExpenseEdit(amount = created.amount, category = created.category, notes = "null"),
             expectedVersion = created.version,
         )
 
@@ -239,16 +253,19 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         val result =
             SessionService.create(
                 callerId = callerId,
-                id = sessionId,
-                clientId = clientId,
-                branchId = branchId,
-                isWalkIn = false,
-                requestedPractitionerId = practitionerId,
-                finalPrice = BigDecimal("2500.00"),
-                remarks = "CovRemark",
-                otherConcerns = "CovConcern",
-                nextAppointmentDate = nextDate,
-                requireClockIn = false,
+                NewSession(
+                    id = sessionId,
+                    clientId = clientId,
+                    branchId = branchId,
+                    isWalkIn = false,
+                    requestedPractitionerId = practitionerId,
+                    finalPrice = BigDecimal("2500.00"),
+                    remarks = "CovRemark",
+                    otherConcerns = "CovConcern",
+                    nextAppointmentDate = nextDate,
+                ),
+                context =
+                    SessionCreateContext(requireClockIn = false),
             )
         assertTrue(result.created)
 
@@ -275,16 +292,19 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
         SessionClientFixtures.insertTestClient(clientId)
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = true,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = true,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         val voidId = TestFixtures.uuid()
         SessionService.voidSession(callerId, sessionId, voidId, "CovVoidReason")
@@ -333,18 +353,20 @@ class AuditFieldCoveragePostgresTest : BasePostgresTest() {
     ) {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = "Ana",
-            lastName = "Santos",
-            middleName = middleName,
-            suffix = null,
-            phoneNumber = phoneNumber,
-            address = "Cavite",
-            gender = gender,
-            age = age,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = clientId,
+                firstName = "Ana",
+                lastName = "Santos",
+                middleName = middleName,
+                suffix = null,
+                phoneNumber = phoneNumber,
+                address = "Cavite",
+                gender = gender,
+                age = age,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 

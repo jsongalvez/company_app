@@ -49,36 +49,29 @@ object CompensationService {
         }
     }
 
-    @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,
-        id: UUID,
-        workBranchDayId: UUID,
-        payingBranchDayId: UUID,
-        userId: UUID,
-        amount: BigDecimal,
-        note: String?,
-        reason: String? = null,
+        new: NewCompensation,
     ): Compensation {
         return traced("CompensationService.create") {
             // Fast-fail existence check before the transaction; the in-transaction locked
             // gate below re-reads the work day for editability.
-            BranchDayService.requireBranchDayExists(workBranchDayId)
+            BranchDayService.requireBranchDayExists(new.workBranchDayId)
 
-            if (!AccountReads.userExists(userId)) {
+            if (!AccountReads.userExists(new.userId)) {
                 throw NotFoundException("User not found")
             }
 
-            validateMoneyAmount(amount, "amount")
+            validateMoneyAmount(new.amount, "amount")
             val params =
                 CompensationCreateParams(
-                    id = id,
-                    workBranchDayId = workBranchDayId,
-                    payingBranchDayId = payingBranchDayId,
-                    userId = userId,
-                    amount = amount,
+                    id = new.id,
+                    workBranchDayId = new.workBranchDayId,
+                    payingBranchDayId = new.payingBranchDayId,
+                    userId = new.userId,
+                    amount = new.amount,
                     assignedBy = callerId,
-                    note = note,
+                    note = new.note,
                 )
             return@traced transaction {
                 replayIfExistsInTransaction(params)?.let {
@@ -87,13 +80,18 @@ object CompensationService {
                 // gate BOTH legs — the work day carries the duty being priced, so a
                 // REMITTED work day needs the same reason discipline even when the paying day is OPEN.
                 val gate =
-                    checkWorkAndPayingDaysEditableInTransaction(callerId, workBranchDayId, payingBranchDayId, reason)
+                    checkWorkAndPayingDaysEditableInTransaction(
+                        callerId,
+                        new.workBranchDayId,
+                        new.payingBranchDayId,
+                        new.reason,
+                    )
                 assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
                 val result = CompensationRepository.createInTransaction(params)
                 if (result.created) {
                     CompensationAudit.inserted(
-                        AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
+                        AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, new.reason),
                         result.compensation,
                     )
                 }
@@ -162,17 +160,14 @@ object CompensationService {
         note: String?,
     ): Boolean = existing.amount.compareTo(amount) == 0 && existing.note == note
 
-    @Suppress("LongParameterList") // #596
     fun update(
         callerId: UUID,
         compensationId: UUID,
-        amount: BigDecimal,
-        note: String?,
+        edit: CompensationEdit,
         expectedVersion: Int,
-        reason: String? = null,
     ): Compensation {
         return traced("CompensationService.update") {
-            validateMoneyAmount(amount, "amount")
+            validateMoneyAmount(edit.amount, "amount")
             return@traced transaction {
                 // Transaction-local before-state (ADR-0019): read inside the command's transaction.
                 val before =
@@ -184,15 +179,15 @@ object CompensationService {
                         callerId,
                         before.workBranchDayId,
                         before.payingBranchDayId,
-                        reason,
+                        edit.reason,
                     )
                 assertPayingMatchesWork(gate.workDay, gate.payingDay)
 
                 val after =
-                    CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
+                    CompensationRepository.updateInTransaction(compensationId, edit.amount, edit.note, expectedVersion)
 
                 CompensationAudit.updated(
-                    AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, reason),
+                    AuditContext(callerId, gate.payingDay.branchId, gate.isRemitted, edit.reason),
                     before,
                     after,
                 )
@@ -231,3 +226,19 @@ internal object CompensationAudit {
         auditFields = CompensationTable::auditFields,
     )
 }
+
+data class NewCompensation(
+    val id: UUID,
+    val workBranchDayId: UUID,
+    val payingBranchDayId: UUID,
+    val userId: UUID,
+    val amount: BigDecimal,
+    val note: String?,
+    val reason: String? = null,
+)
+
+data class CompensationEdit(
+    val amount: BigDecimal,
+    val note: String?,
+    val reason: String? = null,
+)

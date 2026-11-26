@@ -133,18 +133,12 @@ object RemittanceService {
         }
     }
 
-    @Suppress("LongParameterList") // #595
     fun createDraft(
         callerId: UUID,
-        id: UUID,
-        type: RemittanceType,
-        branchId: UUID,
-        method: RemittanceMethod,
-        dateRangeStart: LocalDate,
-        dateRangeEnd: LocalDate,
+        new: NewRemittance,
     ): Remittance {
         return traced("RemittanceService.createDraft") {
-            BranchService.findById(branchId)
+            BranchService.findById(new.branchId)
 
             val today = BranchDayService.currentOperationalDate()
             val result =
@@ -152,12 +146,12 @@ object RemittanceService {
                     val createResult =
                         RemittanceRepository.createDraftInTransaction(
                             CreateDraftParams(
-                                id = id,
-                                type = type,
-                                branchId = branchId,
-                                method = method,
-                                dateRangeStart = dateRangeStart,
-                                dateRangeEnd = dateRangeEnd,
+                                id = new.id,
+                                type = new.type,
+                                branchId = new.branchId,
+                                method = new.method,
+                                dateRangeStart = new.dateRangeStart,
+                                dateRangeEnd = new.dateRangeEnd,
                                 submittedDate = today,
                                 submittedBy = callerId,
                             ),
@@ -193,7 +187,6 @@ object RemittanceService {
      *
      * [now] remains an explicit test seam for deterministic boundary tests.
      */
-    @Suppress("LongMethod") // #595
     internal fun undoAt(
         callerId: UUID,
         remittanceId: UUID,
@@ -261,14 +254,10 @@ object RemittanceService {
         }
     }
 
-    @Suppress("LongParameterList") // #595
     fun updateHeader(
         callerId: UUID,
         remittanceId: UUID,
-        type: RemittanceType,
-        method: RemittanceMethod,
-        dateRangeStart: LocalDate,
-        dateRangeEnd: LocalDate,
+        edit: RemittanceHeader,
         expectedVersion: Int,
     ): Remittance {
         return traced("RemittanceService.updateHeader") {
@@ -281,7 +270,7 @@ object RemittanceService {
                             ?: throw NotFoundException("Remittance not found")
 
                     RemittancePolicy.assertDraft(locked.status, "update header of")
-                    if (type != locked.type &&
+                    if (edit.type != locked.type &&
                         RemittanceLineRepository.findByRemittanceIdInTransaction(remittanceId).isNotEmpty()
                     ) {
                         throw ValidationException("Remove the included items before changing the kind.")
@@ -289,8 +278,8 @@ object RemittanceService {
 
                     assertExistingContentInRange(
                         remittanceId = remittanceId,
-                        rangeStart = dateRangeStart,
-                        rangeEnd = dateRangeEnd,
+                        rangeStart = edit.dateRangeStart,
+                        rangeEnd = edit.dateRangeEnd,
                     )
 
                     val after =
@@ -298,10 +287,10 @@ object RemittanceService {
                             UpdateHeaderParams(
                                 remittanceId = remittanceId,
                                 expectedVersion = expectedVersion,
-                                type = type,
-                                method = method,
-                                dateRangeStart = dateRangeStart,
-                                dateRangeEnd = dateRangeEnd,
+                                type = edit.type,
+                                method = edit.method,
+                                dateRangeStart = edit.dateRangeStart,
+                                dateRangeEnd = edit.dateRangeEnd,
                             ),
                         )
 
@@ -316,18 +305,13 @@ object RemittanceService {
         }
     }
 
-    @Suppress("LongParameterList") // #595
     fun addLine(
         callerId: UUID,
         remittanceId: UUID,
-        id: UUID,
-        type: RemittanceLineType,
-        sessionId: UUID?,
-        productSaleId: UUID?,
-        amount: BigDecimal,
+        new: NewRemittanceLine,
     ): RemittanceLine {
         return traced("RemittanceService.addLine") {
-            validateMoneyAmount(amount, "amount")
+            validateMoneyAmount(new.amount, "amount")
             val line =
                 transaction {
                     // parent lock first so the draft check, range check, and version
@@ -340,19 +324,19 @@ object RemittanceService {
 
                     val params =
                         AddLineParams(
-                            id = id,
+                            id = new.id,
                             remittanceId = remittanceId,
-                            type = type,
-                            sessionId = sessionId,
-                            productSaleId = productSaleId,
-                            amount = amount,
+                            type = new.type,
+                            sessionId = new.sessionId,
+                            productSaleId = new.productSaleId,
+                            amount = new.amount,
                             createdBy = callerId,
                             expectedVersion = locked.version,
                         )
                     RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
-                    RemittancePolicy.assertLineFitsKind(locked.type, type)
+                    RemittancePolicy.assertLineFitsKind(locked.type, new.type)
 
-                    requireSourceInRange(type, sessionId, productSaleId, locked)
+                    requireSourceInRange(new.type, new.sessionId, new.productSaleId, locked)
 
                     val addResult = RemittanceLineRepository.addLineInTransaction(params)
                     if (addResult.created) {
@@ -704,4 +688,28 @@ data class RemittanceDayPickerEntry(
     val id: UUID,
     val date: LocalDate,
     val status: DayStatus,
+)
+
+data class NewRemittance(
+    val id: UUID,
+    val type: RemittanceType,
+    val branchId: UUID,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
+)
+
+data class RemittanceHeader(
+    val type: RemittanceType,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
+)
+
+data class NewRemittanceLine(
+    val id: UUID,
+    val type: RemittanceLineType,
+    val sessionId: UUID?,
+    val productSaleId: UUID?,
+    val amount: BigDecimal,
 )

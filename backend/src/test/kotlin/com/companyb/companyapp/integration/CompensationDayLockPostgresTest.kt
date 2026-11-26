@@ -11,9 +11,12 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.finance.CompensationEdit
 import com.companyb.companyapp.finance.CompensationRepository
 import com.companyb.companyapp.finance.CompensationService
 import com.companyb.companyapp.finance.CompensationTable
+import com.companyb.companyapp.finance.NewCompensation
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -65,12 +68,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
         assertEquals(auditsBefore, callerAuditCount(), "rejected create writes no audit rows")
@@ -86,13 +91,15 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
-                reason = "Coordinator correction",
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(comp)
@@ -114,12 +121,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = "First",
+            NewCompensation(
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = "First",
+            ),
         )
 
         submitRemittanceCoveringDay(payingBranchDayId)
@@ -128,12 +137,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val replayed =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = "First",
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = "First",
+                ),
             )
 
         assertEquals(compId, replayed.id)
@@ -146,12 +157,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val created =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
 
         submitRemittanceCoveringDay(payingBranchDayId)
@@ -161,8 +174,7 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("2000.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("2000.00"), note = null),
                 expectedVersion = created.version,
             )
         }
@@ -178,23 +190,27 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             CompensationService.create(
                 callerId = callerId,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = pastDayId,
+                    payingBranchDayId = pastDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("500.00"),
+                    note = null,
+                ),
+            )
+        }
+        CompensationService.create(
+            callerId = callerId,
+            NewCompensation(
                 id = TestFixtures.uuid(),
                 workBranchDayId = pastDayId,
                 payingBranchDayId = pastDayId,
                 userId = targetUserId,
                 amount = BigDecimal("500.00"),
                 note = null,
-            )
-        }
-        CompensationService.create(
-            callerId = callerId,
-            id = TestFixtures.uuid(),
-            workBranchDayId = pastDayId,
-            payingBranchDayId = pastDayId,
-            userId = targetUserId,
-            amount = BigDecimal("500.00"),
-            note = null,
-            reason = "paid late",
+                reason = "paid late",
+            ),
         )
     }
 
@@ -203,12 +219,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            NewCompensation(
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            ),
         )
 
         val otherCaller = TestFixtures.uuid()
@@ -217,12 +235,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             CompensationService.create(
                 callerId = otherCaller,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -232,12 +252,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
+            NewCompensation(
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            ),
         )
 
         val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(2))
@@ -245,12 +267,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = otherDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = otherDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -270,12 +294,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
                 LockBarrier.withDayRemitBarrier(payingBranchDayId, callerId) {
                     CompensationService.create(
                         callerId = callerId,
-                        id = blockedId,
-                        workBranchDayId = workBranchDayId,
-                        payingBranchDayId = payingBranchDayId,
-                        userId = targetUserId,
-                        amount = BigDecimal("1500.00"),
-                        note = null,
+                        NewCompensation(
+                            id = blockedId,
+                            workBranchDayId = workBranchDayId,
+                            payingBranchDayId = payingBranchDayId,
+                            userId = targetUserId,
+                            amount = BigDecimal("1500.00"),
+                            note = null,
+                        ),
                     )
                 }
             }.exceptionOrNull()
@@ -290,12 +316,14 @@ class CompensationDayLockPostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today.minusDays(1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today.minusDays(1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,

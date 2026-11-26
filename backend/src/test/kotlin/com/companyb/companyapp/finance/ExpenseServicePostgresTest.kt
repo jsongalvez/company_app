@@ -20,6 +20,7 @@ import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.finance.ExpenseCreateParams
 import com.companyb.companyapp.finance.ExpenseRepository
 import com.companyb.companyapp.finance.ExpenseTable
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -62,11 +63,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Office pantry supplies",
+                expense(expenseId, notes = "Office pantry supplies"),
             )
 
         assertNotNull(expense)
@@ -87,11 +84,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("300.00"),
-                category = ExpenseCategory.WATER,
-                notes = null,
+                expense(expenseId, BigDecimal("300.00"), ExpenseCategory.WATER),
             )
 
         assertNotNull(expense)
@@ -105,21 +98,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val first =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "First",
+                expense(expenseId, notes = "First"),
             )
 
         val second =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "First",
+                expense(expenseId, notes = "First"),
             )
 
         assertEquals(first.id, second.id)
@@ -131,21 +116,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "First",
+            expense(expenseId, notes = "First"),
         )
 
         assertFailsWith<ConflictException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("999.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "First",
+                expense(expenseId, BigDecimal("999.00"), notes = "First"),
             )
         }
     }
@@ -159,21 +136,19 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = null,
+            expense(expenseId),
         )
 
         assertFailsWith<NotFoundException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = otherBranchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                NewExpense(
+                    id = expenseId,
+                    branchDayId = otherBranchDayId,
+                    amount = BigDecimal("500.00"),
+                    category = ExpenseCategory.PANTRY,
+                    notes = null,
+                ),
             )
         }
     }
@@ -186,21 +161,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = null,
+            expense(expenseId),
         )
 
         assertFailsWith<ConflictException> {
             ExpenseService.create(
                 callerId = otherCallerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(expenseId),
             )
         }
     }
@@ -217,21 +184,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                             Callable {
                                 ExpenseService.create(
                                     callerId = callerId,
-                                    id = expenseId,
-                                    branchDayId = branchDayId,
-                                    amount = BigDecimal("500.00"),
-                                    category = ExpenseCategory.PANTRY,
-                                    notes = null,
+                                    expense(expenseId),
                                 )
                             },
                             Callable {
                                 ExpenseService.create(
                                     callerId = callerId,
-                                    id = expenseId,
-                                    branchDayId = branchDayId,
-                                    amount = BigDecimal("500.00"),
-                                    category = ExpenseCategory.PANTRY,
-                                    notes = null,
+                                    expense(expenseId),
                                 )
                             },
                         ),
@@ -259,11 +218,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(TestFixtures.uuid()),
             )
 
         assertNotNull(expense)
@@ -274,11 +229,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = TestFixtures.uuid(),
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                NewExpense(
+                    id = TestFixtures.uuid(),
+                    branchDayId = TestFixtures.uuid(),
+                    amount = BigDecimal("500.00"),
+                    category = ExpenseCategory.PANTRY,
+                    notes = null,
+                ),
             )
         }
     }
@@ -289,11 +246,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Test",
+            expense(expenseId, notes = "Test"),
         )
 
         val auditCount =
@@ -314,20 +267,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Original",
+                expense(expenseId, notes = "Original"),
             )
 
         val updated =
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.WATER,
-                notes = "Updated",
+                ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.WATER, notes = "Updated"),
                 expectedVersion = created.version,
             )
 
@@ -343,20 +290,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Original",
+                expense(expenseId, notes = "Original"),
             )
 
         val updated =
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                ExpenseEdit(amount = BigDecimal("500.00"), category = ExpenseCategory.PANTRY, notes = null),
                 expectedVersion = created.version,
             )
 
@@ -368,11 +309,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = null,
+            expense(expenseId),
         )
 
         val auditsBefore = callerAuditCount()
@@ -381,9 +318,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.PANTRY, notes = null),
                 expectedVersion = 999,
             )
         }
@@ -396,9 +331,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = TestFixtures.uuid(),
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.PANTRY, notes = null),
                 expectedVersion = 1,
             )
         }
@@ -410,11 +343,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(expenseId),
             )
         ExpenseService.softDelete(
             callerId = callerId,
@@ -427,9 +356,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.PANTRY, notes = null),
                 expectedVersion = 1,
             )
         }
@@ -441,11 +368,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Original",
+                expense(expenseId, notes = "Original"),
             )
 
         ExpenseService.softDelete(
@@ -480,19 +403,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(expenseId),
             )
 
         ExpenseService.update(
             callerId = callerId,
             expenseId = expenseId,
-            amount = BigDecimal("750.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Updated",
+            ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.PANTRY, notes = "Updated"),
             expectedVersion = created.version,
         )
 
@@ -515,11 +432,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Test",
+                expense(expenseId, notes = "Test"),
             )
 
         val deleted =
@@ -558,11 +471,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Test",
+                expense(expenseId, notes = "Test"),
             )
 
         val deleted =
@@ -582,11 +491,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Test",
+                expense(expenseId, notes = "Test"),
             )
 
         ExpenseService.softDelete(
@@ -614,11 +519,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = null,
+            expense(expenseId),
         )
 
         val auditsBefore = callerAuditCount()
@@ -640,19 +541,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Original",
+                expense(expenseId, notes = "Original"),
             )
 
         ExpenseService.update(
             callerId = callerId,
             expenseId = expenseId,
-            amount = BigDecimal("750.00"),
-            category = ExpenseCategory.WATER,
-            notes = "Concurrent edit",
+            ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.WATER, notes = "Concurrent edit"),
             expectedVersion = created.version,
         )
 
@@ -678,11 +573,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(expenseId),
             )
         val deleted =
             ExpenseService.softDelete(
@@ -710,27 +601,15 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = expense1Id,
-            branchDayId = branchDayId,
-            amount = BigDecimal("100.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "First",
+            expense(expense1Id, BigDecimal("100.00"), notes = "First"),
         )
         ExpenseService.create(
             callerId = callerId,
-            id = expense2Id,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = "Second",
+            expense(expense2Id, BigDecimal("200.00"), ExpenseCategory.WATER, "Second"),
         )
         ExpenseService.create(
             callerId = callerId,
-            id = expense3Id,
-            branchDayId = branchDayId,
-            amount = BigDecimal("300.00"),
-            category = ExpenseCategory.TRANSPORTATION,
-            notes = "Third",
+            expense(expense3Id, BigDecimal("300.00"), ExpenseCategory.TRANSPORTATION, "Third"),
         )
 
         val expenses = ExpenseService.findByBranchDayId(branchDayId)
@@ -745,20 +624,12 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = activeId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("100.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Active expense",
+            expense(activeId, BigDecimal("100.00"), notes = "Active expense"),
         )
         val toDelete =
             ExpenseService.create(
                 callerId = callerId,
-                id = deletedId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("200.00"),
-                category = ExpenseCategory.WATER,
-                notes = "Will be deleted",
+                expense(deletedId, BigDecimal("200.00"), ExpenseCategory.WATER, "Will be deleted"),
             )
 
         ExpenseService.softDelete(
@@ -785,11 +656,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("200.00"),
-                category = ExpenseCategory.WATER,
-                notes = "Will be restored",
+                expense(expenseId, BigDecimal("200.00"), ExpenseCategory.WATER, "Will be restored"),
             )
         val deleted =
             ExpenseService.softDelete(
@@ -833,11 +700,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("200.00"),
-            category = ExpenseCategory.WATER,
-            notes = "Never deleted",
+            expense(expenseId, BigDecimal("200.00"), ExpenseCategory.WATER, "Never deleted"),
         )
 
         assertFailsWith<ValidationException> {
@@ -860,12 +723,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val createdRemitted =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = remittedDayId,
-                amount = BigDecimal("200.00"),
-                category = ExpenseCategory.WATER,
-                notes = null,
-                reason = "Recorded late",
+                NewExpense(
+                    id = expenseId,
+                    branchDayId = remittedDayId,
+                    amount = BigDecimal("200.00"),
+                    category = ExpenseCategory.WATER,
+                    notes = null,
+                    reason = "Recorded late",
+                ),
             )
         ExpenseService.softDelete(
             callerId = callerId,
@@ -894,12 +759,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val createdRemittedWithReason =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = remittedDayId,
-                amount = BigDecimal("200.00"),
-                category = ExpenseCategory.WATER,
-                notes = null,
-                reason = "Recorded late",
+                NewExpense(
+                    id = expenseId,
+                    branchDayId = remittedDayId,
+                    amount = BigDecimal("200.00"),
+                    category = ExpenseCategory.WATER,
+                    notes = null,
+                    reason = "Recorded late",
+                ),
             )
         ExpenseService.softDelete(
             callerId = callerId,
@@ -925,11 +792,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val createdForAudit =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("200.00"),
-                category = ExpenseCategory.WATER,
-                notes = "Will be restored",
+                expense(expenseId, BigDecimal("200.00"), ExpenseCategory.WATER, "Will be restored"),
             )
         ExpenseService.softDelete(
             callerId = callerId,
@@ -976,11 +839,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = remittedDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Test",
+                NewExpense(
+                    id = TestFixtures.uuid(),
+                    branchDayId = remittedDayId,
+                    amount = BigDecimal("500.00"),
+                    category = ExpenseCategory.PANTRY,
+                    notes = "Test",
+                ),
             )
         }
         assertEquals(auditsBefore, callerAuditCount(), "rejected create writes no audit rows")
@@ -999,12 +864,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = remittedDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Test",
-                reason = "Coordinator correction",
+                NewExpense(
+                    id = expenseId,
+                    branchDayId = remittedDayId,
+                    amount = BigDecimal("500.00"),
+                    category = ExpenseCategory.PANTRY,
+                    notes = "Test",
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(expense)
@@ -1029,11 +896,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Proof",
+            expense(expenseId, notes = "Proof"),
         )
 
         val (expenseRows, insertAudits) =
@@ -1107,20 +970,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(expenseId),
             )
 
         assertFailsWith<ConflictException> {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.WATER,
-                notes = "Rejected",
+                ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.WATER, notes = "Rejected"),
                 expectedVersion = 999,
             )
         }
@@ -1154,11 +1011,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "Late expense",
+                expense(expenseId, notes = "Late expense"),
             )
         }
         assertEquals(auditsBefore, callerAuditCount(), "rejected create writes no audit rows")
@@ -1170,11 +1023,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "First",
+            expense(expenseId, notes = "First"),
         )
 
         submitRemittanceCoveringDay(branchDayId)
@@ -1183,11 +1032,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val replayed =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = "First",
+                expense(expenseId, notes = "First"),
             )
 
         assertEquals(expenseId, replayed.id)
@@ -1200,11 +1045,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val created =
             ExpenseService.create(
                 callerId = callerId,
-                id = expenseId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("500.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(expenseId),
             )
 
         submitRemittanceCoveringDay(branchDayId)
@@ -1214,9 +1055,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                ExpenseEdit(amount = BigDecimal("750.00"), category = ExpenseCategory.PANTRY, notes = null),
                 expectedVersion = created.version,
             )
         }
@@ -1227,12 +1066,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today.minusDays(1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today.minusDays(1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,
@@ -1273,11 +1114,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = blockedId,
-                branchDayId = branchDayId,
-                amount = BigDecimal("9999999999.99"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(blockedId, BigDecimal("9999999999.99")),
             )
         }
         assertNull(ExpenseRepository.findById(blockedId))
@@ -1288,11 +1125,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                branchDayId = branchDayId,
-                amount = BigDecimal("99999999.99"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                expense(TestFixtures.uuid(), BigDecimal("99999999.99")),
             )
 
         assertEquals("99999999.99", expense.amount.toPlainString())
@@ -1303,22 +1136,24 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = null,
+            expense(expenseId),
         )
 
         assertFailsWith<ValidationException> {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = BigDecimal("100000000"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
+                ExpenseEdit(amount = BigDecimal("100000000"), category = ExpenseCategory.PANTRY, notes = null),
                 expectedVersion = 1,
             )
         }
     }
+
+    /** An expense on [branchDayId]. */
+    private fun expense(
+        id: UUID,
+        amount: BigDecimal = BigDecimal("500.00"),
+        category: ExpenseCategory = ExpenseCategory.PANTRY,
+        notes: String? = null,
+    ) = NewExpense(id, branchDayId, amount, category, notes)
 }

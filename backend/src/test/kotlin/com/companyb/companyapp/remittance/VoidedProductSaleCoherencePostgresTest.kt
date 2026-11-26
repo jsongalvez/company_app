@@ -3,6 +3,7 @@ package com.companyb.companyapp.remittance
 import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.CommerceReads
 import com.companyb.companyapp.commerce.InventoryService
+import com.companyb.companyapp.commerce.NewProductSale
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.commerce.ProductSaleTable
 import com.companyb.companyapp.contracts.remittance.RemittanceLineType
@@ -76,11 +77,13 @@ class VoidedProductSaleCoherencePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.PRODUCT_SALE,
-                    sessionId = null,
-                    productSaleId = saleId,
-                    amount = BigDecimal("500.00"),
+                    NewRemittanceLine(
+                        id = TestFixtures.uuid(),
+                        type = RemittanceLineType.PRODUCT_SALE,
+                        sessionId = null,
+                        productSaleId = saleId,
+                        amount = BigDecimal("500.00"),
+                    ),
                 )
             }
         assertTrue(checkNotNull(error.message).contains("voided", ignoreCase = true))
@@ -101,11 +104,13 @@ class VoidedProductSaleCoherencePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.PRODUCT_SALE,
-                sessionId = null,
-                productSaleId = saleId,
-                amount = BigDecimal("500.00"),
+                NewRemittanceLine(
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = null,
+                    productSaleId = saleId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         assertEquals(saleId, line.productSaleId)
     }
@@ -119,13 +124,15 @@ class VoidedProductSaleCoherencePostgresTest : BasePostgresTest() {
             assertFailsWith<ValidationException> {
                 ProductSaleService.sell(
                     callerId = callerId,
-                    id = TestFixtures.uuid(),
-                    branchDayId = branchDayId,
-                    sessionId = sessionId,
-                    clientId = null,
-                    isWalkIn = false,
-                    productId = productId,
-                    quantity = 1,
+                    NewProductSale(
+                        id = TestFixtures.uuid(),
+                        branchDayId = branchDayId,
+                        sessionId = sessionId,
+                        clientId = null,
+                        isWalkIn = false,
+                        productId = productId,
+                        quantity = 1,
+                    ),
                     expectedVersion = 2,
                 )
             }
@@ -215,12 +222,14 @@ class VoidedProductSaleCoherencePostgresTest : BasePostgresTest() {
     private fun createDraftRemittance() =
         RemittanceService.createDraft(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            type = RemittanceType.PRODUCT,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today,
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = TestFixtures.uuid(),
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today,
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
 
     /**

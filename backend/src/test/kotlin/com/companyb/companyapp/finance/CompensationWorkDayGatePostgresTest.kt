@@ -54,13 +54,15 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = remittedDayId,
-                payingBranchDayId = remittedDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = "Daily compensation",
-                reason = "Coordinator correction",
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = remittedDayId,
+                    payingBranchDayId = remittedDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = "Daily compensation",
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(comp)
@@ -89,12 +91,14 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = remittedWorkDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = remittedWorkDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
         val stored = transaction { CompensationRepository.findByIdInTransaction(compId) }
@@ -113,12 +117,14 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = remittedWorkDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = remittedWorkDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                ),
             )
         }
     }
@@ -136,13 +142,15 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = remittedWorkDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
-                reason = "Coordinator correction",
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = remittedWorkDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                    reason = "Coordinator correction",
+                ),
             )
 
         assertNotNull(comp)
@@ -171,21 +179,22 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         val created =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = remittedWorkDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
-                reason = "Initial correction",
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = remittedWorkDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                    reason = "Initial correction",
+                ),
             )
 
         assertFailsWith<ValidationException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("2000.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("2000.00"), note = null),
                 expectedVersion = created.version,
             )
         }
@@ -203,23 +212,27 @@ class CompensationWorkDayGatePostgresTest : BasePostgresTest() {
         val created =
             CompensationService.create(
                 callerId = callerId,
-                id = compId,
-                workBranchDayId = remittedWorkDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
-                reason = "Initial correction",
+                NewCompensation(
+                    id = compId,
+                    workBranchDayId = remittedWorkDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("1500.00"),
+                    note = null,
+                    reason = "Initial correction",
+                ),
             )
 
         val updated =
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
-                amount = BigDecimal("2000.00"),
-                note = "Updated note",
+                CompensationEdit(
+                    amount = BigDecimal("2000.00"),
+                    note = "Updated note",
+                    reason = "Follow-up correction",
+                ),
                 expectedVersion = created.version,
-                reason = "Follow-up correction",
             )
 
         assertEquals(0, BigDecimal("2000.00").compareTo(updated.amount))

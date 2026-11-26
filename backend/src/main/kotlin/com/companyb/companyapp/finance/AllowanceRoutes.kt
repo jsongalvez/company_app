@@ -72,11 +72,14 @@ object AllowanceRoutes {
             val allowance =
                 AllowanceService.create(
                     callerId = callerId,
-                    id = id,
-                    branchDayId = branchDayId,
-                    userId = userId,
-                    amount = amount,
-                    reason = request.reason,
+                    new =
+                        NewAllowance(
+                            id = id,
+                            branchDayId = branchDayId,
+                            userId = userId,
+                            amount = amount,
+                            reason = request.reason,
+                        ),
                 )
 
             context.status(HttpStatus.CREATED)

@@ -7,6 +7,9 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.CompensationService
 import com.companyb.companyapp.finance.ExpenseService
+import com.companyb.companyapp.finance.NewCompensation
+import com.companyb.companyapp.finance.NewExpense
+import com.companyb.companyapp.remittance.NewRemittance
 import com.companyb.companyapp.remittance.RemittanceFinancialSnapshot
 import com.companyb.companyapp.remittance.RemittanceFinancialSnapshotRepository
 import com.companyb.companyapp.remittance.RemittanceRepository
@@ -56,11 +59,13 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
                         runCatching {
                             ExpenseService.create(
                                 callerId = callerId,
-                                id = TestFixtures.uuid(),
-                                branchDayId = dayId,
-                                amount = EXPENSE_AMOUNT,
-                                category = ExpenseCategory.TRANSPORTATION,
-                                notes = null,
+                                NewExpense(
+                                    id = TestFixtures.uuid(),
+                                    branchDayId = dayId,
+                                    amount = EXPENSE_AMOUNT,
+                                    category = ExpenseCategory.TRANSPORTATION,
+                                    notes = null,
+                                ),
                             )
                         }.exceptionOrNull()
                 }
@@ -97,12 +102,14 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
                         runCatching {
                             CompensationService.create(
                                 callerId = callerId,
-                                id = TestFixtures.uuid(),
-                                workBranchDayId = dayId,
-                                payingBranchDayId = dayId,
-                                userId = targetUserId,
-                                amount = COMPENSATION_AMOUNT,
-                                note = null,
+                                NewCompensation(
+                                    id = TestFixtures.uuid(),
+                                    workBranchDayId = dayId,
+                                    payingBranchDayId = dayId,
+                                    userId = targetUserId,
+                                    amount = COMPENSATION_AMOUNT,
+                                    note = null,
+                                ),
                             )
                         }.exceptionOrNull()
                 }
@@ -129,12 +136,14 @@ class RemittanceSubmitDayLockPostgresTest : BasePostgresTest() {
         val remittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = iterBranchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = TestFixtures.today,
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = iterBranchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = TestFixtures.today,
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,

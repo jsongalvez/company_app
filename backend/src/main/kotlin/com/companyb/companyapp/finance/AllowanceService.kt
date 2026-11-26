@@ -24,31 +24,26 @@ import java.util.UUID
 object AllowanceService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList") // #596
     fun create(
         callerId: UUID,
-        id: UUID,
-        branchDayId: UUID,
-        userId: UUID,
-        amount: BigDecimal,
-        reason: String? = null,
+        new: NewAllowance,
     ): Allowance {
-        if (!AccountReads.userExists(userId)) {
+        if (!AccountReads.userExists(new.userId)) {
             throw NotFoundException("User not found")
         }
         return traced("AllowanceService.create") {
-            validateMoneyAmount(amount, "amount")
+            validateMoneyAmount(new.amount, "amount")
             return@traced transaction {
                 // In-tx replay classification before the day gate:
                 // a same-id row already committed acks without gating so retries landing
                 // after a day transition still ack; ownership matches createInTransaction below.
-                AllowanceRepository.findByIdInTransaction(id)?.let { existing ->
-                    if (existing.branchDayId != branchDayId) {
+                AllowanceRepository.findByIdInTransaction(new.id)?.let { existing ->
+                    if (existing.branchDayId != new.branchDayId) {
                         throw NotFoundException("Allowance not found for this branch day")
                     }
-                    if (existing.userId != userId ||
+                    if (existing.userId != new.userId ||
                         existing.assignedBy != callerId ||
-                        existing.amount.compareTo(amount) != 0
+                        existing.amount.compareTo(new.amount) != 0
                     ) {
                         throw ConflictException("Allowance id already belongs to another create request")
                     }
@@ -56,21 +51,26 @@ object AllowanceService {
                 }
                 // Locked day read: serializes this create with remittance's REMITTED transition.
                 val (branchDay, isRemitted) =
-                    BranchDayService.checkBranchDayEditableInTransaction(callerId, branchDayId, reason, DayWrite.PAY)
+                    BranchDayService.checkBranchDayEditableInTransaction(
+                        callerId,
+                        new.branchDayId,
+                        new.reason,
+                        DayWrite.PAY,
+                    )
 
                 val result =
                     AllowanceRepository.createInTransaction(
                         AllowanceCreateParams(
-                            id = id,
-                            branchDayId = branchDayId,
-                            userId = userId,
-                            amount = amount,
+                            id = new.id,
+                            branchDayId = new.branchDayId,
+                            userId = new.userId,
+                            amount = new.amount,
                             assignedBy = callerId,
                         ),
                     )
                 if (result.created) {
                     AllowanceAudit.inserted(
-                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        AuditContext(callerId, branchDay.branchId, isRemitted, new.reason),
                         result.allowance,
                     )
                 }
@@ -103,3 +103,11 @@ internal object AllowanceAudit {
         fields = AllowanceTable.auditFields(allowance),
     )
 }
+
+data class NewAllowance(
+    val id: UUID,
+    val branchDayId: UUID,
+    val userId: UUID,
+    val amount: BigDecimal,
+    val reason: String? = null,
+)

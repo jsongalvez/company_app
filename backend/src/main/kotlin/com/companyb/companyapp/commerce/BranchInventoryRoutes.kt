@@ -210,14 +210,17 @@ object BranchInventoryRoutes {
         val movement =
             InventoryService.recordMovement(
                 callerId = callerId,
-                movementId = movementId,
-                branchId = branchId,
-                productId = productId,
-                movementType = MovementType.Restock,
-                quantityChange = request.quantity,
-                notes = null,
-                branchDayId = branchDayId,
-                reason = request.editReason,
+                new =
+                    NewInventoryMovement(
+                        movementId = movementId,
+                        branchId = branchId,
+                        productId = productId,
+                        movementType = MovementType.Restock,
+                        quantityChange = request.quantity,
+                        notes = null,
+                        branchDayId = branchDayId,
+                        reason = request.editReason,
+                    ),
             )
 
         context.status(HttpStatus.CREATED)
@@ -284,14 +287,17 @@ object BranchInventoryRoutes {
         val movement =
             InventoryService.recordMovement(
                 callerId = callerId,
-                movementId = movementId,
-                branchId = branchId,
-                productId = productId,
-                movementType = movementType,
-                quantityChange = request.quantityChange,
-                notes = request.notes,
-                branchDayId = branchDayId,
-                reason = request.editReason,
+                new =
+                    NewInventoryMovement(
+                        movementId = movementId,
+                        branchId = branchId,
+                        productId = productId,
+                        movementType = movementType,
+                        quantityChange = request.quantityChange,
+                        notes = request.notes,
+                        branchDayId = branchDayId,
+                        reason = request.editReason,
+                    ),
             )
 
         context.status(HttpStatus.CREATED)

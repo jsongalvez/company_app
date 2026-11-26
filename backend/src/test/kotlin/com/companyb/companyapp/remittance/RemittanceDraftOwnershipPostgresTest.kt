@@ -50,23 +50,27 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = firstBranchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = firstBranchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
 
         assertFailsWith<ConflictException> {
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = remittanceId,
-                type = RemittanceType.SESSION,
-                branchId = secondBranchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = rangeStart,
-                dateRangeEnd = rangeEnd,
+                NewRemittance(
+                    id = remittanceId,
+                    type = RemittanceType.SESSION,
+                    branchId = secondBranchId,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = rangeStart,
+                    dateRangeEnd = rangeEnd,
+                ),
             )
         }
 
@@ -99,12 +103,14 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
                     runCatching {
                         RemittanceService.createDraft(
                             callerId = callerId,
-                            id = remittanceId,
-                            type = RemittanceType.SESSION,
-                            branchId = branchIdForAttempt,
-                            method = RemittanceMethod.BANK_TRANSFER,
-                            dateRangeStart = rangeStart,
-                            dateRangeEnd = rangeEnd,
+                            NewRemittance(
+                                id = remittanceId,
+                                type = RemittanceType.SESSION,
+                                branchId = branchIdForAttempt,
+                                method = RemittanceMethod.BANK_TRANSFER,
+                                dateRangeStart = rangeStart,
+                                dateRangeEnd = rangeEnd,
+                            ),
                         )
                     }
                 }
@@ -148,21 +154,25 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = firstId,
-            type = RemittanceType.SESSION,
-            branchId = firstBranchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = firstId,
+                type = RemittanceType.SESSION,
+                branchId = firstBranchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         RemittanceService.createDraft(
             callerId = callerId,
-            id = secondId,
-            type = RemittanceType.SESSION,
-            branchId = firstBranchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = secondId,
+                type = RemittanceType.SESSION,
+                branchId = firstBranchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
 
         assertEquals(

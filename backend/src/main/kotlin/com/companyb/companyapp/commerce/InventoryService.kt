@@ -36,62 +36,47 @@ data class InventoryWithBreakdowns(
 object InventoryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "LongMethod") // #597
     fun recordMovement(
         callerId: UUID,
-        movementId: UUID,
-        branchId: UUID,
-        productId: UUID,
-        movementType: MovementType,
-        quantityChange: Int,
-        notes: String?,
-        branchDayId: UUID,
-        reason: String? = null,
+        new: NewInventoryMovement,
     ): InventoryMovement {
         return traced("InventoryService.recordMovement") {
-            val movementReason = movementType.toInventoryMovementReason()
+            val movementReason = new.movementType.toInventoryMovementReason()
             val params =
                 RecordMovementParams(
-                    movementId = movementId,
-                    branchId = branchId,
-                    productId = productId,
+                    movementId = new.movementId,
+                    branchId = new.branchId,
+                    productId = new.productId,
                     reason = movementReason,
-                    quantityChange = quantityChange,
-                    notes = notes,
-                    branchDayId = branchDayId,
+                    quantityChange = new.quantityChange,
+                    notes = new.notes,
+                    branchDayId = new.branchDayId,
                     movedBy = callerId,
                 )
 
             val result =
                 transaction {
-                    val existingMovement = BranchInventoryRepository.findMovementInTransaction(movementId)
+                    val existingMovement = BranchInventoryRepository.findMovementInTransaction(new.movementId)
                     if (existingMovement != null) {
                         // Idempotent retries remain safe no-ops even if product was later deactivated.
                         ensureRequestOwnership(existingMovement, params)
                         return@transaction RecordMovementResult(existingMovement, created = false)
                     }
 
-                    if (BranchService.findByIdOrNull(branchId) == null) throw NotFoundException("Branch not found")
-                    BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
+                    if (BranchService.findByIdOrNull(new.branchId) == null) throw NotFoundException("Branch not found")
+                    BranchDayService.requireBranchDayForBranch(new.branchDayId, new.branchId)
 
                     // day → product → card lock order (shared with ProductSaleService.sell):
                     // the day gate locks the day row before the product row so a sale and a
                     // movement on the same day serialize instead of deadlocking.
                     val isRemitted =
-                        StockValidator.validateMovement(
-                            callerId,
-                            branchDayId,
-                            movementType,
-                            quantityChange,
-                            notes,
-                            reason,
-                        )
+                        StockValidator.validateMovement(callerId, new)
 
-                    requireActiveProductInTransaction(productId)
+                    requireActiveProductInTransaction(new.productId)
 
                     // The card read that supplies expectedVersion now happens in this same command
                     // transaction, fixing the former cross-boundary stale version read.
-                    val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId).card
+                    val oldCard = BranchInventoryRepository.ensureCardInTransaction(new.branchId, new.productId).card
 
                     val inserted =
                         BranchInventoryRepository.insertMovementInTransaction(params)
@@ -101,10 +86,10 @@ object InventoryService {
                         BranchInventoryRepository.requireCardForUpdateInTransaction(
                             oldCard,
                             oldCard.version,
-                            quantityChange,
+                            new.quantityChange,
                         )
 
-                    val context = AuditContext(callerId, branchId, isRemitted, reason)
+                    val context = AuditContext(callerId, new.branchId, isRemitted, new.reason)
                     BranchInventoryAudit.updated(context, oldCard, newCard)
                     BranchInventoryAudit.inserted(context, inserted.movement)
                     inserted
@@ -112,7 +97,8 @@ object InventoryService {
 
             if (result.created) {
                 logger.info {
-                    "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
+                    "[RECORD-MOVEMENT] ${new.movementType} product=${new.productId} " +
+                        "branch=${new.branchId} qty=${new.quantityChange}"
                 }
             }
             return@traced result.movement
@@ -309,3 +295,14 @@ internal object BranchInventoryAudit {
         fields = BranchInventoryTable.auditFields(card),
     )
 }
+
+data class NewInventoryMovement(
+    val movementId: UUID,
+    val branchId: UUID,
+    val productId: UUID,
+    val movementType: MovementType,
+    val quantityChange: Int,
+    val notes: String?,
+    val branchDayId: UUID,
+    val reason: String? = null,
+)

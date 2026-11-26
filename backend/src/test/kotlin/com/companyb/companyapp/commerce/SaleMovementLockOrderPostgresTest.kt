@@ -181,13 +181,15 @@ class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
         productId: UUID,
     ) = ProductSaleService.sell(
         callerId = callerId,
-        id = saleId,
-        branchDayId = dayId,
-        sessionId = null,
-        clientId = null,
-        isWalkIn = true,
-        productId = productId,
-        quantity = SALE_QTY,
+        NewProductSale(
+            id = saleId,
+            branchDayId = dayId,
+            sessionId = null,
+            clientId = null,
+            isWalkIn = true,
+            productId = productId,
+            quantity = SALE_QTY,
+        ),
         expectedVersion = currentCardVersion(branchId, productId),
     )
 
@@ -198,13 +200,15 @@ class SaleMovementLockOrderPostgresTest : BasePostgresTest() {
         productId: UUID,
     ) = InventoryService.recordMovement(
         callerId = callerId,
-        movementId = movementId,
-        branchId = branchId,
-        productId = productId,
-        movementType = MovementType.Restock,
-        quantityChange = RESTOCK_QTY,
-        notes = null,
-        branchDayId = dayId,
+        NewInventoryMovement(
+            movementId = movementId,
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            quantityChange = RESTOCK_QTY,
+            notes = null,
+            branchDayId = dayId,
+        ),
     )
 
     private fun isDeadlock(failure: Throwable): Boolean =

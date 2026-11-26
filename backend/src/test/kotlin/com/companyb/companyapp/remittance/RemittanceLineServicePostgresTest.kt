@@ -4,6 +4,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.BranchInventoryTable
 import com.companyb.companyapp.commerce.InventoryService
+import com.companyb.companyapp.commerce.NewProductSale
 import com.companyb.companyapp.commerce.ProductCategoryRepository
 import com.companyb.companyapp.commerce.ProductCreateParams
 import com.companyb.companyapp.commerce.ProductRepository
@@ -24,6 +25,8 @@ import com.companyb.companyapp.remittance.RemittanceDayBreakdownTable
 import com.companyb.companyapp.remittance.RemittanceLineTable
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.remittance.RemittanceTable
+import com.companyb.companyapp.session.NewSession
+import com.companyb.companyapp.session.SessionCreateContext
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.session.SessionTable
 import com.companyb.companyapp.test.TestFixtures
@@ -106,11 +109,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(),
             )
 
         assertNotNull(line)
@@ -133,11 +132,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.PRODUCT_SALE,
-                    sessionId = null,
-                    productSaleId = productSaleId,
-                    amount = BigDecimal("500.00"),
+                    NewRemittanceLine(
+                        id = TestFixtures.uuid(),
+                        type = RemittanceLineType.PRODUCT_SALE,
+                        sessionId = null,
+                        productSaleId = productSaleId,
+                        amount = BigDecimal("500.00"),
+                    ),
                 )
             }
         assertEquals("This remittance is for sessions. Product sales go in a Product sales remittance.", error.message)
@@ -150,11 +151,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(),
         )
         val version = RemittanceService.getRemittance(remittance.id).remittance.version
 
@@ -163,10 +160,12 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.updateHeader(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    type = RemittanceType.PRODUCT,
-                    method = RemittanceMethod.BANK_TRANSFER,
-                    dateRangeStart = remittance.dateRangeStart,
-                    dateRangeEnd = remittance.dateRangeEnd,
+                    RemittanceHeader(
+                        type = RemittanceType.PRODUCT,
+                        method = RemittanceMethod.BANK_TRANSFER,
+                        dateRangeStart = remittance.dateRangeStart,
+                        dateRangeEnd = remittance.dateRangeEnd,
+                    ),
                     expectedVersion = version,
                 )
             }
@@ -184,11 +183,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.PRODUCT_SALE,
-                sessionId = null,
-                productSaleId = productSaleId,
-                amount = BigDecimal("500.00"),
+                NewRemittanceLine(
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = null,
+                    productSaleId = productSaleId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
 
         assertNotNull(line)
@@ -207,25 +208,29 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         assertFailsWith<NotFoundException> {
             RemittanceService.addLine(
-                callerId,
-                remittance.id,
-                TestFixtures.uuid(),
-                RemittanceLineType.SESSION,
-                foreign.sessionId,
-                null,
-                BigDecimal("1500.00"),
+                callerId = callerId,
+                remittanceId = remittance.id,
+                NewRemittanceLine(
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.SESSION,
+                    sessionId = foreign.sessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                ),
             )
         }
         val productRemittance = createDraftRemittance(RemittanceType.PRODUCT)
         assertFailsWith<NotFoundException> {
             RemittanceService.addLine(
-                callerId,
-                productRemittance.id,
-                TestFixtures.uuid(),
-                RemittanceLineType.PRODUCT_SALE,
-                null,
-                productSaleId,
-                BigDecimal("500.00"),
+                callerId = callerId,
+                remittanceId = productRemittance.id,
+                NewRemittanceLine(
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = null,
+                    productSaleId = productSaleId,
+                    amount = BigDecimal("500.00"),
+                ),
             )
         }
 
@@ -294,11 +299,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.SESSION,
-                    sessionId = outOfRangeSessionId,
-                    productSaleId = null,
-                    amount = BigDecimal("1500.00"),
+                    NewRemittanceLine(
+                        id = TestFixtures.uuid(),
+                        type = RemittanceLineType.SESSION,
+                        sessionId = outOfRangeSessionId,
+                        productSaleId = null,
+                        amount = BigDecimal("1500.00"),
+                    ),
                 )
             }
         assertTrue(checkNotNull(error.message).contains("outside remittance range"))
@@ -327,11 +334,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.PRODUCT_SALE,
-                    sessionId = null,
-                    productSaleId = outOfRangeSaleId,
-                    amount = BigDecimal("500.00"),
+                    NewRemittanceLine(
+                        id = TestFixtures.uuid(),
+                        type = RemittanceLineType.PRODUCT_SALE,
+                        sessionId = null,
+                        productSaleId = outOfRangeSaleId,
+                        amount = BigDecimal("500.00"),
+                    ),
                 )
             }
         assertTrue(checkNotNull(error.message).contains("outside remittance range"))
@@ -352,11 +361,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.SESSION,
-                    sessionId = sessionId,
-                    productSaleId = null,
-                    amount = BigDecimal("1500.00"),
+                    sessionLine(),
                 )
             }
         assertTrue(checkNotNull(error.message).contains("voided", ignoreCase = true))
@@ -377,11 +382,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(),
             )
 
         assertNotNull(line)
@@ -412,11 +413,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                     RemittanceService.addLine(
                         callerId = callerId,
                         remittanceId = remittance.id,
-                        id = TestFixtures.uuid(),
-                        type = RemittanceLineType.SESSION,
-                        sessionId = statusSessionId,
-                        productSaleId = null,
-                        amount = BigDecimal("1500.00"),
+                        NewRemittanceLine(
+                            id = TestFixtures.uuid(),
+                            type = RemittanceLineType.SESSION,
+                            sessionId = statusSessionId,
+                            productSaleId = null,
+                            amount = BigDecimal("1500.00"),
+                        ),
                     )
                 }
             assertTrue(
@@ -473,11 +476,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = lineId,
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(lineId),
             )
         val versionAfterFirst = RemittanceService.getRemittance(remittance.id).remittance.version
         val auditCountAfterFirst = remittanceLineAuditCount()
@@ -486,11 +485,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = lineId,
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(lineId),
             )
 
         assertEquals(first.id, second.id)
@@ -511,11 +506,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
         val versionBefore = RemittanceService.getRemittance(remittance.id).remittance.version
         val auditCountBefore = remittanceLineAuditCount()
@@ -524,22 +515,20 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = lineId,
-                type = RemittanceLineType.PRODUCT_SALE,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                NewRemittanceLine(
+                    id = lineId,
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = sessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                ),
             )
         }
         assertFailsWith<ConflictException> {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = lineId,
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("500.00"),
+                sessionLine(lineId, BigDecimal("500.00")),
             )
         }
 
@@ -559,11 +548,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
         val versionBefore = RemittanceService.getRemittance(remittance.id).remittance.version
         val auditCountBefore = remittanceLineAuditCount()
@@ -574,11 +559,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = lineId,
-                type = RemittanceLineType.SESSION,
-                sessionId = secondSessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                NewRemittanceLine(
+                    id = lineId,
+                    type = RemittanceLineType.SESSION,
+                    sessionId = secondSessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                ),
             )
         }
 
@@ -586,11 +573,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = otherUser,
                 remittanceId = remittance.id,
-                id = lineId,
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(lineId),
             )
         }
 
@@ -615,11 +598,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                         RemittanceService.addLine(
                             callerId = callerId,
                             remittanceId = remittance.id,
-                            id = lineId,
-                            type = RemittanceLineType.SESSION,
-                            sessionId = sessionId,
-                            productSaleId = null,
-                            amount = BigDecimal("1500.00"),
+                            sessionLine(lineId),
                         )
                     line.id
                 }
@@ -651,11 +630,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = firstRemittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
         val firstVersion = RemittanceService.getRemittance(firstRemittance.id).remittance.version
         val versionBefore = RemittanceService.getRemittance(secondRemittance.id).remittance.version
@@ -665,11 +640,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = secondRemittance.id,
-                id = lineId,
-                type = RemittanceLineType.SESSION,
-                sessionId = secondSessionId,
-                productSaleId = null,
-                amount = BigDecimal("2000.00"),
+                NewRemittanceLine(
+                    id = lineId,
+                    type = RemittanceLineType.SESSION,
+                    sessionId = secondSessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("2000.00"),
+                ),
             )
         }
 
@@ -690,11 +667,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = otherUser,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(),
             )
 
         assertNotNull(line)
@@ -710,11 +683,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = firstDraft.id,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(),
         )
 
         val error =
@@ -722,11 +691,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = secondDraft.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.SESSION,
-                    sessionId = sessionId,
-                    productSaleId = null,
-                    amount = BigDecimal("1500.00"),
+                    sessionLine(),
                 )
             }
         assertEquals("Session already included in a remittance line", error.message)
@@ -740,11 +705,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(),
         )
 
         val versionBeforeConflict =
@@ -766,11 +727,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(),
             )
         }
 
@@ -801,11 +758,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.PRODUCT_SALE,
-            sessionId = null,
-            productSaleId = productSaleId,
-            amount = BigDecimal("500.00"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.PRODUCT_SALE,
+                sessionId = null,
+                productSaleId = productSaleId,
+                amount = BigDecimal("500.00"),
+            ),
         )
 
         val error =
@@ -813,11 +772,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.addLine(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    id = TestFixtures.uuid(),
-                    type = RemittanceLineType.PRODUCT_SALE,
-                    sessionId = null,
-                    productSaleId = productSaleId,
-                    amount = BigDecimal("500.00"),
+                    NewRemittanceLine(
+                        id = TestFixtures.uuid(),
+                        type = RemittanceLineType.PRODUCT_SALE,
+                        sessionId = null,
+                        productSaleId = productSaleId,
+                        amount = BigDecimal("500.00"),
+                    ),
                 )
             }
         assertEquals("Product sale already included in a remittance line", error.message)
@@ -832,11 +793,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = firstLineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(firstLineId),
         )
         RemittanceService.removeLine(callerId, remittance.id, firstLineId)
 
@@ -844,11 +801,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("2000.00"),
+                sessionLine(amount = BigDecimal("2000.00")),
             )
 
         assertNotNull(reAdded)
@@ -861,11 +814,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = TestFixtures.uuid(),
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = TestFixtures.uuid(),
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                NewRemittanceLine(
+                    id = TestFixtures.uuid(),
+                    type = RemittanceLineType.SESSION,
+                    sessionId = TestFixtures.uuid(),
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                ),
             )
         }
     }
@@ -880,11 +835,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = TestFixtures.uuid(),
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
+                sessionLine(),
             )
         }
     }
@@ -898,11 +849,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         val afterAdd = requireNotNull(RemittanceService.getRemittance(remittance.id).remittance)
@@ -934,11 +881,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = owner.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         val ownerVersionBefore = RemittanceService.getRemittance(owner.id).remittance.version
@@ -964,11 +907,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         markRemittanceSubmitted(remittance.id)
@@ -989,11 +928,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         val deleted = RemittanceService.removeLine(otherUser, remittance.id, lineId)
@@ -1142,11 +1077,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(),
         )
         RemittanceService.addDayBreakdown(
             callerId = callerId,
@@ -1162,10 +1093,12 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 RemittanceService.updateHeader(
                     callerId = callerId,
                     remittanceId = remittance.id,
-                    type = RemittanceType.SESSION,
-                    method = RemittanceMethod.BANK_TRANSFER,
-                    dateRangeStart = TestFixtures.today.minusDays(60),
-                    dateRangeEnd = TestFixtures.today.minusDays(30),
+                    RemittanceHeader(
+                        type = RemittanceType.SESSION,
+                        method = RemittanceMethod.BANK_TRANSFER,
+                        dateRangeStart = TestFixtures.today.minusDays(60),
+                        dateRangeEnd = TestFixtures.today.minusDays(30),
+                    ),
                     expectedVersion = versionBefore,
                 )
             }
@@ -1228,11 +1161,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         RemittanceService.addDayBreakdown(
@@ -1262,21 +1191,19 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId1,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1000.00"),
+            sessionLine(lineId1, BigDecimal("1000.00")),
         )
 
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId2,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId2,
-            productSaleId = null,
-            amount = BigDecimal("2000.00"),
+            NewRemittanceLine(
+                id = lineId2,
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId2,
+                productSaleId = null,
+                amount = BigDecimal("2000.00"),
+            ),
         )
 
         val detail = RemittanceService.getRemittance(remittance.id)
@@ -1292,11 +1219,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1000.00"),
+            sessionLine(lineId, BigDecimal("1000.00")),
         )
 
         RemittanceService.removeLine(callerId, remittance.id, lineId)
@@ -1334,11 +1257,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         val auditCount =
@@ -1362,11 +1281,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittance.id,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("1500.00"),
+            sessionLine(lineId),
         )
 
         RemittanceService.removeLine(callerId, remittance.id, lineId)
@@ -1397,11 +1312,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
-                id = blockedId,
-                type = RemittanceLineType.SESSION,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("9999999999.99"),
+                sessionLine(blockedId, BigDecimal("9999999999.99")),
             )
         }
         assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
@@ -1410,29 +1321,34 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     private fun createDraftRemittance(type: RemittanceType = RemittanceType.SESSION) =
         RemittanceService.createDraft(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            type = type,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            // #483 — the range must cover the operational today the session/sale fixtures
-            // land on; out-of-range writes are rejected, so a fixed July window would fail.
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = TestFixtures.today,
+            NewRemittance(
+                id = TestFixtures.uuid(),
+                type = type,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                // #483 — the range must cover the operational today the session/sale fixtures
+                // land on; out-of-range writes are rejected, so a fixed July window would fail.
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = TestFixtures.today,
+            ),
         )
 
     private fun createSession(sid: UUID = sessionId) {
         SessionService.create(
             callerId = callerId,
-            id = sid,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sid,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         // #857 — only COMPLETED sessions are remittable; complete the fixture so the
         // legacy happy-path tests exercise the guarded (allowed) state.
@@ -1445,13 +1361,15 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         ensureBranchInventory()
         ProductSaleService.sell(
             callerId = callerId,
-            id = productSaleId,
-            branchDayId = branchDayId,
-            sessionId = sessionId,
-            clientId = null,
-            isWalkIn = false,
-            productId = productId,
-            quantity = 1,
+            NewProductSale(
+                id = productSaleId,
+                branchDayId = branchDayId,
+                sessionId = sessionId,
+                clientId = null,
+                isWalkIn = false,
+                productId = productId,
+                quantity = 1,
+            ),
             expectedVersion = 2,
         )
     }
@@ -1529,4 +1447,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 .where { AuditLogTable.auditTableName eq RemittanceDayBreakdownTable.tableName }
                 .count()
         }
+
+    /** A line remitting [sessionId]. */
+    private fun sessionLine(
+        id: UUID = TestFixtures.uuid(),
+        amount: BigDecimal = BigDecimal("1500.00"),
+    ) = NewRemittanceLine(id, RemittanceLineType.SESSION, sessionId, null, amount)
 }

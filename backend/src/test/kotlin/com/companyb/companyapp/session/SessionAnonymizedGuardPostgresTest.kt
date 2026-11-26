@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.client.ClientService
+import com.companyb.companyapp.client.NewClient
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.client.Gender
@@ -66,10 +67,12 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
+                NewSessionPractitioner(
+                    id = TestFixtures.uuid(),
+                    practitionerId = practitionerId,
+                    remarks = "late note",
+                ),
                 sessionId = sessionId,
-                practitionerId = practitionerId,
-                remarks = "late note",
             )
         }
     }
@@ -85,7 +88,7 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
                 callerId = callerId,
                 sessionId = sessionId,
                 practitionerId = practitionerId,
-                remarks = "late edit",
+                RemarksEdit(remarks = "late edit"),
             )
         }
     }
@@ -184,16 +187,19 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
         createClient()
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.NO_SHOW, expectedVersion = 1)
         ClientService.anonymize(callerId, clientId)
@@ -220,34 +226,39 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
     private fun createClient() {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = "ZqxGuard",
-            lastName = "Client",
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = "Cavite",
-            gender = Gender.F,
-            age = RETAINED_AGE,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = clientId,
+                firstName = "ZqxGuard",
+                lastName = "Client",
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = "Cavite",
+                gender = Gender.F,
+                age = RETAINED_AGE,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
     private fun createCompletedSession() {
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, expectedVersion = 1)
     }
@@ -255,23 +266,24 @@ class SessionAnonymizedGuardPostgresTest : BasePostgresTest() {
     private fun createSessionWithPractitioner() {
         SessionService.create(
             callerId = callerId,
-            id = sessionId,
-            clientId = clientId,
-            branchId = branchId,
-            isWalkIn = false,
-            requestedPractitionerId = null,
-            finalPrice = BigDecimal("2500.00"),
-            remarks = null,
-            otherConcerns = null,
-            nextAppointmentDate = null,
-            requireClockIn = false,
+            NewSession(
+                id = sessionId,
+                clientId = clientId,
+                branchId = branchId,
+                isWalkIn = false,
+                requestedPractitionerId = null,
+                finalPrice = BigDecimal("2500.00"),
+                remarks = null,
+                otherConcerns = null,
+                nextAppointmentDate = null,
+            ),
+            context =
+                SessionCreateContext(requireClockIn = false),
         )
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = practitionerRowId,
+            NewSessionPractitioner(id = practitionerRowId, practitionerId = practitionerId, remarks = null),
             sessionId = sessionId,
-            practitionerId = practitionerId,
-            remarks = null,
         )
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, expectedVersion = 2)
     }

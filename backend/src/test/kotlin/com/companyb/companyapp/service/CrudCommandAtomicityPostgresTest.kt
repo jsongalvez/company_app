@@ -6,6 +6,7 @@ import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.client.ClientCreateParams
+import com.companyb.companyapp.client.ClientEdit
 import com.companyb.companyapp.client.ClientRepository
 import com.companyb.companyapp.client.ClientService
 import com.companyb.companyapp.client.ClientTable
@@ -15,8 +16,10 @@ import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.finance.CompensationEdit
 import com.companyb.companyapp.finance.CompensationService
 import com.companyb.companyapp.finance.CompensationTable
+import com.companyb.companyapp.finance.NewCompensation
 import com.companyb.companyapp.session.ConcernTable
 import com.companyb.companyapp.session.SessionConcernService
 import com.companyb.companyapp.session.SessionConcernTable
@@ -146,17 +149,19 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
             ClientService.update(
                 callerId = callerId,
                 clientId = missingClientId,
-                firstName = "Ghost",
-                lastName = null,
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = null,
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
+                ClientEdit(
+                    firstName = "Ghost",
+                    lastName = null,
+                    middleName = null,
+                    suffix = null,
+                    phoneNumber = null,
+                    address = null,
+                    gender = null,
+                    age = null,
+                    systolicBp = null,
+                    diastolicBp = null,
+                    medicalConditions = null,
+                ),
             )
         }
 
@@ -184,20 +189,21 @@ class CrudCommandAtomicityPostgresTest : BasePostgresTest() {
         val created =
             CompensationService.create(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                workBranchDayId = workDayId,
-                payingBranchDayId = payingDayId,
-                userId = targetUserId,
-                amount = BigDecimal("100.00"),
-                note = null,
+                NewCompensation(
+                    id = TestFixtures.uuid(),
+                    workBranchDayId = workDayId,
+                    payingBranchDayId = payingDayId,
+                    userId = targetUserId,
+                    amount = BigDecimal("100.00"),
+                    note = null,
+                ),
             )
 
         assertFailsWith<ConflictException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = created.id,
-                amount = BigDecimal("200.00"),
-                note = null,
+                CompensationEdit(amount = BigDecimal("200.00"), note = null),
                 expectedVersion = 999,
             )
         }

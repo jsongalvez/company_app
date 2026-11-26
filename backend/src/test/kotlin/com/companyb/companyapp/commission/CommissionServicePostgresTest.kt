@@ -3,6 +3,7 @@ package com.companyb.companyapp.commission
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.Role
 import com.companyb.companyapp.commerce.BranchInventoryTable
+import com.companyb.companyapp.commerce.NewProductSale
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -67,11 +68,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = inclusionId,
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = true,
-                reason = "Should receive commission",
+                NewManualInclusion(
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = "Should receive commission",
+                ),
             )
 
         assertNotNull(inclusion)
@@ -91,11 +94,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = inclusionId,
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
 
         assertNotNull(inclusion)
@@ -109,11 +114,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = inclusionId,
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = false,
-                reason = "Not eligible",
+                NewManualInclusion(
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = false,
+                    reason = "Not eligible",
+                ),
             )
 
         assertNotNull(inclusion)
@@ -126,21 +133,25 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         CommissionService.createManualInclusion(
             callerId = callerId,
-            id = inclusionId,
-            productSaleId = productSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = "Initial",
+            NewManualInclusion(
+                id = inclusionId,
+                productSaleId = productSaleId,
+                userId = targetUserId,
+                isIncluded = true,
+                reason = "Initial",
+            ),
         )
 
         val updated =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = false,
-                reason = "Updated reason",
+                NewManualInclusion(
+                    id = TestFixtures.uuid(),
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = false,
+                    reason = "Updated reason",
+                ),
             )
 
         assertEquals(false, updated.isIncluded)
@@ -161,11 +172,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val reusedId = TestFixtures.uuid()
         CommissionService.createManualInclusion(
             callerId = callerId,
-            id = reusedId,
-            productSaleId = productSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = null,
+            NewManualInclusion(
+                id = reusedId,
+                productSaleId = productSaleId,
+                userId = targetUserId,
+                isIncluded = true,
+                reason = null,
+            ),
         )
 
         val otherSaleId = createProductSale(branchDayId, expectedVersion = 2)
@@ -175,11 +188,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = reusedId,
-                productSaleId = otherSaleId,
-                userId = otherUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = reusedId,
+                    productSaleId = otherSaleId,
+                    userId = otherUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
         }
     }
@@ -190,11 +205,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = inclusionId,
-                productSaleId = productSaleId,
-                userId = targetUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
 
         assertNotNull(inclusion)
@@ -206,11 +223,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = TestFixtures.uuid(),
-                productSaleId = TestFixtures.uuid(),
-                userId = targetUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = TestFixtures.uuid(),
+                    productSaleId = TestFixtures.uuid(),
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
         }
     }
@@ -223,11 +242,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = blockedId,
-                productSaleId = productSaleId,
-                userId = unknownUserId,
-                isIncluded = true,
-                reason = null,
+                NewManualInclusion(
+                    id = blockedId,
+                    productSaleId = productSaleId,
+                    userId = unknownUserId,
+                    isIncluded = true,
+                    reason = null,
+                ),
             )
         }
         val stored =
@@ -264,11 +285,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         CommissionService.createManualInclusion(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            productSaleId = pastSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = "Left out by mistake",
+            NewManualInclusion(
+                id = TestFixtures.uuid(),
+                productSaleId = pastSaleId,
+                userId = targetUserId,
+                isIncluded = true,
+                reason = "Left out by mistake",
+            ),
         )
 
         val splits = CommissionService.getByBranchDayId(pastDayId)
@@ -288,11 +311,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
             measureTimedValue {
                 CommissionService.createManualInclusion(
                     callerId = callerId,
-                    id = inclusionId,
-                    productSaleId = productSaleId,
-                    userId = targetUserId,
-                    isIncluded = true,
-                    reason = null,
+                    NewManualInclusion(
+                        id = inclusionId,
+                        productSaleId = productSaleId,
+                        userId = targetUserId,
+                        isIncluded = true,
+                        reason = null,
+                    ),
                 )
             }
         assertTrue(duration < 5.seconds, "commission recalculation regressed: took $duration")
@@ -312,11 +337,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         CommissionService.createManualInclusion(
             callerId = callerId,
-            id = inclusionId,
-            productSaleId = productSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = null,
+            NewManualInclusion(
+                id = inclusionId,
+                productSaleId = productSaleId,
+                userId = targetUserId,
+                isIncluded = true,
+                reason = null,
+            ),
         )
 
         grantViewBranchData(callerId)
@@ -351,11 +378,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         CommissionService.createManualInclusion(
             callerId = callerId,
-            id = inclusionId,
-            productSaleId = productSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = "Audit test",
+            NewManualInclusion(
+                id = inclusionId,
+                productSaleId = productSaleId,
+                userId = targetUserId,
+                isIncluded = true,
+                reason = "Audit test",
+            ),
         )
 
         val auditCount =
@@ -378,11 +407,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
             transaction {
                 CommissionService.createManualInclusion(
                     callerId = callerId,
-                    id = inclusionId,
-                    productSaleId = productSaleId,
-                    userId = targetUserId,
-                    isIncluded = true,
-                    reason = null,
+                    NewManualInclusion(
+                        id = inclusionId,
+                        productSaleId = productSaleId,
+                        userId = targetUserId,
+                        isIncluded = true,
+                        reason = null,
+                    ),
                 )
                 error("injected commission trigger failure")
             }
@@ -410,11 +441,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `concurrent repeated recalculation converges without losing splits`() {
         CommissionService.createManualInclusion(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            productSaleId = productSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = null,
+            NewManualInclusion(
+                id = TestFixtures.uuid(),
+                productSaleId = productSaleId,
+                userId = targetUserId,
+                isIncluded = true,
+                reason = null,
+            ),
         )
 
         val executor = Executors.newFixedThreadPool(2)
@@ -450,13 +483,15 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
-            id = saleId,
-            branchDayId = branchDayId,
-            sessionId = null,
-            clientId = null,
-            isWalkIn = true,
-            productId = productId,
-            quantity = 2,
+            NewProductSale(
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 2,
+            ),
             expectedVersion = expectedVersion,
         )
         return saleId

@@ -287,18 +287,20 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
     ) {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = firstName,
-            lastName = lastName,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = "Cavite",
-            gender = Gender.F,
-            age = RETAINED_AGE,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = clientId,
+                firstName = firstName,
+                lastName = lastName,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = "Cavite",
+                gender = Gender.F,
+                age = RETAINED_AGE,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
@@ -306,17 +308,19 @@ class ClientAnonymizationRedactionPostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = clientId,
-            firstName = firstName,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = null,
-            age = null,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = firstName,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 

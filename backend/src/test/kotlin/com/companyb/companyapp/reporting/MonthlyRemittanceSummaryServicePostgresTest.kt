@@ -9,6 +9,8 @@ import com.companyb.companyapp.contracts.remittance.RemittanceType
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionType
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.remittance.NewRemittance
+import com.companyb.companyapp.remittance.NewRemittanceLine
 import com.companyb.companyapp.remittance.RemittanceService
 import com.companyb.companyapp.test.TestFixtures
 import com.companyb.companyapp.testsupport.database.BasePostgresTest
@@ -96,11 +98,13 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sId,
-            productSaleId = null,
-            amount = BigDecimal("2000.00"),
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sId,
+                productSaleId = null,
+                amount = BigDecimal("2000.00"),
+            ),
         )
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -216,11 +220,13 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = sId,
-            productSaleId = null,
-            amount = lineAmount,
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sId,
+                productSaleId = null,
+                amount = lineAmount,
+            ),
         )
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -236,12 +242,14 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.PRODUCT,
-            branchId = branchId,
-            method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            dateRangeStart = currentMonth.atDay(1),
-            dateRangeEnd = currentMonth.atEndOfMonth(),
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.PRODUCT,
+                branchId = branchId,
+                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                dateRangeStart = currentMonth.atDay(1),
+                dateRangeEnd = currentMonth.atEndOfMonth(),
+            ),
         )
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
@@ -250,11 +258,13 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
-            id = lineId,
-            type = RemittanceLineType.PRODUCT_SALE,
-            sessionId = null,
-            productSaleId = psId,
-            amount = BigDecimal("200.00"),
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.PRODUCT_SALE,
+                sessionId = null,
+                productSaleId = psId,
+                amount = BigDecimal("200.00"),
+            ),
         )
 
         val version = RemittanceService.getRemittance(remittanceId).remittance.version
@@ -268,12 +278,14 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     ) {
         RemittanceService.createDraft(
             callerId = callerId,
-            id = remittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = dateRangeStart,
-            dateRangeEnd = dateRangeEnd,
+            NewRemittance(
+                id = remittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = dateRangeStart,
+                dateRangeEnd = dateRangeEnd,
+            ),
         )
     }
 

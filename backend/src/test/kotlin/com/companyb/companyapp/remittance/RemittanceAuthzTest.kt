@@ -105,34 +105,40 @@ class RemittanceAuthzTest : BasePostgresTest() {
         draftRemittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = submitUser,
-            id = draftRemittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = draftRemittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         breakdownId = TestFixtures.uuid()
         RemittanceService.addDayBreakdown(submitUser, draftRemittanceId, breakdownId, dayId)
         RemittanceService.addLine(
             callerId = submitUser,
             remittanceId = draftRemittanceId,
-            id = TestFixtures.uuid(),
-            type = RemittanceLineType.SESSION,
-            sessionId = sessionId,
-            productSaleId = null,
-            amount = BigDecimal("100.00"),
+            NewRemittanceLine(
+                id = TestFixtures.uuid(),
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("100.00"),
+            ),
         )
 
         otherBranchDraftId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = submitUser,
-            id = otherBranchDraftId,
-            type = RemittanceType.PRODUCT,
-            branchId = otherBranchId,
-            method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = otherBranchDraftId,
+                type = RemittanceType.PRODUCT,
+                branchId = otherBranchId,
+                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         otherBranchBreakdownId = TestFixtures.uuid()
         val otherDayId = BranchWorkforceFixtures.createBranchDayForDate(otherBranchId, branchDayDate)
@@ -152,22 +158,26 @@ class RemittanceAuthzTest : BasePostgresTest() {
         )
         RemittanceService.createDraft(
             callerId = submitUser,
-            id = submittedRemittanceId,
-            type = RemittanceType.SESSION,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = rangeStart,
-            dateRangeEnd = rangeEnd,
+            NewRemittance(
+                id = submittedRemittanceId,
+                type = RemittanceType.SESSION,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = rangeStart,
+                dateRangeEnd = rangeEnd,
+            ),
         )
         RemittanceService.addDayBreakdown(submitUser, submittedRemittanceId, submittedBreakdownId, dayId)
         RemittanceService.addLine(
             callerId = submitUser,
             remittanceId = submittedRemittanceId,
-            id = subLineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = secondSessionId,
-            productSaleId = null,
-            amount = BigDecimal("500.00"),
+            NewRemittanceLine(
+                id = subLineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = secondSessionId,
+                productSaleId = null,
+                amount = BigDecimal("500.00"),
+            ),
         )
         RemittanceService.submit(
             callerId = submitUser,
@@ -540,11 +550,13 @@ class RemittanceAuthzTest : BasePostgresTest() {
         RemittanceService.addLine(
             callerId = submitUser,
             remittanceId = draftRemittanceId,
-            id = lineId,
-            type = RemittanceLineType.SESSION,
-            sessionId = freshSessionId,
-            productSaleId = null,
-            amount = BigDecimal("75.00"),
+            NewRemittanceLine(
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = freshSessionId,
+                productSaleId = null,
+                amount = BigDecimal("75.00"),
+            ),
         )
         assertDelete(403, "/api/remittances/$draftRemittanceId/lines/$lineId", noneUser)
     }

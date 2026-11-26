@@ -286,10 +286,12 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             RemittanceService.updateHeader(
                 callerId = callerId,
                 remittanceId = remittanceId,
-                type = RemittanceType.PRODUCT,
-                method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-                dateRangeStart = newRangeStart,
-                dateRangeEnd = newRangeEnd,
+                RemittanceHeader(
+                    type = RemittanceType.PRODUCT,
+                    method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
+                    dateRangeStart = newRangeStart,
+                    dateRangeEnd = newRangeEnd,
+                ),
                 expectedVersion = 1,
             )
 
@@ -317,10 +319,12 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             RemittanceService.updateHeader(
                 callerId = callerId,
                 remittanceId = remittanceId,
-                type = RemittanceType.PRODUCT,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                RemittanceHeader(
+                    type = RemittanceType.PRODUCT,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = LocalDate.of(2026, 7, 1),
+                    dateRangeEnd = LocalDate.of(2026, 7, 15),
+                ),
                 expectedVersion = 99,
             )
         }
@@ -337,10 +341,12 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             RemittanceService.updateHeader(
                 callerId = callerId,
                 remittanceId = remittanceId,
-                type = RemittanceType.PRODUCT,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                RemittanceHeader(
+                    type = RemittanceType.PRODUCT,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = LocalDate.of(2026, 7, 1),
+                    dateRangeEnd = LocalDate.of(2026, 7, 15),
+                ),
                 expectedVersion = 99,
             )
         }
@@ -357,10 +363,12 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         RemittanceService.updateHeader(
             callerId = callerId,
             remittanceId = secondId,
-            type = RemittanceType.SESSION,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            RemittanceHeader(
+                type = RemittanceType.SESSION,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = LocalDate.of(2026, 7, 15),
+            ),
             expectedVersion = 1,
         )
         assertEquals(RemittanceType.SESSION, RemittanceService.getRemittance(secondId).remittance.type)
@@ -372,10 +380,12 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             RemittanceService.updateHeader(
                 callerId = callerId,
                 remittanceId = TestFixtures.uuid(),
-                type = RemittanceType.PRODUCT,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
+                RemittanceHeader(
+                    type = RemittanceType.PRODUCT,
+                    method = RemittanceMethod.BANK_TRANSFER,
+                    dateRangeStart = LocalDate.of(2026, 7, 1),
+                    dateRangeEnd = LocalDate.of(2026, 7, 15),
+                ),
                 expectedVersion = 1,
             )
         }
@@ -389,12 +399,14 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
-            id = id,
-            type = type,
-            branchId = branchId,
-            method = RemittanceMethod.BANK_TRANSFER,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            NewRemittance(
+                id = id,
+                type = type,
+                branchId = branchId,
+                method = RemittanceMethod.BANK_TRANSFER,
+                dateRangeStart = LocalDate.of(2026, 7, 1),
+                dateRangeEnd = LocalDate.of(2026, 7, 15),
+            ),
         )
         return id
     }

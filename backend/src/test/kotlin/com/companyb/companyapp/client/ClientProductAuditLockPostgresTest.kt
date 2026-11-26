@@ -1,6 +1,8 @@
 package com.companyb.companyapp.client
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.commerce.NewProduct
+import com.companyb.companyapp.commerce.ProductEdit
 import com.companyb.companyapp.commerce.ProductRepository
 import com.companyb.companyapp.commerce.ProductService
 import com.companyb.companyapp.commerce.ProductTable
@@ -138,11 +140,13 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
                     ProductService.update(
                         callerId = callerId,
                         productId = productId,
-                        name = null,
-                        productCategoryId = null,
-                        unitPrice = CONTENDER_PRICE,
-                        commissionAmount = null,
-                        isActive = null,
+                        ProductEdit(
+                            name = null,
+                            productCategoryId = null,
+                            unitPrice = CONTENDER_PRICE,
+                            commissionAmount = null,
+                            isActive = null,
+                        ),
                     )
                 }
             assertEquals(null, contenderFailure, "contender failed: $contenderFailure")
@@ -186,11 +190,13 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
                     ProductService.update(
                         callerId = callerId,
                         productId = productId,
-                        name = CONTENDER_PRODUCT,
-                        productCategoryId = null,
-                        unitPrice = null,
-                        commissionAmount = null,
-                        isActive = null,
+                        ProductEdit(
+                            name = CONTENDER_PRODUCT,
+                            productCategoryId = null,
+                            unitPrice = null,
+                            commissionAmount = null,
+                            isActive = null,
+                        ),
                     )
                 }
             assertEquals(null, contenderFailure, "contender failed: $contenderFailure")
@@ -248,17 +254,19 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = id,
-            firstName = null,
-            lastName = lastName,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = null,
-            age = null,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = null,
+                lastName = lastName,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
@@ -269,17 +277,19 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = id,
-            firstName = firstName,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = null,
-            age = null,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = firstName,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
@@ -320,18 +330,20 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
     ) {
         ClientService.create(
             callerId = callerId,
-            id = id,
-            firstName = firstName,
-            lastName = lastName,
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = Gender.M,
-            age = CLIENT_AGE,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            NewClient(
+                id = id,
+                firstName = firstName,
+                lastName = lastName,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = Gender.M,
+                age = CLIENT_AGE,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
     }
 
@@ -342,11 +354,13 @@ class ClientProductAuditLockPostgresTest : BasePostgresTest() {
     ) {
         ProductService.create(
             callerId = callerId,
-            id = id,
-            name = name,
-            productCategoryId = categoryId,
-            unitPrice = price,
-            commissionAmount = COMMISSION,
+            NewProduct(
+                id = id,
+                name = name,
+                productCategoryId = categoryId,
+                unitPrice = price,
+                commissionAmount = COMMISSION,
+            ),
         )
     }
 

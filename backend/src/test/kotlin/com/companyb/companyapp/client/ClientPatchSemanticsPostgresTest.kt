@@ -48,18 +48,20 @@ class ClientPatchSemanticsPostgresTest : BasePostgresTest() {
     fun `clear optional name parts and conditions persists nulls`() {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = "Ana",
-            lastName = "Santos",
-            middleName = "Reyes",
-            suffix = "Jr",
-            phoneNumber = "09170000000",
-            address = "Cavite",
-            gender = Gender.F,
-            age = 30,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = "Asthma",
+            NewClient(
+                id = clientId,
+                firstName = "Ana",
+                lastName = "Santos",
+                middleName = "Reyes",
+                suffix = "Jr",
+                phoneNumber = "09170000000",
+                address = "Cavite",
+                gender = Gender.F,
+                age = 30,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = "Asthma",
+            ),
         )
 
         update(
@@ -218,18 +220,20 @@ class ClientPatchSemanticsPostgresTest : BasePostgresTest() {
     ) {
         ClientService.create(
             callerId = callerId,
-            id = clientId,
-            firstName = "Ana",
-            lastName = "Santos",
-            middleName = middleName,
-            suffix = null,
-            phoneNumber = phoneNumber,
-            address = address,
-            gender = Gender.F,
-            age = 30,
-            systolicBp = systolicBp,
-            diastolicBp = diastolicBp,
-            medicalConditions = null,
+            NewClient(
+                id = clientId,
+                firstName = "Ana",
+                lastName = "Santos",
+                middleName = middleName,
+                suffix = null,
+                phoneNumber = phoneNumber,
+                address = address,
+                gender = Gender.F,
+                age = 30,
+                systolicBp = systolicBp,
+                diastolicBp = diastolicBp,
+                medicalConditions = null,
+            ),
         )
     }
 
@@ -242,18 +246,20 @@ class ClientPatchSemanticsPostgresTest : BasePostgresTest() {
     ) = ClientService.update(
         callerId = callerId,
         clientId = clientId,
-        firstName = firstName,
-        lastName = null,
-        middleName = null,
-        suffix = null,
-        phoneNumber = phoneNumber,
-        address = null,
-        gender = null,
-        age = null,
-        systolicBp = systolicBp,
-        diastolicBp = diastolicBp,
-        medicalConditions = null,
-        clearFields = clearFields,
+        ClientEdit(
+            firstName = firstName,
+            lastName = null,
+            middleName = null,
+            suffix = null,
+            phoneNumber = phoneNumber,
+            address = null,
+            gender = null,
+            age = null,
+            systolicBp = systolicBp,
+            diastolicBp = diastolicBp,
+            medicalConditions = null,
+            clearFields = clearFields,
+        ),
     )
 
     private fun persistedPhone(): String? =

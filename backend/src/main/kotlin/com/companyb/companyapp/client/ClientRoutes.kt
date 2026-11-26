@@ -158,19 +158,22 @@ object ClientRoutes {
         val result =
             ClientService.create(
                 callerId = callerId,
-                id = clientId,
-                firstName = firstName,
-                lastName = lastName,
-                middleName = request.middleName,
-                suffix = request.suffix,
-                phoneNumber = request.phoneNumber,
-                address = request.address,
-                gender = request.gender,
-                age = request.age,
-                earlierVisits = request.earlierVisits,
-                systolicBp = request.systolicBp,
-                diastolicBp = request.diastolicBp,
-                medicalConditions = request.medicalConditions,
+                new =
+                    NewClient(
+                        id = clientId,
+                        firstName = firstName,
+                        lastName = lastName,
+                        middleName = request.middleName,
+                        suffix = request.suffix,
+                        phoneNumber = request.phoneNumber,
+                        address = request.address,
+                        gender = request.gender,
+                        age = request.age,
+                        earlierVisits = request.earlierVisits,
+                        systolicBp = request.systolicBp,
+                        diastolicBp = request.diastolicBp,
+                        medicalConditions = request.medicalConditions,
+                    ),
             )
 
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
@@ -225,19 +228,22 @@ object ClientRoutes {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientId,
-                firstName = request.firstName?.trim(),
-                lastName = request.lastName?.trim(),
-                middleName = request.middleName,
-                suffix = request.suffix,
-                phoneNumber = request.phoneNumber,
-                address = request.address,
-                gender = request.gender,
-                age = request.age,
-                earlierVisits = request.earlierVisits,
-                systolicBp = request.systolicBp,
-                diastolicBp = request.diastolicBp,
-                medicalConditions = request.medicalConditions,
-                clearFields = request.clearFields,
+                edit =
+                    ClientEdit(
+                        firstName = request.firstName?.trim(),
+                        lastName = request.lastName?.trim(),
+                        middleName = request.middleName,
+                        suffix = request.suffix,
+                        phoneNumber = request.phoneNumber,
+                        address = request.address,
+                        gender = request.gender,
+                        age = request.age,
+                        earlierVisits = request.earlierVisits,
+                        systolicBp = request.systolicBp,
+                        diastolicBp = request.diastolicBp,
+                        medicalConditions = request.medicalConditions,
+                        clearFields = request.clearFields,
+                    ),
             )
 
         context.status(HttpStatus.OK)

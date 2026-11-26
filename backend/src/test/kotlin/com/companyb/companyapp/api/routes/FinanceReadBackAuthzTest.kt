@@ -13,6 +13,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.CompensationRoutes
 import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.finance.ExpenseService
+import com.companyb.companyapp.finance.NewExpense
 import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
@@ -176,11 +177,13 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         val id = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
-            id = id,
-            branchDayId = branchDayId,
-            amount = BigDecimal(amount),
-            category = ExpenseCategory.WATER,
-            notes = notes,
+            NewExpense(
+                id = id,
+                branchDayId = branchDayId,
+                amount = BigDecimal(amount),
+                category = ExpenseCategory.WATER,
+                notes = notes,
+            ),
         )
         return id
     }

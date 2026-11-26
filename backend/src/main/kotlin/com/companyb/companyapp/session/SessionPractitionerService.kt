@@ -41,63 +41,60 @@ internal object SessionPractitionerService {
         return SessionPractitionerRepository.findBySessionId(sessionId)
     }
 
-    @Suppress("LongParameterList") // #593
     fun addPractitioner(
         callerId: UUID,
-        id: UUID,
+        new: NewSessionPractitioner,
         sessionId: UUID,
-        practitionerId: UUID,
-        remarks: String?,
-        reason: String? = null,
         write: DayWrite = DayWrite.FIX,
         version: Int? = null,
     ): AddPractitionerResult {
-        if (!AccountReads.userExists(practitionerId)) {
+        if (!AccountReads.userExists(new.practitionerId)) {
             throw NotFoundException("User not found")
         }
         return traced("SessionPractitionerService.addPractitioner") {
             return@traced transaction {
-                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason, write)
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, new.reason, write)
 
                 // status-only INACTIVE guard: unknown users 404 above,
                 // deactivated users 400 here before the slot snapshot. Never a membership
                 // check — ACTIVE outsiders (relief) stay eligible for the 999 fallback.
-                requireActivePractitionerInTransaction(practitionerId)
+                requireActivePractitionerInTransaction(new.practitionerId)
 
                 val existing =
                     SessionPractitionerRepository.findBySessionAndPractitionerInTransaction(
                         sessionId,
-                        practitionerId,
+                        new.practitionerId,
                     )
                 if (existing != null) {
                     logger.info {
-                        "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)"
+                        "[ADD-PRACTITIONER] Practitioner ${new.practitionerId} " +
+                            "already in session $sessionId (idempotent)"
                     }
                     return@transaction AddPractitionerResult(existing, false)
                 }
 
                 val slotAtTime =
-                    WorkforceReads.findAssignmentSlotInTransaction(branchDay.branchId, practitionerId)
+                    WorkforceReads.findAssignmentSlotInTransaction(branchDay.branchId, new.practitionerId)
                         ?: DEFAULT_SLOT
 
                 val result =
                     SessionPractitionerRepository.addInTransaction(
-                        id = id,
+                        id = new.id,
                         sessionId = sessionId,
-                        practitionerId = practitionerId,
+                        practitionerId = new.practitionerId,
                         slotAtTime = slotAtTime,
-                        remarks = remarks,
+                        remarks = new.remarks,
                     )
                 if (result.created) {
                     SessionPractitionerRepository.incrementSessionVersion(sessionId, version)
                     SessionPractitionerAudit.inserted(
-                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        AuditContext(callerId, branchDay.branchId, isRemitted, new.reason),
                         result.practitioner,
                     )
                 }
 
                 logger.info {
-                    "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime"
+                    "[ADD-PRACTITIONER] Added practitioner ${new.practitionerId} to session $sessionId slot=$slotAtTime"
                 }
 
                 result
@@ -105,18 +102,16 @@ internal object SessionPractitionerService {
         }
     }
 
-    @Suppress("LongParameterList") // #593
     fun updatePractitionerRemarks(
         callerId: UUID,
         sessionId: UUID,
         practitionerId: UUID,
-        remarks: String?,
-        reason: String? = null,
+        edit: RemarksEdit,
         version: Int? = null,
     ): SessionPractitioner =
         traced("SessionPractitionerService.updatePractitionerRemarks") {
             transaction {
-                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, reason)
+                val (_, branchDay, isRemitted) = resolveSessionInTransaction(sessionId, callerId, edit.reason)
 
                 // Transaction-local before-state (ADR-0019): read inside the command's transaction.
                 val before =
@@ -127,12 +122,12 @@ internal object SessionPractitionerService {
                     SessionPractitionerRepository.updateRemarksInTransaction(
                         sessionId = sessionId,
                         practitionerId = practitionerId,
-                        remarks = remarks,
+                        remarks = edit.remarks,
                         version = version,
                     )
 
                 SessionPractitionerAudit.updated(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    AuditContext(callerId, branchDay.branchId, isRemitted, edit.reason),
                     before,
                     after,
                 )
@@ -238,3 +233,15 @@ internal object SessionPractitionerAudit {
         auditFields = SessionPractitionerTable::auditFields,
     )
 }
+
+data class NewSessionPractitioner(
+    val id: UUID,
+    val practitionerId: UUID,
+    val remarks: String?,
+    val reason: String? = null,
+)
+
+data class RemarksEdit(
+    val remarks: String?,
+    val reason: String? = null,
+)

@@ -26,34 +26,27 @@ import java.util.UUID
 object ProductSaleService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "CyclomaticComplexMethod", "LongMethod") // #597
+    @Suppress("LongMethod") // #597
     fun sell(
         callerId: UUID,
-        id: UUID,
-        branchDayId: UUID,
-        sessionId: UUID?,
-        clientId: UUID?,
-        isWalkIn: Boolean,
-        productId: UUID,
-        quantity: Int,
+        new: NewProductSale,
         expectedVersion: Int?,
-        reason: String? = null,
     ): ProductSale {
         // product_sale.quantity is SMALLINT (V1:412) while the wire type is
         // Int — fail closed with 400 before the insert instead of surfacing the
         // DB range violation as a 500 (auto-file). Widening the column to
         // INT is a separate migration decision (chief/human).
-        if (quantity > Short.MAX_VALUE) throw ValidationException("Quantity exceeds maximum supported value")
+        if (new.quantity > Short.MAX_VALUE) throw ValidationException("Quantity exceeds maximum supported value")
         return traced("ProductSaleService.sell") {
             val retryParams =
                 RetryProductSaleParams(
-                    id = id,
-                    branchDayId = branchDayId,
-                    sessionId = sessionId,
-                    clientId = clientId,
-                    isWalkIn = isWalkIn,
-                    productId = productId,
-                    quantity = quantity,
+                    id = new.id,
+                    branchDayId = new.branchDayId,
+                    sessionId = new.sessionId,
+                    clientId = new.clientId,
+                    isWalkIn = new.isWalkIn,
+                    productId = new.productId,
+                    quantity = new.quantity,
                     handledBy = callerId,
                 )
 
@@ -71,35 +64,39 @@ object ProductSaleService {
                     // is locked before the product row (day → product → card order,
                     // shared with InventoryService.recordMovement).
                     val (branchDay, isRemitted) =
-                        BranchDayService.checkBranchDayAddableInTransaction(callerId, branchDayId, reason)
+                        BranchDayService.checkBranchDayAddableInTransaction(callerId, new.branchDayId, new.reason)
 
                     // precedence preserved via findById (throws the same 404):
                     // an unknown branch fails closed before the product/session gates.
                     BranchService.findById(branchDay.branchId)
 
-                    val product = BranchPriceService.priceAtBranch(requireActiveProduct(productId), branchDay.branchId)
+                    val product =
+                        BranchPriceService.priceAtBranch(
+                            requireActiveProduct(new.productId),
+                            branchDay.branchId,
+                        )
 
                     // A legal unit price times quantity can still overflow the NUMERIC(10,2) total.
                     validateMoneyAmount(product.unitPrice, "unitPrice")
                     validateMoneyAmount(
-                        product.unitPrice.multiply(BigDecimal.valueOf(quantity.toLong())),
+                        product.unitPrice.multiply(BigDecimal.valueOf(new.quantity.toLong())),
                         "totalAmount",
                     )
 
-                    requireSessionInDay(sessionId, branchDayId)
+                    requireSessionInDay(new.sessionId, new.branchDayId)
 
-                    requireClientExistsInTransaction(clientId)
+                    requireClientExistsInTransaction(new.clientId)
 
                     val params =
                         SellProductParams(
-                            id = id,
-                            branchDayId = branchDayId,
-                            sessionId = sessionId,
-                            clientId = clientId,
-                            isWalkIn = isWalkIn,
-                            productId = productId,
+                            id = new.id,
+                            branchDayId = new.branchDayId,
+                            sessionId = new.sessionId,
+                            clientId = new.clientId,
+                            isWalkIn = new.isWalkIn,
+                            productId = new.productId,
                             branchId = branchDay.branchId,
-                            quantity = quantity,
+                            quantity = new.quantity,
                             expectedVersion = expectedVersion,
                             handledBy = callerId,
                             product = product,
@@ -134,7 +131,7 @@ object ProductSaleService {
                         ProductSaleRepository.findByIdInTransaction(params.id)
                             ?: error("product sale not found after insert for ${params.id}")
 
-                    val context = AuditContext(callerId, branchDay.branchId, isRemitted, reason)
+                    val context = AuditContext(callerId, branchDay.branchId, isRemitted, new.reason)
                     ProductSaleAudit.inserted(context, sale)
                     ProductSaleAudit.updated(context, beforeCard, newCard)
 
@@ -142,7 +139,7 @@ object ProductSaleService {
                     // transaction keeps persisted commission_split equal to liveCommissions
                     // instead of stale-until-manual (daily_sales_summary.total_commission).
                     // OPEN-day behavior is unchanged (force is a no-op there).
-                    CommissionService.recalculateInTransaction(branchDayId, force = true)
+                    CommissionService.recalculateInTransaction(new.branchDayId, force = true)
 
                     createdBranchId = params.branchId
                     SellProductResult(sale, created = true)
@@ -151,7 +148,7 @@ object ProductSaleService {
             if (result.created) {
                 logger.info {
                     "[PRODUCT-SALE] Sale ${result.sale.id} created " +
-                        "product=$productId branch=$createdBranchId qty=$quantity " +
+                        "product=${new.productId} branch=$createdBranchId qty=${new.quantity} " +
                         "total=${result.sale.totalAmountAtTime}"
                 }
             }
@@ -260,3 +257,14 @@ internal object ProductSaleAudit {
         auditFields = BranchInventoryTable::auditFields,
     )
 }
+
+data class NewProductSale(
+    val id: UUID,
+    val branchDayId: UUID,
+    val sessionId: UUID?,
+    val clientId: UUID?,
+    val isWalkIn: Boolean,
+    val productId: UUID,
+    val quantity: Int,
+    val reason: String? = null,
+)

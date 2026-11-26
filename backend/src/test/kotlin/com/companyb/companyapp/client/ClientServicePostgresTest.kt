@@ -336,17 +336,19 @@ class ClientServicePostgresTest : BasePostgresTest() {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
-                firstName = "Jane",
-                lastName = "Smith",
-                middleName = null,
-                suffix = null,
-                phoneNumber = "1112223333",
-                address = "456 Oak St",
-                gender = null,
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
+                ClientEdit(
+                    firstName = "Jane",
+                    lastName = "Smith",
+                    middleName = null,
+                    suffix = null,
+                    phoneNumber = "1112223333",
+                    address = "456 Oak St",
+                    gender = null,
+                    age = null,
+                    systolicBp = null,
+                    diastolicBp = null,
+                    medicalConditions = null,
+                ),
             )
 
         assertEquals("Jane", updated.firstName)
@@ -367,17 +369,19 @@ class ClientServicePostgresTest : BasePostgresTest() {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
-                firstName = "Jane",
-                lastName = null,
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = null,
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
+                ClientEdit(
+                    firstName = "Jane",
+                    lastName = null,
+                    middleName = null,
+                    suffix = null,
+                    phoneNumber = null,
+                    address = null,
+                    gender = null,
+                    age = null,
+                    systolicBp = null,
+                    diastolicBp = null,
+                    medicalConditions = null,
+                ),
             )
 
         assertEquals("Jane", updated.firstName)
@@ -389,17 +393,19 @@ class ClientServicePostgresTest : BasePostgresTest() {
             ClientService.update(
                 callerId = callerId,
                 clientId = TestFixtures.uuid(),
-                firstName = "Jane",
-                lastName = null,
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = null,
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
+                ClientEdit(
+                    firstName = "Jane",
+                    lastName = null,
+                    middleName = null,
+                    suffix = null,
+                    phoneNumber = null,
+                    address = null,
+                    gender = null,
+                    age = null,
+                    systolicBp = null,
+                    diastolicBp = null,
+                    medicalConditions = null,
+                ),
             )
         }
     }
@@ -413,17 +419,19 @@ class ClientServicePostgresTest : BasePostgresTest() {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
-                firstName = "Jane",
-                lastName = "Smith",
-                middleName = null,
-                suffix = null,
-                phoneNumber = "1112223333",
-                address = "456 Oak St",
-                gender = null,
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
+                ClientEdit(
+                    firstName = "Jane",
+                    lastName = "Smith",
+                    middleName = null,
+                    suffix = null,
+                    phoneNumber = "1112223333",
+                    address = "456 Oak St",
+                    gender = null,
+                    age = null,
+                    systolicBp = null,
+                    diastolicBp = null,
+                    medicalConditions = null,
+                ),
             )
         }
 
@@ -444,17 +452,19 @@ class ClientServicePostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = clientAId,
-            firstName = "UpdatedFirst",
-            lastName = "UpdatedLast",
-            middleName = null,
-            suffix = null,
-            phoneNumber = null,
-            address = null,
-            gender = null,
-            age = null,
-            systolicBp = null,
-            diastolicBp = null,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = "UpdatedFirst",
+                lastName = "UpdatedLast",
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            ),
         )
 
         val auditCount = auditEntryCount(clientAId)
@@ -591,18 +601,20 @@ class ClientServicePostgresTest : BasePostgresTest() {
     ): ClientCreateResult =
         ClientService.create(
             callerId = callerId,
-            id = id,
-            firstName = firstName,
-            lastName = lastName,
-            middleName = middleName,
-            suffix = suffix,
-            phoneNumber = phoneNumber,
-            address = address,
-            gender = gender,
-            age = age,
-            systolicBp = systolicBp,
-            diastolicBp = diastolicBp,
-            medicalConditions = medicalConditions,
+            NewClient(
+                id = id,
+                firstName = firstName,
+                lastName = lastName,
+                middleName = middleName,
+                suffix = suffix,
+                phoneNumber = phoneNumber,
+                address = address,
+                gender = gender,
+                age = age,
+                systolicBp = systolicBp,
+                diastolicBp = diastolicBp,
+                medicalConditions = medicalConditions,
+            ),
         )
 
     private fun updateRanges(
@@ -615,17 +627,19 @@ class ClientServicePostgresTest : BasePostgresTest() {
         ClientService.update(
             callerId = callerId,
             clientId = clientId,
-            firstName = null,
-            lastName = null,
-            middleName = null,
-            suffix = null,
-            phoneNumber = phoneNumber,
-            address = null,
-            gender = null,
-            age = age,
-            systolicBp = systolicBp,
-            diastolicBp = diastolicBp,
-            medicalConditions = null,
+            ClientEdit(
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = phoneNumber,
+                address = null,
+                gender = null,
+                age = age,
+                systolicBp = systolicBp,
+                diastolicBp = diastolicBp,
+                medicalConditions = null,
+            ),
         )
 
     private fun persistedClient(clientId: UUID): com.companyb.companyapp.client.Client =

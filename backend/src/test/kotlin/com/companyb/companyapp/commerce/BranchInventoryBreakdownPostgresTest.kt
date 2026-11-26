@@ -33,25 +33,29 @@ class BranchInventoryBreakdownPostgresTest : BasePostgresTest() {
 
         InventoryService.recordMovement(
             callerId = callerId,
-            movementId = TestFixtures.uuid(),
-            branchId = branchId,
-            productId = productId,
-            movementType = MovementType.Restock,
-            quantityChange = 20,
-            notes = null,
-            branchDayId = branchDayId,
+            NewInventoryMovement(
+                movementId = TestFixtures.uuid(),
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 20,
+                notes = null,
+                branchDayId = branchDayId,
+            ),
         )
         // Sales write SALE movements only through the sale command (sale_id_logic requires
         // product_sale_id); the breakdown aggregates them like any other ledger row.
         ProductSaleService.sell(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            branchDayId = branchDayId,
-            sessionId = null,
-            clientId = null,
-            isWalkIn = true,
-            productId = productId,
-            quantity = 4,
+            NewProductSale(
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 4,
+            ),
             expectedVersion = 2,
         )
 
@@ -61,13 +65,15 @@ class BranchInventoryBreakdownPostgresTest : BasePostgresTest() {
             notes: String? = null,
         ) = InventoryService.recordMovement(
             callerId = callerId,
-            movementId = TestFixtures.uuid(),
-            branchId = branchId,
-            productId = productId,
-            movementType = type,
-            quantityChange = qty,
-            notes = notes,
-            branchDayId = branchDayId,
+            NewInventoryMovement(
+                movementId = TestFixtures.uuid(),
+                branchId = branchId,
+                productId = productId,
+                movementType = type,
+                quantityChange = qty,
+                notes = notes,
+                branchDayId = branchDayId,
+            ),
         )
 
         move(MovementType.Tester, -2)

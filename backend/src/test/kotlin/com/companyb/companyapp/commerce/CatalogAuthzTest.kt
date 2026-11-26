@@ -129,11 +129,13 @@ class CatalogAuthzTest : BasePostgresTest() {
         ProductService.update(
             callerId = catalogUser,
             productId = productId,
-            name = null,
-            productCategoryId = null,
-            unitPrice = null,
-            commissionAmount = null,
-            isActive = false,
+            ProductEdit(
+                name = null,
+                productCategoryId = null,
+                unitPrice = null,
+                commissionAmount = null,
+                isActive = false,
+            ),
         )
         val body =
             testServer.client
@@ -149,11 +151,13 @@ class CatalogAuthzTest : BasePostgresTest() {
         ProductService.update(
             callerId = catalogUser,
             productId = productId,
-            name = null,
-            productCategoryId = null,
-            unitPrice = null,
-            commissionAmount = null,
-            isActive = false,
+            ProductEdit(
+                name = null,
+                productCategoryId = null,
+                unitPrice = null,
+                commissionAmount = null,
+                isActive = false,
+            ),
         )
         val response = testServer.client.get("/api/products?includeInactive=true", asUser(catalogUser))
         assertEquals(200, response.code)

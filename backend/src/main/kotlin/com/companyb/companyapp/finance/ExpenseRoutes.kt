@@ -169,12 +169,15 @@ object ExpenseRoutes {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = id,
-                branchDayId = branchDayId,
-                amount = amount,
-                category = category,
-                notes = request.notes,
-                reason = request.reason,
+                new =
+                    NewExpense(
+                        id = id,
+                        branchDayId = branchDayId,
+                        amount = amount,
+                        category = category,
+                        notes = request.notes,
+                        reason = request.reason,
+                    ),
             )
 
         context.status(HttpStatus.CREATED)
@@ -208,11 +211,14 @@ object ExpenseRoutes {
             ExpenseService.update(
                 callerId = callerId,
                 expenseId = expenseId,
-                amount = amount,
-                category = category,
-                notes = request.notes,
+                edit =
+                    ExpenseEdit(
+                        amount = amount,
+                        category = category,
+                        notes = request.notes,
+                        reason = request.reason,
+                    ),
                 expectedVersion = request.expectedVersion,
-                reason = request.reason,
             )
 
         context.status(HttpStatus.OK)

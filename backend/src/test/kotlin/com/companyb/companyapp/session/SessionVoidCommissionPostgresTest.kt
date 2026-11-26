@@ -1,6 +1,7 @@
 package com.companyb.companyapp.session
 
 import com.companyb.companyapp.commerce.BranchInventoryTable
+import com.companyb.companyapp.commerce.NewProductSale
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.test.TestFixtures
@@ -54,14 +55,16 @@ class SessionVoidCommissionPostgresTest : BasePostgresTest() {
     fun `void with linked sale clears persisted splits and unvoid restores them`() {
         ProductSaleService.sell(
             callerId = callerId,
-            id = TestFixtures.uuid(),
-            branchDayId = branchDayId,
-            sessionId = sessionId,
-            // sale_type_logic: a session-linked sale carries client_id NULL + walk-in FALSE.
-            clientId = null,
-            isWalkIn = false,
-            productId = productId,
-            quantity = 1,
+            NewProductSale(
+                id = TestFixtures.uuid(),
+                branchDayId = branchDayId,
+                sessionId = sessionId,
+                // sale_type_logic: a session-linked sale carries client_id NULL + walk-in FALSE.
+                clientId = null,
+                isWalkIn = false,
+                productId = productId,
+                quantity = 1,
+            ),
             expectedVersion = 1,
         )
 

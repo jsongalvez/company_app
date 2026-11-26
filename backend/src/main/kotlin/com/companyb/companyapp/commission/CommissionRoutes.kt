@@ -98,11 +98,14 @@ object CommissionRoutes {
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = id,
-                productSaleId = productSaleId,
-                userId = userId,
-                isIncluded = request.isIncluded,
-                reason = request.reason,
+                new =
+                    NewManualInclusion(
+                        id = id,
+                        productSaleId = productSaleId,
+                        userId = userId,
+                        isIncluded = request.isIncluded,
+                        reason = request.reason,
+                    ),
             )
 
         context.status(HttpStatus.CREATED)

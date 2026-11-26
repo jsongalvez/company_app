@@ -11,6 +11,7 @@ import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.commerce.InventoryService
 import com.companyb.companyapp.commerce.MovementType
+import com.companyb.companyapp.commerce.NewInventoryMovement
 import com.companyb.companyapp.commerce.ProductSaleRoutes
 import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
@@ -25,7 +26,9 @@ import com.companyb.companyapp.http.KotlinxSerializationMapper
 import com.companyb.companyapp.identity.JwtService
 import com.companyb.companyapp.identity.Password
 import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
+import com.companyb.companyapp.session.NewSession
 import com.companyb.companyapp.session.SessionBaseRateService
+import com.companyb.companyapp.session.SessionCreateContext
 import com.companyb.companyapp.session.SessionRoutes
 import com.companyb.companyapp.session.SessionService
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -147,13 +150,15 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         InventoryService.ensureCard(reliefUser, branchA, productId)
         InventoryService.recordMovement(
             callerId = reliefUser,
-            movementId = TestFixtures.uuid(),
-            branchId = branchA,
-            productId = productId,
-            movementType = MovementType.Restock,
-            quantityChange = 10,
-            notes = null,
-            branchDayId = grantedDay,
+            NewInventoryMovement(
+                movementId = TestFixtures.uuid(),
+                branchId = branchA,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = grantedDay,
+            ),
         )
     }
 
@@ -517,17 +522,19 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             assertFailsWith<NotFoundException> {
                 SessionService.create(
                     callerId = reliefUser,
-                    id = TestFixtures.uuid(),
-                    clientId = createClientId,
-                    branchId = branchA,
-                    isWalkIn = false,
-                    requestedPractitionerId = null,
-                    finalPrice = BigDecimal("2500.00"),
-                    remarks = null,
-                    otherConcerns = null,
-                    nextAppointmentDate = null,
-                    gatedBranchDayId = dayOtherBranch,
-                    requireClockIn = false,
+                    NewSession(
+                        id = TestFixtures.uuid(),
+                        clientId = createClientId,
+                        branchId = branchA,
+                        isWalkIn = false,
+                        requestedPractitionerId = null,
+                        finalPrice = BigDecimal("2500.00"),
+                        remarks = null,
+                        otherConcerns = null,
+                        nextAppointmentDate = null,
+                    ),
+                    context =
+                        SessionCreateContext(gatedBranchDayId = dayOtherBranch, requireClockIn = false),
                 )
             }
         assertTrue(e.message.orEmpty().contains("for this branch"))

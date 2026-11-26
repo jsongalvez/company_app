@@ -4,6 +4,7 @@ import com.companyb.companyapp.authorization.CapabilityService
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.branchday.BranchDayTable
 import com.companyb.companyapp.contracts.workforce.ReliefInviteStatus
+import com.companyb.companyapp.database.ilike
 import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.identity.People
 import com.companyb.companyapp.observability.traced
@@ -194,26 +195,6 @@ internal object ReliefInviteRepository {
 
     /** Escapes LIKE wildcards so a user-typed prefix cannot broaden the match. */
     private fun escapeLike(input: String): String = input.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-    private class ILikeOp(
-        expr1: org.jetbrains.exposed.v1.core.Expression<*>,
-        expr2: org.jetbrains.exposed.v1.core.Expression<*>,
-    ) : org.jetbrains.exposed.v1.core.ComparisonOp(expr1, expr2, "ILIKE")
-
-    // #598: String-backed ilike column narrows to IColumnType<String>; cast is the Exposed generic seam (#467).
-    @Suppress("UNCHECKED_CAST") // #598
-    private fun <T : String?> ilike(
-        col: org.jetbrains.exposed.v1.core.Column<T>,
-        pattern: String,
-    ): org.jetbrains.exposed.v1.core.Op<Boolean> =
-        ILikeOp(
-            col,
-            org.jetbrains.exposed.v1.core.QueryParameter(
-                pattern,
-                // SAFETY: ilike takes String-backed columns; columnType narrows here #467
-                col.columnType as org.jetbrains.exposed.v1.core.IColumnType<String>,
-            ),
-        )
 
     fun isActiveUser(userId: UUID): Boolean =
         traced("ReliefInviteRepository.isActiveUser") {

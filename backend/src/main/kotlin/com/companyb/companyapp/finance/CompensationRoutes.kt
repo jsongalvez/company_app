@@ -113,13 +113,16 @@ object CompensationRoutes {
             val compensation =
                 CompensationService.create(
                     callerId = callerId,
-                    id = id,
-                    workBranchDayId = workBranchDayId,
-                    payingBranchDayId = payingBranchDayId,
-                    userId = userId,
-                    amount = amount,
-                    note = request.note,
-                    reason = request.reason,
+                    new =
+                        NewCompensation(
+                            id = id,
+                            workBranchDayId = workBranchDayId,
+                            payingBranchDayId = payingBranchDayId,
+                            userId = userId,
+                            amount = amount,
+                            note = request.note,
+                            reason = request.reason,
+                        ),
                 )
 
             context.status(HttpStatus.CREATED)
@@ -138,10 +141,13 @@ object CompensationRoutes {
                 CompensationService.update(
                     callerId = callerId,
                     compensationId = compensationId,
-                    amount = amount,
-                    note = request.note,
+                    edit =
+                        CompensationEdit(
+                            amount = amount,
+                            note = request.note,
+                            reason = request.reason,
+                        ),
                     expectedVersion = request.expectedVersion,
-                    reason = request.reason,
                 )
 
             context.status(HttpStatus.OK)

@@ -2,6 +2,7 @@ package com.companyb.companyapp.client
 
 import com.companyb.companyapp.contracts.client.Gender
 import com.companyb.companyapp.contracts.session.SessionType
+import com.companyb.companyapp.database.ilike
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.observability.traced
@@ -422,23 +423,6 @@ private fun similarity(
     expr1: Expression<*>,
     expr2: Expression<*>,
 ): CustomFunction<Float> = CustomFunction("similarity", FloatColumnType(), expr1, expr2)
-
-private class ILikeOp(
-    expr1: Expression<*>,
-    expr2: Expression<*>,
-) : ComparisonOp(expr1, expr2, "ILIKE")
-
-// #599: String-backed ilike column narrows to IColumnType<String>; cast is the Exposed generic seam (#467).
-@Suppress("UNCHECKED_CAST") // #599
-private fun <T : String?> ilike(
-    col: Column<T>,
-    pattern: String,
-): Op<Boolean> =
-    ILikeOp(
-        col,
-        // SAFETY: ilike takes String-backed columns; columnType narrows here #467
-        QueryParameter(pattern, col.columnType as org.jetbrains.exposed.v1.core.IColumnType<String>),
-    )
 
 /**
  * One nullable column's three-state write: clear writes null, a present value

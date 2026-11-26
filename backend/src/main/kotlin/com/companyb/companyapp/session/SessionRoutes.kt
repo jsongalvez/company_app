@@ -483,11 +483,14 @@ object SessionRoutes {
         request.practitioners.forEach { added ->
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = uuidOrThrow(added.id, "id"),
+                new =
+                    NewSessionPractitioner(
+                        id = uuidOrThrow(added.id, "id"),
+                        practitionerId = uuidOrThrow(added.practitionerId, "practitioner id"),
+                        remarks = added.remarks,
+                        reason = added.reason,
+                    ),
                 sessionId = sessionId,
-                practitionerId = uuidOrThrow(added.practitionerId, "practitioner id"),
-                remarks = added.remarks,
-                reason = added.reason,
                 write = DayWrite.ADD,
             )
         }
@@ -575,11 +578,14 @@ object SessionRoutes {
         val result =
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
-                id = id,
+                new =
+                    NewSessionPractitioner(
+                        id = id,
+                        practitionerId = practitionerId,
+                        remarks = request.remarks,
+                        reason = request.reason,
+                    ),
                 sessionId = sessionId,
-                practitionerId = practitionerId,
-                remarks = request.remarks,
-                reason = request.reason,
                 version = request.version,
             )
 
@@ -598,8 +604,11 @@ object SessionRoutes {
                 callerId = callerId,
                 sessionId = sessionId,
                 practitionerId = practitionerId,
-                remarks = request.remarks,
-                reason = request.reason,
+                edit =
+                    RemarksEdit(
+                        remarks = request.remarks,
+                        reason = request.reason,
+                    ),
                 version = request.version,
             )
 

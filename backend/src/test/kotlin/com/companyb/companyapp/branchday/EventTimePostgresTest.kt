@@ -1,6 +1,7 @@
 package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.commerce.NewProductSale
 import com.companyb.companyapp.commerce.ProductSaleService
 import com.companyb.companyapp.commission.CommissionService
 import com.companyb.companyapp.contracts.branchday.DayStatus
@@ -79,7 +80,19 @@ class EventTimePostgresTest : BasePostgresTest() {
         dayId: UUID,
     ) {
         OpTime.set(occurred)
-        ProductSaleService.sell(early, TestFixtures.uuid(), dayId, null, null, true, productId, 1, null)
+        ProductSaleService.sell(
+            callerId = early,
+            NewProductSale(
+                id = TestFixtures.uuid(),
+                branchDayId = dayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+            ),
+            expectedVersion = null,
+        )
     }
 
     private fun flaggedRowsFor(record: UUID): List<Pair<Boolean, String?>> =
