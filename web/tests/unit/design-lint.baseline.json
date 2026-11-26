@@ -13,10 +13,13 @@
     "components/PeopleChecklist.svelte": 1,
     "components/PersonPicker.svelte": 2,
     "components/RangePicker.svelte": 6,
-    "components/Shell.svelte": 28,
+    "components/SessionConcerns.svelte": 2,
+    "components/Shell.svelte": 18,
+    "components/ShellSearch.svelte": 7,
     "components/State.svelte": 1,
     "components/ThemeIcon.svelte": 1,
     "components/Toast.svelte": 3,
+    "components/ViewAsBar.svelte": 3,
     "pages/Audit.svelte": 3,
     "pages/Branches.svelte": 1,
     "pages/ClientDetail.svelte": 3,
@@ -28,7 +31,7 @@
     "pages/Profile.svelte": 1,
     "pages/Relief.svelte": 1,
     "pages/RemittanceDetail.svelte": 2,
-    "pages/SessionDetail.svelte": 6,
+    "pages/SessionDetail.svelte": 4,
     "pages/Today.svelte": 9,
     "pages/Users.svelte": 1
 }

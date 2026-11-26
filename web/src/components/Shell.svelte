@@ -1,99 +1,25 @@
 <script lang="ts">
-    import { app, can, canRead, signOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
+    import { app, canRead, signOut } from "../lib/app.svelte";
     import { today, selectBranch, clockIn, clockOut } from "../lib/today.svelte";
     import { route, go, goBack } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import FullIcon from "./FullIcon.svelte";
     import InstallApp from "./InstallApp.svelte";
     import Feedback from "./Feedback.svelte";
-    import { load, warm, type Loader } from "../lib/data";
+    import { load, warm } from "../lib/data";
     import { peek } from "../lib/cache.svelte";
     import NetBar from "./NetBar.svelte";
     import Lazy from "./Lazy.svelte";
-    import { page, type PageName } from "../lib/pages.svelte";
-    import { day, label, operationalDate, monthStart, clientName } from "../lib/format";
-    import { searchLocal } from "../lib/clientdir.svelte";
+    import { page } from "../lib/pages.svelte";
+    import { navGroups } from "../lib/nav";
+    import { day, label, operationalDate } from "../lib/format";
     import Today from "../pages/Today.svelte";
-
-    /** `page`: the screen's code, and `reads`: what it shows first. The menu opening fetches both (reads only if never saved); a touch refetches the reads. */
-    type Item = { path: string; text: string; show: boolean; page?: PageName; reads?: () => Loader<unknown>[] };
+    import ShellSearch from "./ShellSearch.svelte";
+    import ViewAsBar from "./ViewAsBar.svelte";
 
     const bid = $derived(app.branchId);
     const view = $derived(canRead("SEE_DAY"));
-    // Reports cover the whole branch, so relief's one-day grant doesn't open them. Relief does see the stock.
-    const viewBranch = $derived(canRead("SEE_BRANCH", { branch: bid }));
-    // Today's Expenses & pay and Sales reports, as those pages read them when opened with no date.
-    function financeReads(): Loader<unknown>[] {
-        const d = operationalDate();
-        const dayId = today.day?.branchDayId;
-        if (!dayId) return [load.branchDay(bid, d)];
-        const pay = can("PAY", { branch: bid, day: dayId });
-        return [
-            load.daySessions(bid, d),
-            load.expenses(dayId),
-            ...(canRead("SEE_COMMISSION", { branch: bid, day: dayId }) ? [load.commissionSplits(dayId)] : []),
-            ...(pay ? [load.compensations(dayId), load.allowances(dayId), load.dayUsers(dayId)] : []),
-            load.dailySummary(bid, d),
-            load.members(bid),
-        ];
-    }
-    function reportReads(): Loader<unknown>[] {
-        const d = operationalDate();
-        const from = monthStart(d);
-        return [load.dailySummaries(bid, from, d), load.monthly(bid, Number(from.slice(0, 4)), Number(from.slice(5, 7)))];
-    }
-    const nav = $derived<{ title: string; items: Item[] }[]>([
-        {
-            title: "Branch",
-            items: [
-                { path: "/today", text: "Sessions", show: view, reads: () => [load.dashboard(bid), load.roster(bid)] },
-                { path: "/clients", page: "Clients", text: "Clients", show: canRead("WORK_ANYWHERE") },
-                { path: "/inventory", page: "Inventory", text: "Stock", show: view, reads: () => [load.inventory(bid), load.movements(bid, "")] },
-                { path: "/finance", page: "Finance", text: "Expenses & pay", show: view, reads: financeReads },
-                { path: "/reports", page: "Reports", text: "Sales reports", show: viewBranch, reads: reportReads },
-                {
-                    path: "/remittance",
-                    page: "Remittances",
-                    text: "Remittance",
-                    show: canRead("SUBMIT_REMITTANCE", { branch: bid }),
-                    reads: () => [load.remittances(bid)],
-                },
-            ],
-        },
-        {
-            title: "Me",
-            items: [
-                { path: "/profile", page: "Profile", text: "My profile", show: true },
-                { path: "/my-history", page: "MyHistory", text: "My shifts & pay", show: true },
-                { path: "/relief", page: "Relief", text: "Relief duty", show: true, reads: () => [load.reliefMine(), load.reliefInvitesMine()] },
-                {
-                    path: "/notifications",
-                    page: "Notifications",
-                    text: app.unread ? `Alerts (${app.unread})` : "Alerts",
-                    show: true,
-                    reads: () => [load.notifications()],
-                },
-            ],
-        },
-        {
-            title: "Admin",
-            items: [
-                { path: "/users", page: "Users", text: "Users", show: canRead("MANAGE_USERS"), reads: () => [load.users()] },
-                {
-                    path: "/branches",
-                    page: "Branches",
-                    text: "Branches",
-                    show: can("MANAGE_USERS") || can("ASSIGN_DELEGATE") || app.accessible.length > 0,
-                    reads: () => (canRead("MANAGE_USERS") ? [load.branches()] : []),
-                },
-                // Who pays at every branch pays from one page.
-                { path: "/pay", page: "Payouts", text: "Pay, all branches", show: can("PAY", {}) },
-                { path: "/catalog", page: "Catalog", text: "Products", show: canRead("MANAGE_CATALOG"), reads: () => [load.products()] },
-                { path: "/feedback", page: "FeedbackList", text: "Feedback inbox", show: canRead("MANAGE_USERS") },
-                { path: "/audit", page: "Audit", text: "Change history", show: true, reads: () => [load.auditTables()] },
-            ],
-        },
-    ]);
+    const nav = $derived(navGroups(bid));
 
     const section = $derived("/" + (route.current.parts[0] ?? ""));
     // The page Alerts was opened from. On Alerts, Home keeps its space (hidden) when that page
@@ -177,22 +103,6 @@
         clockBusy = false;
     }
 
-    let q = $state("");
-    let qFocus = $state(false);
-    // Suggestions come from the client list kept on the phone, so they show at once, offline too.
-    const hints = $derived(qFocus && q.trim().length >= 2 ? searchLocal(q, 6) : []);
-    function search(e: SubmitEvent) {
-        e.preventDefault();
-        qFocus = false;
-        go("/clients", { q: q.trim() });
-    }
-    function pick(id: string) {
-        qFocus = false;
-        q = "";
-        menuOpen = false;
-        go(`/clients/${id}`);
-    }
-
     // Default landing page.
     $effect(() => {
         if (route.current.parts.length === 0) go(view ? "/today" : "/relief");
@@ -203,17 +113,7 @@
 
 <NetBar />
 <div class="shell" class:viewing={!!app.viewAs}>
-    {#if app.viewAs}
-        <div class="viewas" role="status">
-            <span class="ellipsis"
-                >Viewing as <b>{app.viewAs.name}</b>{#if app.viewAs.roles.length}&nbsp;({app.viewAs.roles.join(", ")}){/if}</span
-            >
-            <label class="check nowrap"
-                ><input type="checkbox" checked={app.viewAs.allowChanges} onchange={(e) => setViewAsChanges(e.currentTarget.checked)} />Allow changes</label
-            >
-            <button class="sm" onclick={() => stopViewAs()}>Back to me</button>
-        </div>
-    {/if}
+    <ViewAsBar />
     <header class="top" bind:this={topEl}>
         <button class="ghost menu" onclick={() => (menuOpen = !menuOpen)} aria-label="Menu" aria-expanded={menuOpen}>☰</button>
         <a class="brand" href="#/today">CompanyApp</a>
@@ -226,32 +126,7 @@
                 aria-label="Home">⌂ Home</a
             >{/if}
 
-        <form class="search" onsubmit={search} role="search">
-            <input
-                type="search"
-                placeholder="Find client by name or phone"
-                bind:value={q}
-                aria-label="Find client"
-                autocomplete="off"
-                onfocus={() => (qFocus = true)}
-                onblur={() => setTimeout(() => (qFocus = false), 150)}
-                onkeydown={(e) => e.key === "Escape" && (qFocus = false)}
-            />
-            <button type="submit">Find</button>
-            {#if hints.length}
-                <ul class="hints" role="listbox" aria-label="Matching clients">
-                    {#each hints as c (c.id)}
-                        <li role="option" aria-selected="false">
-                            <button type="button" onmousedown={(e) => e.preventDefault()} onclick={() => pick(c.id)}
-                                ><span class="ellipsis">{clientName(c)}</span><span class="faint"
-                                    >{c.gender} {c.age ?? ""}{c.phoneNumber ? ` · ${c.phoneNumber}` : ""}</span
-                                ></button
-                            >
-                        </li>
-                    {/each}
-                </ul>
-            {/if}
-        </form>
+        <ShellSearch onpick={() => (menuOpen = false)} />
 
         <select class="branch" value={bid} onchange={(e) => selectBranch(e.currentTarget.value)} aria-label="Branch">
             {#if !bid}<option value="">No branch</option>{/if}
@@ -393,24 +268,6 @@
     .shell.viewing {
         grid-template-rows: auto 40px 1fr;
     }
-    .viewas {
-        grid-column: 1 / -1;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 4px 10px;
-        background: var(--warn);
-        color: var(--panel);
-        font-size: var(--t-meta);
-        min-width: 0;
-    }
-    .viewas > span {
-        flex: 1;
-        min-width: 0;
-    }
-    .viewas .check {
-        color: inherit;
-    }
     .top {
         grid-column: 1 / -1;
         display: flex;
@@ -426,51 +283,6 @@
         color: var(--text);
         margin-right: 6px;
         white-space: nowrap;
-    }
-    .search {
-        display: flex;
-        width: 300px;
-        min-width: 140px;
-    }
-    .search input {
-        flex: 1;
-    }
-    .search {
-        position: relative;
-    }
-    .hints {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        z-index: 60;
-        margin: 2px 0 0;
-        padding: 0;
-        list-style: none;
-        background: var(--panel);
-        border: 1px solid var(--line-strong);
-        box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
-    }
-    .hints button {
-        display: flex;
-        width: 100%;
-        gap: var(--s2);
-        justify-content: space-between;
-        border: 0;
-        border-bottom: 1px solid var(--line);
-        border-radius: 0;
-        background: none;
-        text-align: left;
-        height: auto;
-        padding: var(--s2);
-        min-width: 0;
-    }
-    .hints button:hover,
-    .hints button:focus {
-        background: var(--line);
-    }
-    .search button {
-        margin-left: -1px;
     }
     .branch {
         max-width: 200px;
@@ -549,9 +361,6 @@
         .top > button.ghost:last-child {
             display: none;
         }
-        .search {
-            width: 200px;
-        }
     }
 
     /* Phone: one column, nav becomes a drop-down list under the bar. */
@@ -563,13 +372,6 @@
         .shell.viewing {
             grid-template-rows: auto auto 1fr;
         }
-        .viewas {
-            flex-wrap: wrap;
-            row-gap: 2px;
-        }
-        .viewas > span {
-            flex-basis: 100%;
-        }
         .top {
             flex-wrap: wrap;
             padding: 6px 8px;
@@ -577,12 +379,6 @@
         }
         .menu {
             display: inline-flex;
-        }
-        .search {
-            order: 10;
-            flex: 1 1 220px;
-            width: auto;
-            min-width: 0;
         }
         .branch {
             max-width: none;
