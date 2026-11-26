@@ -4,7 +4,7 @@ import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.CapabilitySourceType
 import com.companyb.companyapp.contracts.branch.BranchType
-import com.companyb.companyapp.contracts.identity.HelperChoice
+import com.companyb.companyapp.contracts.identity.DelegateSeatChoice
 import com.companyb.companyapp.contracts.workforce.DelegateRole
 import java.util.UUID
 
@@ -225,10 +225,10 @@ object RoleRules {
     fun assignable(name: String): Boolean = name != TOP && name != NO_ACCESS
 
     /** Whether a helper may be given [name], and whether it is [DEFAULT_HELPER]. */
-    fun helperChoice(name: String): HelperChoice? =
+    fun helperChoice(name: String): DelegateSeatChoice? =
         when {
-            name == DEFAULT_HELPER.name -> HelperChoice.DEFAULT
-            DelegateRole.entries.any { it.name == name } -> HelperChoice.OFFERED
+            name == DEFAULT_HELPER.name -> DelegateSeatChoice.DEFAULT
+            DelegateRole.entries.any { it.name == name } -> DelegateSeatChoice.OFFERED
             else -> null
         }
 

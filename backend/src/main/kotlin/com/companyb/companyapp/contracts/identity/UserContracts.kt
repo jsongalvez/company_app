@@ -109,11 +109,11 @@ data class RoleResponse(
     /** Holding only this is no access yet; it is what saving no roles gives. */
     val noAccess: Boolean,
     /** Whether a helper may be given this role, and whether it is the one picked when none is. */
-    val helper: HelperChoice? = null,
+    val helper: DelegateSeatChoice? = null,
 )
 
 @Serializable
-enum class HelperChoice { DEFAULT, OFFERED }
+enum class DelegateSeatChoice { DEFAULT, OFFERED }
 
 /** Self-service profile edit: the caller changes their own name and email. */
 @Serializable
