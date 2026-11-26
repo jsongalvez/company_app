@@ -96,7 +96,7 @@
         padding: var(--s2) 0;
     }
     .kind {
-        margin-left: 8px;
+        margin-left: var(--s2);
         font-weight: normal;
     }
     .details {

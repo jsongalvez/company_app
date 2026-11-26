@@ -609,7 +609,7 @@
     }
     .layout {
         display: flex;
-        gap: 12px;
+        gap: var(--s3);
         align-items: flex-start;
     }
     .roster {
@@ -629,7 +629,7 @@
         border-bottom-color: var(--line);
     }
     .slot {
-        width: 24px;
+        width: var(--s5);
     }
     .at {
         margin-left: var(--s1);
@@ -666,7 +666,7 @@
         all: unset;
         cursor: pointer;
         display: block;
-        min-height: 32px;
+        min-height: var(--s6);
         line-height: 32px;
     }
     .fold::before {

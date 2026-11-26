@@ -90,14 +90,14 @@
     }
     .netbar {
         display: flex;
-        gap: 8px;
+        gap: var(--s2);
         align-items: center;
         justify-content: center;
         padding: 6px 10px;
         background: var(--warn-soft, var(--panel));
         color: var(--warn);
         border-top: 1px solid var(--warn);
-        font-size: 13px;
+        font-size: var(--t-meta);
         font-weight: 600;
         text-align: center;
     }
@@ -109,26 +109,26 @@
     .outbox {
         max-height: 50vh;
         overflow: auto;
-        padding: 8px 12px;
+        padding: var(--s2) var(--s3);
         background: var(--panel);
         border-top: 1px solid var(--line, var(--bad));
-        font-size: 13px;
+        font-size: var(--t-meta);
     }
     .outbox h3 {
-        margin: 4px 0;
-        font-size: 13px;
+        margin: var(--s1) 0;
+        font-size: var(--t-meta);
     }
     .outbox ul {
         list-style: none;
-        margin: 0 0 8px;
+        margin: 0 0 var(--s2);
         padding: 0;
     }
     .outbox li {
         display: flex;
         justify-content: space-between;
-        gap: 8px;
+        gap: var(--s2);
         align-items: center;
-        padding: 4px 0;
+        padding: var(--s1) 0;
         border-bottom: 1px solid var(--line, transparent);
     }
     .err {

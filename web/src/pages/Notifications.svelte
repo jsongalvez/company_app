@@ -100,6 +100,6 @@
 
 <style>
     .more {
-        padding: 8px 0;
+        padding: var(--s2) 0;
     }
 </style>

@@ -205,6 +205,6 @@
         border: 1px solid var(--line-strong);
         background: var(--panel-2);
         padding: 8px 10px;
-        font-size: 16px;
+        font-size: var(--t-row);
     }
 </style>

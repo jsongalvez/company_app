@@ -506,14 +506,14 @@
         width: 48px;
     }
     .concern-add {
-        gap: 4px;
+        gap: var(--s1);
     }
     .clist {
         max-height: 220px;
     }
     .cols {
         display: flex;
-        gap: 12px;
+        gap: var(--s3);
         align-items: flex-start;
     }
     .side {
@@ -532,7 +532,7 @@
     .kv dd {
         margin: 0;
         display: flex;
-        gap: 8px;
+        gap: var(--s2);
         align-items: center;
         flex-wrap: wrap;
     }

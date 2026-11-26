@@ -92,7 +92,7 @@
         opacity: 0.6;
     }
     .row {
-        gap: 8px;
+        gap: var(--s2);
         align-items: baseline;
     }
     .when {
@@ -102,7 +102,7 @@
         overflow-wrap: anywhere;
     }
     .acts {
-        margin-top: 4px;
+        margin-top: var(--s1);
         gap: 6px;
     }
 </style>

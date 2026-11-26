@@ -325,7 +325,7 @@
     .visits {
         border: 1px solid var(--line);
         background: var(--panel);
-        padding: 4px 8px;
+        padding: var(--s1) var(--s2);
     }
     .visits a {
         margin-left: 6px;
@@ -346,6 +346,6 @@
     .checks {
         gap: 4px 14px;
         color: var(--text);
-        font-size: 13px;
+        font-size: var(--t-meta);
     }
 </style>

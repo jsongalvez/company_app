@@ -36,7 +36,7 @@
 
 <style>
     ol {
-        margin: 0 0 8px;
+        margin: 0 0 var(--s2);
         padding-left: 20px;
         line-height: 1.7;
     }

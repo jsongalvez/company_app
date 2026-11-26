@@ -119,7 +119,7 @@
         min-height: 100%;
         display: grid;
         place-items: start center;
-        padding: 12vh 12px 12px;
+        padding: 12vh var(--s3) var(--s3);
     }
     form {
         width: 100%;

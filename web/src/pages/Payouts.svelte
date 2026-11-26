@@ -69,12 +69,12 @@
     }
     .branch h2 {
         margin: 0;
-        font-size: 16px;
+        font-size: var(--t-row);
     }
     .cols {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-        gap: 12px;
+        gap: var(--s3);
         align-items: start;
     }
     @media (max-width: 760px) {

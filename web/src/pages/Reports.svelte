@@ -178,9 +178,9 @@
 
 <style>
     .mb {
-        margin-bottom: 12px;
+        margin-bottom: var(--s3);
     }
     .mb-s {
-        margin: 0 0 8px;
+        margin: 0 0 var(--s2);
     }
 </style>

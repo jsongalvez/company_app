@@ -118,7 +118,7 @@
     .range-btn {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--s2);
         max-width: 100%;
         min-width: 0;
         justify-content: space-between;
@@ -136,7 +136,7 @@
     .presets {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-        gap: 4px;
+        gap: var(--s1);
     }
     .presets button {
         padding-inline: 6px;
@@ -147,7 +147,7 @@
     }
     form {
         display: grid;
-        gap: 8px;
+        gap: var(--s2);
         border-top: 1px solid var(--line);
         padding-top: 10px;
     }

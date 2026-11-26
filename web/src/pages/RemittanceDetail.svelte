@@ -422,23 +422,23 @@
 
 <style>
     .mb {
-        margin-bottom: 12px;
+        margin-bottom: var(--s3);
     }
     .send {
         position: sticky;
         bottom: 0;
         gap: 10px;
         padding: 10px 12px;
-        background: var(--panel, #fff);
-        border-top: 1px solid var(--line, #ddd);
+        background: var(--panel);
+        border-top: 1px solid var(--line);
     }
     .chk {
-        width: 24px;
+        width: var(--s5);
     }
     .pad {
-        padding: 8px;
+        padding: var(--s2);
     }
     .v.sm {
-        font-size: 13px;
+        font-size: var(--t-meta);
     }
 </style>

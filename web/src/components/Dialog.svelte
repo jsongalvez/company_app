@@ -74,7 +74,7 @@
         border: 1px solid var(--line-strong);
         background: var(--panel);
         color: var(--text);
-        max-height: calc(100vh - 32px);
+        max-height: calc(100vh - var(--s6));
         box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
     }
     dialog::backdrop {

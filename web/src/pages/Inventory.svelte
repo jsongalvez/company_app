@@ -359,12 +359,12 @@
 <style>
     .more {
         display: flex;
-        gap: 8px;
+        gap: var(--s2);
         align-items: center;
-        padding: 8px 0;
+        padding: var(--s2) 0;
     }
     .mb {
-        margin-bottom: 12px;
+        margin-bottom: var(--s3);
     }
     .low {
         color: var(--warn);

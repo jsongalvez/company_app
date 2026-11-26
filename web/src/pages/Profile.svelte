@@ -98,7 +98,7 @@
     .grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 380px));
-        gap: 12px;
+        gap: var(--s3);
         align-items: start;
     }
     p {

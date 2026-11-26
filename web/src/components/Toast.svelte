@@ -12,8 +12,8 @@
 <style>
     .toast {
         position: fixed;
-        right: 12px;
-        bottom: 12px;
+        right: var(--s3);
+        bottom: var(--s3);
         z-index: 100;
         max-width: min(420px, calc(100vw - 24px));
         display: flex;

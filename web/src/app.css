@@ -24,7 +24,7 @@ body {
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     color: var(--text);
     font:
-        13px/1.35 system-ui,
+        var(--t-meta)/1.35 system-ui,
         -apple-system,
         "Segoe UI",
         Roboto,
@@ -46,10 +46,10 @@ h3 {
     font-weight: 600;
 }
 h1 {
-    font-size: 15px;
+    font-size: var(--t-body);
 }
 h2 {
-    font-size: 13px;
+    font-size: var(--t-meta);
 }
 h3 {
     font-size: 12px;
@@ -220,7 +220,7 @@ label.check {
 .row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--s2);
 }
 .row.wrap {
     flex-wrap: wrap;
@@ -228,7 +228,7 @@ label.check {
 .col {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--s2);
 }
 .grow {
     flex: 1;
@@ -272,7 +272,7 @@ label.check {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--s2);
     min-height: 34px;
     padding: 4px 10px;
     border-bottom: 1px solid var(--line);
@@ -417,7 +417,7 @@ table.grid tfoot td {
     letter-spacing: 0.04em;
 }
 .stats .v {
-    font-size: 16px;
+    font-size: var(--t-row);
     font-weight: 600;
 }
 /* A tile that opens a page: the whole tile is the link, with an arrow by its label. */

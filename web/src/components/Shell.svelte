@@ -401,7 +401,7 @@
         padding: 4px 10px;
         background: var(--warn);
         color: var(--panel);
-        font-size: 13px;
+        font-size: var(--t-meta);
         min-width: 0;
     }
     .viewas > span {
@@ -415,7 +415,7 @@
         grid-column: 1 / -1;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--s2);
         padding: 0 10px;
         background: var(--panel);
         border-bottom: 1px solid var(--line-strong);
@@ -454,7 +454,7 @@
     .hints button {
         display: flex;
         width: 100%;
-        gap: 8px;
+        gap: var(--s2);
         justify-content: space-between;
         border: 0;
         border-bottom: 1px solid var(--line);
@@ -462,7 +462,7 @@
         background: none;
         text-align: left;
         height: auto;
-        padding: 8px;
+        padding: var(--s2);
         min-width: 0;
     }
     .hints button:hover,
@@ -487,13 +487,13 @@
     .count {
         background: var(--bad);
         color: #fff;
-        padding: 0 4px;
+        padding: 0 var(--s1);
         font-size: 11px;
         line-height: 16px;
     }
     .menu {
         display: none;
-        font-size: 16px;
+        font-size: var(--t-row);
     }
     nav {
         background: var(--panel);
@@ -530,7 +530,7 @@
     .navfoot {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: var(--s2);
         padding: 12px 10px;
         margin-top: auto;
     }
@@ -539,7 +539,7 @@
     }
     main {
         overflow: auto;
-        padding: 12px;
+        padding: var(--s3);
         min-width: 0;
     }
 
@@ -630,7 +630,7 @@
             display: inline-flex;
         }
         main {
-            padding: 8px;
+            padding: var(--s2);
         }
     }
 </style>

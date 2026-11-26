@@ -208,10 +208,10 @@
 
 <style>
     .mb {
-        margin-bottom: 12px;
+        margin-bottom: var(--s3);
     }
     .pad {
-        padding: 8px 0;
+        padding: var(--s2) 0;
     }
     .subj {
         font-weight: 600;

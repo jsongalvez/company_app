@@ -410,7 +410,7 @@
 <style>
     .layout {
         display: flex;
-        gap: 12px;
+        gap: var(--s3);
         align-items: flex-start;
     }
     .list {
@@ -418,7 +418,7 @@
         flex: none;
     }
     .main {
-        gap: 12px;
+        gap: var(--s3);
         min-width: 0;
     }
     @media (max-width: 760px) {

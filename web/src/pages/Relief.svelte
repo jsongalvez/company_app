@@ -298,12 +298,12 @@
     .cols {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-bottom: 12px;
+        gap: var(--s3);
+        margin-bottom: var(--s3);
         align-items: start;
     }
     .sect {
-        margin: 16px 0 8px;
+        margin: var(--s4) 0 var(--s2);
     }
     .pick {
         max-height: 260px;
