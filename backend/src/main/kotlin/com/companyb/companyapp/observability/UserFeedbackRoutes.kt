@@ -29,6 +29,7 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
+import java.time.OffsetDateTime
 import java.util.UUID
 
 @OpenApi(
@@ -49,7 +50,10 @@ import java.util.UUID
     methods = [HttpMethod.GET],
     operationId = "feedback_notes_list",
     security = [OpenApiSecurity(name = "BearerAuth")],
-    queryParams = [OpenApiParam(name = "status", type = String::class, required = false)],
+    queryParams = [
+        OpenApiParam(name = "status", type = String::class, required = false),
+        OpenApiParam(name = "before", type = String::class, required = false),
+    ],
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<FeedbackNoteResponse>::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
@@ -95,7 +99,12 @@ object UserFeedbackRoutes {
                 context.queryParam("status")?.let { raw ->
                     FeedbackStatus.entries.firstOrNull { it.name == raw } ?: throw BadRequestResponse("Unknown status")
                 }
-            context.json(UserFeedbackService.list(status).map { it.toResponse() })
+            val before =
+                context.queryParam("before")?.let {
+                    runCatching { OffsetDateTime.parse(it) }
+                        .getOrElse { throw BadRequestResponse("Invalid before (expected an ISO date-time)") }
+                }
+            context.json(UserFeedbackService.list(status, before).map { it.toResponse() })
         }
 
         config.patch(ApiRoutes.FEEDBACK_NOTE_PATH, triageGate) { context ->

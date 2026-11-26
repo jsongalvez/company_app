@@ -15,11 +15,17 @@
     let error = $state<string | null>(null);
     let expanded = $state<string | null>(null);
 
-    async function fetchNotes() {
+    // The server sends 100 at a time, newest first; "Show older" asks for the 100 before the last one shown.
+    const PAGE = 100;
+    let more = $state(false);
+    async function fetchNotes(reset: boolean) {
         loading = true;
         error = null;
+        const before = reset ? undefined : notes[notes.length - 1]?.createdAt;
         try {
-            notes = await ok(api.GET("/api/feedback-notes", { params: { query: { status: filter } } }));
+            const page = await ok(api.GET("/api/feedback-notes", { params: { query: { status: filter, before } } }));
+            notes = reset ? page : [...notes, ...page];
+            more = page.length === PAGE;
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
         } finally {
@@ -28,7 +34,7 @@
     }
     $effect(() => {
         void filter;
-        void fetchNotes();
+        void fetchNotes(true);
     });
 
     async function setStatus(n: N, status: F) {
@@ -82,9 +88,13 @@
             </tbody>
         </table>
     </div>
+    {#if more}<div class="more"><button onclick={() => fetchNotes(false)} disabled={loading}>{loading ? "Loading…" : "Show older"}</button></div>{/if}
 {/if}
 
 <style>
+    .more {
+        padding: var(--s2) 0;
+    }
     .kind {
         margin-left: 8px;
         font-weight: normal;

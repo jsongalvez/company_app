@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** Problems and ideas sent from the app, kept in the database for triage. */
@@ -20,7 +21,10 @@ object UserFeedbackService {
             }
         }
 
-    fun list(status: FeedbackStatus?): List<UserFeedback> = UserFeedbackRepository.list(status)
+    fun list(
+        status: FeedbackStatus?,
+        before: OffsetDateTime?,
+    ): List<UserFeedback> = UserFeedbackRepository.list(status, before)
 
     fun setStatus(
         id: UUID,

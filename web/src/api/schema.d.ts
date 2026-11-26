@@ -7158,6 +7158,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string;
+                before?: string;
             };
             header?: never;
             path?: never;

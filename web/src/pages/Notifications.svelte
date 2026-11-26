@@ -14,7 +14,7 @@
     const l = load.notifications();
     const q = new Query(l.key, l.fn);
 
-    // Older, already-read alerts are paged in from the history endpoint.
+    // Read alerts come from the history endpoint, newest first: the first page on open, the rest on "Show older".
     let older = $state<N[]>([]);
     let cursor = $state<string | null | undefined>(undefined);
     let olderBusy = $state(false);
@@ -22,15 +22,21 @@
         olderBusy = true;
         try {
             const r = await ok(api.GET("/api/notifications/history", { params: { query: { cursor: cursor ?? undefined, limit: "50" } } }));
-            const seen = new Set([...(q.data ?? []), ...older].map((n) => n.id));
+            const seen = new Set(older.map((n) => n.id));
             older = [...older, ...r.entries.filter((n) => !seen.has(n.id))];
             cursor = r.nextCursor ?? null;
+        } catch {
+            // Offline or refused: the unread list still shows, and the button stays to try again.
         } finally {
             olderBusy = false;
         }
     }
 
-    const rows = $derived([...(q.data ?? []), ...older]);
+    void more();
+    const rows = $derived.by(() => {
+        const unreadIds = new Set((q.data ?? []).map((n) => n.id));
+        return [...(q.data ?? []), ...older.filter((n) => !unreadIds.has(n.id))];
+    });
     const unread = $derived(rows.filter((n) => !n.isRead).length);
 
     function refresh() {
@@ -64,7 +70,7 @@
     {#if unread}<button onclick={readAll}>Mark all read</button>{/if}
 </PageHead>
 
-<State {q} empty={!!q.data && rows.length === 0} emptyText="No alerts." />
+<State {q} empty={!!q.data && rows.length === 0 && cursor === null} emptyText="No alerts." />
 {#if rows.length}
     <div class="table-wrap">
         <table class="grid stack">
@@ -87,9 +93,9 @@
             </tbody>
         </table>
     </div>
-    {#if cursor !== null}
-        <div class="more"><button onclick={more} disabled={olderBusy}>{olderBusy ? "Loading…" : "Show older"}</button></div>
-    {/if}
+{/if}
+{#if cursor !== null && !(olderBusy && !rows.length)}
+    <div class="more"><button onclick={more} disabled={olderBusy}>{olderBusy ? "Loading…" : "Show older"}</button></div>
 {/if}
 
 <style>

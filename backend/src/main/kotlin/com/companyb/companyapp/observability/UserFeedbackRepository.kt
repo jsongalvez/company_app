@@ -6,14 +6,18 @@ import com.companyb.companyapp.identity.AppUserTable
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.jdbc.andWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.OffsetDateTime
 import java.util.UUID
 
 internal object UserFeedbackRepository {
-    private const val LIST_LIMIT = 500
+    /** One page of the inbox, newest first; "Show older" asks for the next page [before] the last one shown. */
+    const val PAGE = 100
 
     /** In-transaction insert, idempotent on id: a retried send never files twice. */
     fun insertInTransaction(note: NewUserFeedback): UserFeedback {
@@ -29,14 +33,18 @@ internal object UserFeedbackRepository {
         return findInTransaction(note.id) ?: error("feedback row missing after insert")
     }
 
-    fun list(status: FeedbackStatus?): List<UserFeedback> =
+    fun list(
+        status: FeedbackStatus?,
+        before: OffsetDateTime?,
+    ): List<UserFeedback> =
         traced("UserFeedbackRepository.list") {
             transaction {
                 val query = joined().selectAll()
-                if (status != null) query.where { UserFeedbackTable.status eq status.name }
+                if (status != null) query.andWhere { UserFeedbackTable.status eq status.name }
+                if (before != null) query.andWhere { UserFeedbackTable.createdAt less before }
                 query
                     .orderBy(UserFeedbackTable.createdAt to SortOrder.DESC)
-                    .limit(LIST_LIMIT)
+                    .limit(PAGE)
                     .map { it.toFeedback() }
             }
         }
