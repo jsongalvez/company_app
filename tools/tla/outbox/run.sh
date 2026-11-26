@@ -14,8 +14,9 @@ cfgs=("$@"); [ ${#cfgs[@]} -eq 0 ] && cfgs=("$here"/*.cfg)
 rc=0
 for c in "${cfgs[@]}"; do
   name=$(basename "$c" .cfg)
-  out=$(cd "$here" && java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -nowarning -metadir "$(mktemp -d)" -workers 2 -deadlock -config "$c" Outbox.tla 2>&1)
-  rm -f "$here"/Outbox_TTrace_*
+  meta=$(mktemp -d)
+  out=$(cd "$here" && java -XX:+UseParallelGC -cp "$jar" tlc2.TLC -nowarning -metadir "$meta" -workers 2 -deadlock -config "$c" Outbox.tla 2>&1)
+  rm -rf "$meta" "$here"/Outbox_TTrace_*
   if echo "$out" | grep -q "Model checking completed. No error"; then
     got=pass
   elif echo "$out" | grep -q "is violated"; then

@@ -48,23 +48,27 @@ export function restoreCache() {
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 function saveSoon() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-        if (!tokenUser()) return;
-        const rows = [...store]
-            .filter(([, e]) => e.data !== undefined)
-            .sort((a, b) => (b[1].got ?? 0) - (a[1].got ?? 0))
-            .map(([k, e]) => [k, e.data, e.got ?? 0] as [string, unknown, number]);
-        // Newest first, until the phone's storage budget is used.
-        const out: string[] = [];
-        let size = 2;
-        for (const r of rows) {
-            const j = JSON.stringify(r);
-            if (size + j.length > SAVE_MAX_CHARS) continue;
-            size += j.length + 1;
-            out.push(j);
-        }
-        disk.set(saveKey(), `[${out.join(",")}]`);
-    }, 800);
+    saveTimer = setTimeout(saveNow, 800);
+}
+
+/** Write the cache to the phone now: before the phone forgets a copy the cache alone holds from then on. */
+export function saveNow() {
+    clearTimeout(saveTimer);
+    if (!tokenUser()) return;
+    const rows = [...store]
+        .filter(([, e]) => e.data !== undefined)
+        .sort((a, b) => (b[1].got ?? 0) - (a[1].got ?? 0))
+        .map(([k, e]) => [k, e.data, e.got ?? 0] as [string, unknown, number]);
+    // Newest first, until the phone's storage budget is used.
+    const out: string[] = [];
+    let size = 2;
+    for (const r of rows) {
+        const j = JSON.stringify(r);
+        if (size + j.length > SAVE_MAX_CHARS) continue;
+        size += j.length + 1;
+        out.push(j);
+    }
+    disk.set(saveKey(), `[${out.join(",")}]`);
 }
 
 let seq = 0;

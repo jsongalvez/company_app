@@ -155,9 +155,11 @@ localStorage.removeItem("outbox-recent");
 export const outbox = $state({ items: load().filter(stillShown), sending: false });
 
 /** The server's list now shows these sessions: stop holding them up ourselves. */
-export function sessionsSeen(ids: Set<string>) {
+/** `keepList` writes the list that shows them to the phone first, so a reload right after still has them. */
+export function sessionsSeen(ids: Set<string>, keepList: () => void) {
     const left = outbox.items.filter((i) => i.sentAt === undefined || i.path !== "/api/sessions" || !ids.has(String(parseBody(i.body).id)));
     if (left.length === outbox.items.length) return;
+    keepList();
     outbox.items = left;
     save();
 }

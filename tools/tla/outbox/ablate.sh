@@ -18,5 +18,8 @@ check ReplayReason       NoSelfRefusal     fixed-NoSelfRefusal.cfg
 check SkipRemoved        ConvergesToIntent fixed-ConvergesToIntent.cfg
 check RecentUntilSeen    NoVanish          fixed-NoVanish.cfg
 check BlockBehindFailed  NoSelfRefusal     noCapability-NoSelfRefusal.cfg
+check StartVersions      NoSelfRefusal     fixed-NoSelfRefusal.cfg
+check AnswerSeedsList    NoSelfRefusal     fixed-NoSelfRefusal.cfg
+check SaveBeforeForget   NoVanish          fixed-NoVanish.cfg
 rm -rf "$tmp"
 exit $rc

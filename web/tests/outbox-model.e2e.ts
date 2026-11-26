@@ -94,3 +94,33 @@ test("a session sent from the phone stays on today's list until the server's lis
     await browser.unroute(list);
     await expect(screen.getByRole("row").filter({ hasText: `${fresh} Tester` })).toBeVisible({ timeout: 20_000 });
 });
+
+// The phone forgot a sent session as soon as its list showed it, but wrote that list to the phone's storage
+// 0.8 s later: a reload in between, with no signal, opened on the older list and the session was gone.
+test("a session sent from the phone stays on today's list after a reload with no signal", { session: "owner" }, async ({ screen, app, browser }) => {
+    await doneSessionForNewClient(app, screen, browser);
+    const fresh = `Kept${Date.now().toString().slice(-6)}`;
+    await browser.route(down, (route) => route.abort());
+    await screen.getByRole("button", "New session").tap();
+    const dialog = screen.getByRole("dialog", "New session");
+    await dialog.getByPlaceholder("Search by name or phone (2+ letters)").fill(fresh);
+    await dialog.getByRole("button", "New client").tap();
+    const form = screen.getByRole("dialog", "New client");
+    await form.getByLabel(/^Last name/).fill("Tester");
+    await form.getByLabel(/^First name/).fill(fresh);
+    await form.getByLabel(/^Gender/).selectOption({ value: "M" });
+    await form.getByLabel(/^Age/).fill("33");
+    await form.getByRole("button", "Create client").tap();
+    await expect(dialog.getByText(`${fresh} Tester`, { exact: false })).toBeVisible({ timeout: 5_000 });
+    await dialog.getByRole("button", "Add session").tap();
+    const row = screen.getByRole("row").filter({ hasText: `${fresh} Tester` });
+    await expect(row.getByText("Not sent")).toBeVisible({ timeout: 5_000 });
+
+    await browser.unroute(down);
+    await expect.poll(async () => (await saved(browser)).filter((i) => !i.sentAt).length, { timeout: 40_000 }).toBe(0);
+    await browser.route(down, (route) => route.abort());
+    await browser.evaluate(() => location.reload());
+    await expect(screen.getByRole("heading", "Sessions")).toBeVisible({ timeout: 20_000 });
+    await expect(row).toBeVisible({ timeout: 10_000 });
+    await browser.unroute(down);
+});

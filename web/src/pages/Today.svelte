@@ -8,7 +8,7 @@
     import { api, ok, BASE_STATUS, type S } from "../api/client";
     import { app, can, canRead, branchName } from "../lib/app.svelte";
     import { today, refreshDay, clockIn, selectBranch, onDutyAt, markMember } from "../lib/today.svelte";
-    import { Query, seed } from "../lib/cache.svelte";
+    import { Query, saveNow, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { askReason } from "../lib/ask.svelte";
@@ -124,7 +124,7 @@
     $effect(() => showVs.keep(filter));
     // A mark made with no signal shows at once, flagged as not sent yet.
     $effect(() => {
-        if (dash.data) sessionsSeen(new Set(dash.data.sessions.map((s) => s.id)));
+        if (dash.data) sessionsSeen(new Set(dash.data.sessions.map((s) => s.id)), saveNow);
     });
     const sessions = $derived.by(() => {
         void outbox.items.length;

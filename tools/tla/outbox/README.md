@@ -7,7 +7,7 @@
 The server side is the rules of `SessionService.updateStatus`, `SessionRoutes.handleCreateSession`,
 `ProductSaleService.sell` and `BranchDayService.assertEditableBranchDay`.
 
-Last checked against the code at **ba7c4006** (master) plus the change that made `SessionService.updateStatus` ack a repeated mark. When any file named above changes after
+Last checked against the code at **4999e610** (master). When any file named above changes after
 that commit, reread the matching action in `Outbox.tla` before trusting a pass, then move the
 commit forward here.
 
@@ -26,7 +26,7 @@ Needs Java 17+. The script downloads `tla2tools.jar` (TLC 2026.10.20) into `~/.l
   today's code the lost update of bug 2 below is hidden behind bug 1's refusal; once bug 1 is
   fixed it would reach the server silently, and the model shows that.
 - `fixed-*.cfg` switch on the fixes (`DropNoopMark`, `SkipRemoved`, `TriedKept`, `ChainVersions`,
-  `RecentUntilSeen`, `ReplayReason`). They must pass.
+  `RecentUntilSeen`, `ReplayReason`, `StartVersions`, `AnswerSeedsList`, `SaveBeforeForget`). They must pass.
 - `noCapability-*.cfg`: the same fixes, but the signed-in person may not change earlier days. Their
   replays are refused with 403, never 400/409.
 - `today-NoLateRefusal.cfg` / `eventTime-NoLateRefusal.cfg`: two day turnovers (`MaxDay = 2`), a
@@ -38,6 +38,21 @@ Needs Java 17+. The script downloads `tla2tools.jar` (TLC 2026.10.20) into `~/.l
 fixes off one at a time in the passing configs and checks that the model then fails, so each fix is
 shown to be needed (about ten minutes).
 
+A new session starts at version 1 on the server (`SessionTable.version`), but its row on the phone
+says 0 until the phone learns the real one. Two pieces of code cover that, and the model fails
+without either (`ablate.sh`):
+
+- `StartVersions` (`startVersions()` in `outbox.svelte.ts`): a mark made on a session whose create is
+  still waiting goes out at the version the create answered with.
+- `AnswerSeedsList` (`takeLanded` -> `seedTodayScreen`): the create's answer brings Today's list
+  (`withToday=true`), so a mark made right after it lands, even with no signal, uses the server's
+  version. Without it, Done tapped on the just-sent row is refused 409. Checked in the browser too: a
+  session sent while another page showed, then marked Done on Today with no signal, went out at the
+  server's version.
+
+The cache reaches the phone's disk 0.8 s after it changes (`saveSoon`), and a reload opens on the copy
+on disk (`ondisk` in the model).
+
 ## Properties
 
 | name | plain words |
@@ -47,7 +62,7 @@ shown to be needed (about ten minutes).
 | `ConvergesToIntent` | When nothing is left to send, the server holds the status the person chose last. |
 | `NoLateRefusal` | Work made on an open day is never refused because the day has closed since, until the late window is over. |
 
-## What it found (all four reproduce in the real app)
+## What it found (all five reproduce in the real app)
 
 1. **Done, then Undo, both offline: 400.** The second tap replaces the first in the queue, leaving
    "Waiting" for a session that is Waiting. The server answers "Illegal session status transition
@@ -63,6 +78,11 @@ shown to be needed (about ten minutes).
    the replay carries none ("A reason is required to change a PAST day"). Checked on the status
    route against a running server; `web/tests/unit/replay.test.ts` covers the body the phone sends now.
 
+5. **A session sent from the phone vanishes after a reload with no signal.** The phone forgot the sent
+   session as soon as Today's list showed it, but wrote that list to disk 0.8 s later; a reload in
+   between opened on the older list. Fix `SaveBeforeForget`: `sessionsSeen` writes the cache first
+   (`saveNow`). Test 4; found when the model was re-synced at 4999e610.
+
 Each fix is in the same change as its test; `fixed-*` shows the model agrees.
 
 Later change: the queue no longer asks the server whether a refused mark had already landed
@@ -72,7 +92,11 @@ backend check is `OutboxReplayContractTest`, one replay test per queued save.
 
 ## Not modeled
 
-Several sessions or branches; other people editing at the same time (the 409 "someone else changed
+The op id (`X-Op-Id`, `OpLog`): the server answers a resend of a save it already took with the stored
+answer. The model's server instead re-judges a resend (a repeated create or mark is acked, a sale
+resent on a later day goes through the day gate), which refuses at least as often, so a pass still
+holds with the op log. The site hub (`site.svelte.ts`) only mirrors saves to other phones and never
+sends them to the server, so it is outside the model. Several sessions or branches; other people editing at the same time (the 409 "someone else changed
 it" path is only checked for the person's own marks); clock-in gating of new sessions; expenses,
 allowances and attendance saves (they take the same queue but have no ordering rule); the direct
 online path of a save (modeled as enqueue-then-send); the 120 s / 24 h timers are only "later than

@@ -26,22 +26,27 @@ CONSTANTS
     ReplayReason,     \* fix: a replay sent on a later day than it was made carries a reason
     UserCanEditPast,  \* the signed-in person holds EDIT_PAST_DAY
     EventTime,        \* fix: the server judges a closed day by when the save was made (X-Occurred-At), within LateDays
+    StartVersions,    \* fix: once a create lands, marks queued on it at version 0 move to the version it answered with
+    AnswerSeedsList,  \* fix: a create's answer brings Today's list (`withToday`), so the row's version is the server's at once
+    SaveBeforeForget, \* fix: the list that shows a sent session is on the phone's disk before the phone forgets the session
     MaxDay,           \* day turnovers the run may see (04:00 Manila); 2 reaches past the late window
     MaxMarks, MaxReloads
 
 \* BranchDayService + OpTime.LATE_WINDOW (48 h): a save made on a day lands on it, flagged, up to the next day.
 LateDays == 1
+\* SessionTable.version starts at 1; the phone's own row for a session it made (heldRow) says 0.
+CreateVer == 1
 Days == 0..MaxDay
 
 None == 0
 Codes == {0, 400, 403, 404, 409}
 
 VARIABLES net, today, srv, sale, queue, sending, todo, flight, sent,
-          recent, cache, dashReqs, dseq,
+          recent, cache, dashReqs, dseq, ondisk,
           intent, nid, nmarks, ncreate, nsale, nreload
 
 vars == <<net, today, srv, sale, queue, sending, todo, flight, sent,
-          recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+          recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 Item == [id : Nat, kind : {"create", "mark", "sale"}, st : {"P", "D", "-"}, ver : Nat,
          day : Days, qday : Days, failed : Codes, tried : BOOLEAN]
@@ -83,9 +88,10 @@ Init ==
     /\ srv = [ex |-> FALSE, st |-> "P", ver |-> 0, day |-> 0]
     /\ sale = [ex |-> FALSE, day |-> 0]
     /\ queue = <<>> /\ sending = FALSE /\ todo = <<>> /\ sent = 0
-    /\ flight = [phase |-> "none", item |-> [id |-> 0, kind |-> "sale", st |-> "-", ver |-> 0, day |-> 0, qday |-> 0, failed |-> 0, tried |-> FALSE], code |-> 0]
+    /\ flight = [phase |-> "none", item |-> [id |-> 0, kind |-> "sale", st |-> "-", ver |-> 0, day |-> 0, qday |-> 0, failed |-> 0, tried |-> FALSE], code |-> 0, ans |-> 0]
     /\ recent = FALSE
     /\ cache = [has |-> FALSE, st |-> "P", ver |-> 0, seq |-> 0]
+    /\ ondisk = [has |-> FALSE, st |-> "P", ver |-> 0]
     /\ dashReqs = {} /\ dseq = 0
     /\ intent = "-" /\ nid = 1 /\ nmarks = 0 /\ ncreate = 0 /\ nsale = 0 /\ nreload = 0
 
@@ -96,7 +102,7 @@ UserCreate ==
     /\ (net = "down" \/ Waiting(queue) # <<>>)   \* otherwise the save goes straight to the server and never waits
     /\ queue' = Append(queue, [id |-> nid, kind |-> "create", st |-> "-", ver |-> 0, day |-> today, qday |-> today, failed |-> 0, tried |-> FALSE])
     /\ nid' = nid + 1 /\ ncreate' = 1
-    /\ UNCHANGED <<net, today, srv, sale, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nmarks, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, sending, todo, flight, sent, recent, cache, dashReqs, dseq, ondisk, intent, nmarks, nsale, nreload>>
 
 \* The row's button: Waiting -> Done, Done -> Undo. Marks queue when offline or behind other saves (mustQueue).
 UserMark(to) ==
@@ -114,32 +120,33 @@ UserMark(to) ==
        IN /\ queue' = IF DropNoopMark /\ to = base THEN kept ELSE Append(kept, new)
           /\ todo' = IF SkipRemoved THEN SelectSeq(todo, LAMBDA i : i.kind # "mark") ELSE todo
     /\ nid' = nid + 1 /\ nmarks' = nmarks + 1 /\ intent' = to
-    /\ UNCHANGED <<net, today, srv, sale, sending, flight, sent, recent, cache, dashReqs, dseq, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, sending, flight, sent, recent, cache, dashReqs, dseq, ondisk, ncreate, nsale, nreload>>
 
 UserSale ==
     /\ nsale = 0
     /\ (net = "down" \/ Waiting(queue) # <<>>)
     /\ queue' = Append(queue, [id |-> nid, kind |-> "sale", st |-> "-", ver |-> 0, day |-> today, qday |-> today, failed |-> 0, tried |-> FALSE])
     /\ nid' = nid + 1 /\ nsale' = 1
-    /\ UNCHANGED <<net, today, srv, sale, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nmarks, ncreate, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, sending, todo, flight, sent, recent, cache, dashReqs, dseq, ondisk, intent, nmarks, ncreate, nreload>>
 
 Rollover ==
     /\ today < MaxDay /\ today' = today + 1
-    /\ UNCHANGED <<net, srv, sale, queue, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, srv, sale, queue, sending, todo, flight, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 NetFlip ==
     /\ net' = IF net = "up" THEN "down" ELSE "up"
-    /\ UNCHANGED <<today, srv, sale, queue, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<today, srv, sale, queue, sending, todo, flight, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
-\* Page reload: memory goes (recent unless persisted, requests, flush loop); localStorage stays (queue, cache).
+\* Page reload: memory goes (recent unless persisted, requests, flush loop); the disk stays (queue, and the
+\* cache as last written there).
 Reload ==
     /\ nreload < MaxReloads /\ nreload' = nreload + 1
     /\ recent' = IF RecentUntilSeen THEN recent ELSE FALSE
     /\ dashReqs' = {} /\ dseq' = 0
-    /\ cache' = [cache EXCEPT !.seq = 0]
+    /\ cache' = [has |-> ondisk.has, st |-> ondisk.st, ver |-> ondisk.ver, seq |-> 0]
     /\ sending' = FALSE /\ todo' = <<>> /\ sent' = 0
     /\ flight' = [flight EXCEPT !.phase = "none"]
-    /\ UNCHANGED <<net, today, srv, sale, queue, intent, nid, nmarks, ncreate, nsale>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, ondisk, intent, nid, nmarks, ncreate, nsale>>
 
 \* RECENT_MS (120 s) is long after the refresh that SENT starts has answered or failed.
 RecentExpire ==
@@ -147,7 +154,14 @@ RecentExpire ==
     /\ ~sending /\ dashReqs = {}
     /\ (~RecentUntilSeen \/ cache.has)
     /\ recent' = FALSE
+    /\ ondisk' = IF SaveBeforeForget THEN [has |-> cache.has, st |-> cache.st, ver |-> cache.ver] ELSE ondisk
     /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+
+\* saveSoon(): the cache reaches the disk 0.8 s after it changed.
+CacheSave ==
+    /\ ondisk # [has |-> cache.has, st |-> cache.st, ver |-> cache.ver]
+    /\ ondisk' = [has |-> cache.has, st |-> cache.st, ver |-> cache.ver]
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 (* ---------------- the dashboard list cache ---------------- *)
 
@@ -155,7 +169,7 @@ DashStart ==
     /\ dseq < 2
     /\ dseq' = dseq + 1
     /\ dashReqs' = dashReqs \cup {[seq |-> dseq + 1, snap |-> SrvView]}
-    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, cache, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, cache, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 DashArrive ==
     /\ net = "up"
@@ -163,12 +177,12 @@ DashArrive ==
         /\ dashReqs' = dashReqs \ {r}
         /\ cache' = IF cache.seq > r.seq THEN cache
                     ELSE [has |-> r.snap.has, st |-> r.snap.st, ver |-> r.snap.ver, seq |-> r.seq]
-    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 DashFail ==
     /\ net = "down"
     /\ \E r \in dashReqs : dashReqs' = dashReqs \ {r}
-    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, cache, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, todo, flight, sent, recent, cache, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 (* ---------------- flush() ---------------- *)
 
@@ -177,7 +191,7 @@ FlushStart ==
     /\ ~sending /\ Waiting(queue) # <<>>
     /\ sending' = TRUE /\ sent' = 0
     /\ todo' = Waiting(queue)
-    /\ UNCHANGED <<net, today, srv, sale, queue, flight, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, flight, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 \* Live check, as in the loop: a mark whose earlier mark was refused is left where it is.
 Blocked(it) == BlockBehindFailed /\ it.kind = "mark" /\ \E j \in 1..Len(queue) : queue[j].kind = "mark" /\ queue[j].failed # 0
@@ -185,14 +199,14 @@ Blocked(it) == BlockBehindFailed /\ it.kind = "mark" /\ \E j \in 1..Len(queue) :
 SkipBlocked ==
     /\ sending /\ flight.phase = "none" /\ todo # <<>> /\ Blocked(Head(todo))
     /\ todo' = Tail(todo)
-    /\ UNCHANGED <<net, today, srv, sale, queue, sending, flight, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, flight, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 FlushNext ==
     /\ sending /\ flight.phase = "none" /\ todo # <<>> /\ ~Blocked(Head(todo))
-    /\ flight' = [phase |-> "req", item |-> Head(todo), code |-> 0]
+    /\ flight' = [phase |-> "req", item |-> Head(todo), code |-> 0, ans |-> 0]
     /\ todo' = Tail(todo)
     /\ queue' = [j \in 1..Len(queue) |-> IF queue[j].id = Head(todo).id THEN [queue[j] EXCEPT !.tried = TRUE] ELSE queue[j]]
-    /\ UNCHANGED <<net, today, srv, sale, sending, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, sending, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 \* `finally { sending = false; if (sent) dispatch(SENT) }`; SENT refreshes the visible list.
 FlushEnd ==
@@ -202,7 +216,7 @@ FlushEnd ==
          THEN /\ dseq' = dseq + 1
               /\ dashReqs' = dashReqs \cup {[seq |-> dseq + 1, snap |-> SrvView]}
          ELSE UNCHANGED <<dseq, dashReqs>>
-    /\ UNCHANGED <<net, today, srv, sale, queue, todo, flight, recent, cache, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, todo, flight, recent, cache, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 \* Server side: what the routes answer for the item in flight.
 PastGate(gateDay, it) ==
@@ -219,9 +233,10 @@ Process ==
     /\ flight.phase = "req" /\ net = "up"
     /\ LET it == flight.item IN
        CASE it.kind = "create" ->
-              IF srv.ex THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200] /\ UNCHANGED <<srv, sale>>
-              ELSE /\ srv' = [ex |-> TRUE, st |-> "P", ver |-> 0, day |-> today]
-                   /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200] /\ UNCHANGED sale
+              \* the answer carries the version as stored, after the practitioners and concerns are added
+              IF srv.ex THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200, !.ans = srv.ver] /\ UNCHANGED <<srv, sale>>
+              ELSE /\ srv' = [ex |-> TRUE, st |-> "P", ver |-> CreateVer, day |-> today]
+                   /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200, !.ans = CreateVer] /\ UNCHANGED sale
          [] it.kind = "mark" ->
               IF ~srv.ex THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = 404] /\ UNCHANGED <<srv, sale>>
               \* A repeat of a mark that already landed (same status, version since moved on) is acked, not refused.
@@ -239,25 +254,29 @@ Process ==
                    THEN /\ flight' = [flight EXCEPT !.phase = "res", !.code = PastGate(it.day, it)] /\ UNCHANGED <<srv, sale>>
                    ELSE /\ sale' = [ex |-> TRUE, day |-> it.day]
                         /\ flight' = [flight EXCEPT !.phase = "res", !.code = 200] /\ UNCHANGED srv
-    /\ UNCHANGED <<net, today, queue, sending, todo, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, queue, sending, todo, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 \* Request never got through: flush returns (reportNetFailure).
 ReqLost ==
     /\ flight' = [flight EXCEPT !.phase = "none"]
     /\ flight.phase = "req" /\ net = "down"
     /\ todo' = <<>>
-    /\ UNCHANGED <<net, today, srv, sale, queue, sending, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 \* The server answered but the answer never arrived.
 ResLost ==
     /\ flight.phase = "res" /\ net = "down"
     /\ flight' = [flight EXCEPT !.phase = "none"]
     /\ todo' = <<>>
-    /\ UNCHANGED <<net, today, srv, sale, queue, sending, sent, recent, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+    /\ UNCHANGED <<net, today, srv, sale, queue, sending, sent, recent, cache, dashReqs, dseq, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 \* Marks queued behind `it` were made from the version `it` was made from; once `it` is on the server they move up.
 Bump(q, it) == [j \in 1..Len(q) |-> IF q[j].kind = "mark" /\ q[j].ver = it.ver /\ q[j].id # it.id
                                     THEN [q[j] EXCEPT !.ver = it.ver + 1] ELSE q[j]]
+
+\* startVersions(): marks made on the session while its create waited were made from version 0.
+Start(q, v) == [j \in 1..Len(q) |-> IF q[j].kind = "mark" /\ q[j].ver = 0 /\ q[j].failed = 0
+                                   THEN [q[j] EXCEPT !.ver = v] ELSE q[j]]
 
 Deliver ==
     /\ flight.phase = "res" /\ net = "up"
@@ -271,14 +290,21 @@ Deliver ==
                  /\ recent' = IF it.kind = "create" /\ c = 200 THEN TRUE ELSE recent
                  /\ IF ChainVersions /\ it.kind = "mark"
                       THEN /\ queue' = Bump(gone, it) /\ todo' = Bump(todo, it)
+                      ELSE IF StartVersions /\ it.kind = "create"
+                      THEN /\ queue' = Start(gone, flight.ans) /\ todo' = Start(todo, flight.ans)
                       ELSE /\ queue' = gone /\ UNCHANGED todo
+                 \* takeLanded -> seedTodayScreen: the list's next read is this answer, newer than any read in flight
+                 /\ IF AnswerSeedsList /\ it.kind = "create"
+                      THEN /\ cache' = [has |-> TRUE, st |-> srv.st, ver |-> flight.ans, seq |-> dseq + 1]
+                           /\ dseq' = dseq + 1
+                      ELSE UNCHANGED <<cache, dseq>>
             ELSE /\ queue' = SetFailed(queue, it.id, c)
-                 /\ UNCHANGED <<recent, todo, sent>>
-    /\ UNCHANGED <<net, today, srv, sale, sending, cache, dashReqs, dseq, intent, nid, nmarks, ncreate, nsale, nreload>>
+                 /\ UNCHANGED <<recent, todo, sent, cache, dseq>>
+    /\ UNCHANGED <<net, today, srv, sale, sending, dashReqs, ondisk, intent, nid, nmarks, ncreate, nsale, nreload>>
 
 Next ==
     \/ UserCreate \/ \E to \in {"P", "D"} : UserMark(to) \/ UserSale
-    \/ Rollover \/ NetFlip \/ Reload \/ RecentExpire
+    \/ Rollover \/ NetFlip \/ Reload \/ RecentExpire \/ CacheSave
     \/ DashStart \/ DashArrive \/ DashFail
     \/ FlushStart \/ FlushNext \/ SkipBlocked \/ FlushEnd \/ Process \/ ReqLost \/ ResLost \/ Deliver
 
