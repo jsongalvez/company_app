@@ -50,7 +50,8 @@ CompanyApp:
       - '**/identity/UserRoutes.kt' # #537
       - '**/audit/AuditLogRoutes.kt' # #549
       - '**/client/ClientRoutes.kt' # #541
-      - '**/session/SessionRoutes.kt' # #542
+      - '**/session/SessionConcernRoutes.kt' # #542
+      - '**/session/SessionPractitionerRoutes.kt' # #542
       - '**/session/SessionBaseRateRoutes.kt' # #542
       - '**/session/dashboard/DashboardRoutes.kt' # #553
       - '**/commerce/ProductRoutes.kt' # #543

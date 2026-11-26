@@ -3,42 +3,29 @@ package com.companyb.companyapp.session
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.api.delete
 import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.patch
 import com.companyb.companyapp.api.post
-import com.companyb.companyapp.api.routes.bodyIfPresent
 import com.companyb.companyapp.api.routes.parseNonNegativeBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.session.AddSessionConcernRequest
-import com.companyb.companyapp.contracts.session.AddSessionPractitionerRequest
 import com.companyb.companyapp.contracts.session.ConcernResponse
 import com.companyb.companyapp.contracts.session.CreateSessionRequest
 import com.companyb.companyapp.contracts.session.DashboardSessionResponse
-import com.companyb.companyapp.contracts.session.PromoteConcernRequest
-import com.companyb.companyapp.contracts.session.RemovePractitionerRequest
-import com.companyb.companyapp.contracts.session.RemoveSessionConcernRequest
-import com.companyb.companyapp.contracts.session.SessionPractitionerResponse
 import com.companyb.companyapp.contracts.session.SessionPreviewResponse
 import com.companyb.companyapp.contracts.session.SessionResponse
-import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.SessionVoidResponse
 import com.companyb.companyapp.contracts.session.UnvoidSessionRequest
-import com.companyb.companyapp.contracts.session.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.contracts.session.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.contracts.session.UpdateSessionStatusRequest
 import com.companyb.companyapp.contracts.session.VoidSessionRequest
 import com.companyb.companyapp.dto.ErrorResponse
-import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.session.dashboard.DashboardService
 import com.companyb.companyapp.session.dashboard.DashboardSessionEnrichment
@@ -50,7 +37,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
-import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -81,29 +67,6 @@ private fun requireSessionMoney(
 }
 
 @OpenApi(
-    path = ApiRoutes.CONCERNS,
-    methods = [HttpMethod.GET],
-    operationId = "concerns",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ConcernResponse>::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.CONCERN_PATH,
-    methods = [HttpMethod.DELETE],
-    operationId = "removeConcernFromList",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    pathParams = [OpenApiParam(name = "concernId", type = UUID::class, required = true)],
-    responses = [
-        OpenApiResponse(status = "204"),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
     path = ApiRoutes.SESSIONS,
     methods = [HttpMethod.POST],
     operationId = "sessions",
@@ -133,50 +96,6 @@ private fun requireSessionMoney(
     ],
 )
 @OpenApi(
-    path = ApiRoutes.SESSION_CONCERNS_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
-    operationId = "session_concerns_get",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<ConcernResponse>::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SESSION_CONCERNS_PATH,
-    methods = [HttpMethod.POST],
-    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
-    operationId = "session_concerns_post",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AddSessionConcernRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "204"),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SESSION_CONCERN_PATH,
-    methods = [HttpMethod.DELETE],
-    pathParams = [
-        OpenApiParam(
-            name = "sessionId",
-            type = UUID::class,
-            required = true,
-        ), OpenApiParam(name = "concernId", type = UUID::class, required = true),
-    ],
-    operationId = "session_concern_delete",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RemoveSessionConcernRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "204"),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
     path = ApiRoutes.SESSION_FINAL_PRICE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
@@ -191,31 +110,6 @@ private fun requireSessionMoney(
     ],
 )
 @OpenApi(
-    path = ApiRoutes.SESSION_PRACTITIONERS_PATH,
-    methods = [HttpMethod.POST],
-    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
-    operationId = "session_practitioners",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AddSessionPractitionerRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = SessionPractitionerResponse::class)]),
-        OpenApiResponse(status = "201", content = [OpenApiContent(from = SessionPractitionerResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SESSION_PRACTITIONERS_PATH,
-    methods = [HttpMethod.GET],
-    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
-    operationId = "session_practitioners_get",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = Array<SessionPractitionerResponse>::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
     path = ApiRoutes.BRANCH_SESSION_PREVIEW_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
@@ -227,57 +121,6 @@ private fun requireSessionMoney(
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SESSION_PRACTITIONER_PATH,
-    methods = [HttpMethod.PATCH],
-    pathParams = [
-        OpenApiParam(
-            name = "sessionId",
-            type = UUID::class,
-            required = true,
-        ), OpenApiParam(name = "practitionerId", type = UUID::class, required = true),
-    ],
-    operationId = "session_practitioner_patch",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UpdatePractitionerRemarksRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = SessionPractitionerResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SESSION_PRACTITIONER_PATH,
-    methods = [HttpMethod.DELETE],
-    pathParams = [
-        OpenApiParam(
-            name = "sessionId",
-            type = UUID::class,
-            required = true,
-        ), OpenApiParam(name = "practitionerId", type = UUID::class, required = true),
-    ],
-    operationId = "session_practitioner_delete",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RemovePractitionerRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "204"),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SESSION_PROMOTE_CONCERN_PATH,
-    methods = [HttpMethod.POST],
-    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
-    operationId = "session_promote_concern",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = PromoteConcernRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "201", content = [OpenApiContent(from = ConcernResponse::class)]),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
@@ -330,6 +173,8 @@ object SessionRoutes {
 
     fun register(config: JavalinConfig) {
         registerHandlers(config)
+        SessionPractitionerRoutes.registerMutations(config)
+        SessionConcernRoutes.register(config)
         registerPreview(config)
     }
 
@@ -340,21 +185,11 @@ object SessionRoutes {
             ::handleGetSession,
         )
         config.post(ApiRoutes.SESSIONS, Gate.InHandler("SessionSaveService: the body's day"), ::handleCreateSession)
-        // The practitioners list read (add-self refresh) takes the same gate as the mutations.
-        config.get(ApiRoutes.SESSION_PRACTITIONERS_PATH, sessionDayGate, ::handleGetPractitioners)
+        SessionPractitionerRoutes.registerRead(config)
         config.patch(ApiRoutes.SESSION_STATUS_PATH, sessionStatusGate, ::handleUpdateStatus)
         config.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, sessionDayGate, ::handleUpdateFinalPrice)
         config.post(ApiRoutes.SESSION_VOID_PATH, sessionVoidGate, ::handleVoidSession)
         config.post(ApiRoutes.SESSION_UNVOID_PATH, sessionVoidGate, ::handleUnvoidSession)
-        config.post(ApiRoutes.SESSION_PRACTITIONERS_PATH, sessionDayGate, ::handleAddPractitioner)
-        config.patch(ApiRoutes.SESSION_PRACTITIONER_PATH, sessionDayGate, ::handleUpdatePractitionerRemarks)
-        config.delete(ApiRoutes.SESSION_PRACTITIONER_PATH, sessionDayGate, ::handleRemovePractitioner)
-        config.get(ApiRoutes.CONCERNS, concernsGate, ::handleGetConcerns)
-        config.delete(ApiRoutes.CONCERN_PATH, concernsGate, ::handleRemoveConcernFromList)
-        config.get(ApiRoutes.SESSION_CONCERNS_PATH, sessionDayGate, ::handleGetSessionConcerns)
-        config.post(ApiRoutes.SESSION_CONCERNS_PATH, sessionDayGate, ::handleAddSessionConcern)
-        config.delete(ApiRoutes.SESSION_CONCERN_PATH, sessionDayGate, ::handleRemoveSessionConcern)
-        config.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, sessionDayGate, ::handlePromoteConcern)
     }
 
     private fun registerPreview(config: JavalinConfig) {
@@ -362,14 +197,6 @@ object SessionRoutes {
             // Same gate as the create it previews: the preview passes exactly when the create would.
             Gate.At(Act.WORK_DAY) { Place.today(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
         config.get(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH, branchSessionPreviewGate, ::handleGetSessionPreview)
-    }
-
-    private fun handleGetPractitioners(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-
-        val practitioners = SessionPractitionerService.getForSession(callerId, sessionId)
-        context.json(practitioners.map { it.toResponse() })
     }
 
     private fun handleGetSessionPreview(context: Context) {
@@ -567,141 +394,6 @@ object SessionRoutes {
         context.json(sessionVoid.toResponse())
     }
 
-    private fun handleAddPractitioner(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val request = context.bodyAsClass<AddSessionPractitionerRequest>()
-
-        val practitionerId = uuidOrThrow(request.practitionerId, "practitioner id")
-        val id = uuidOrThrow(request.id, "id")
-
-        val result =
-            SessionPractitionerService.addPractitioner(
-                callerId = callerId,
-                new =
-                    NewSessionPractitioner(
-                        id = id,
-                        practitionerId = practitionerId,
-                        remarks = request.remarks,
-                        reason = request.reason,
-                    ),
-                sessionId = sessionId,
-                version = request.version,
-            )
-
-        context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-        context.json(result.practitioner.toResponse())
-    }
-
-    private fun handleUpdatePractitionerRemarks(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val practitionerId = context.pathParamAsUuid("practitionerId")
-        val request = context.bodyAsClass<UpdatePractitionerRemarksRequest>()
-
-        val updated =
-            SessionPractitionerService.updatePractitionerRemarks(
-                callerId = callerId,
-                sessionId = sessionId,
-                practitionerId = practitionerId,
-                edit =
-                    RemarksEdit(
-                        remarks = request.remarks,
-                        reason = request.reason,
-                    ),
-                version = request.version,
-            )
-
-        context.status(HttpStatus.OK)
-        context.json(updated.toResponse())
-    }
-
-    private fun handleRemovePractitioner(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val practitionerId = context.pathParamAsUuid("practitionerId")
-        val request = context.bodyIfPresent<RemovePractitionerRequest>()
-
-        SessionPractitionerService.removePractitioner(
-            callerId = callerId,
-            sessionId = sessionId,
-            practitionerId = practitionerId,
-            reason = request?.reason,
-            version = request?.version,
-        )
-
-        context.status(HttpStatus.NO_CONTENT)
-    }
-
-    private fun handleGetConcerns(context: Context) {
-        val concerns = ConcernService.listAll()
-        context.json(concerns.map { it.toResponse() })
-    }
-
-    private fun handleRemoveConcernFromList(context: Context) {
-        ConcernService.removeFromList(context.callerUuid(), context.pathParamAsUuid("concernId"))
-        context.status(HttpStatus.NO_CONTENT)
-    }
-
-    private fun handleGetSessionConcerns(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-
-        val concerns = SessionConcernService.getForSession(callerId, sessionId)
-        context.json(concerns.map { it.toResponse() })
-    }
-
-    private fun handleAddSessionConcern(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val request = context.bodyAsClass<AddSessionConcernRequest>()
-
-        val concernId = uuidOrThrow(request.concernId, "concern id")
-
-        SessionConcernService.addToSession(callerId, sessionId, concernId, request.reason)
-        context.status(HttpStatus.NO_CONTENT)
-    }
-
-    private fun handleRemoveSessionConcern(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val concernId = context.pathParamAsUuid("concernId")
-        val reason = context.bodyIfPresent<RemoveSessionConcernRequest>()?.reason
-
-        SessionConcernService.removeFromSession(callerId, sessionId, concernId, reason)
-        context.status(HttpStatus.NO_CONTENT)
-    }
-
-    private fun handlePromoteConcern(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val request = context.bodyAsClass<PromoteConcernRequest>()
-
-        if (request.label.isBlank()) throw BadRequestResponse("label must not be blank")
-        val concernId = uuidOrThrow(request.id, "concern id")
-
-        val concern =
-            if (request.clearOtherConcerns) {
-                SessionConcernService.promoteConcern(
-                    callerId,
-                    sessionId,
-                    concernId,
-                    request.label.trim(),
-                    request.reason,
-                )
-            } else {
-                SessionConcernService.addNewConcern(
-                    callerId,
-                    sessionId,
-                    concernId,
-                    request.label.trim(),
-                    request.reason,
-                )
-            }
-        context.status(HttpStatus.CREATED)
-        context.json(concern.toResponse())
-    }
-
     private fun Session.toResponse(concerns: List<ConcernResponse> = emptyList()): SessionResponse =
         SessionResponse(
             id = id.toString(),
@@ -732,15 +424,6 @@ object SessionRoutes {
             unvoidedBy = unvoidedBy?.toString(),
             unvoidedReason = unvoidedReason,
         )
-
-    private fun SessionPractitioner.toResponse(): SessionPractitionerResponse =
-        SessionPractitionerResponse(
-            id = id.toString(),
-            sessionId = sessionId.toString(),
-            practitionerId = practitionerId.toString(),
-            remarks = remarks,
-            slotAtTime = slotAtTime.toInt(),
-        )
 }
 
 private val sessionStatusGate =
@@ -751,11 +434,8 @@ private val sessionStatusGate =
         SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
     }
 
-private val sessionDayGate =
+internal val sessionDayGate =
     Gate.At(Act.WORK_DAY) { SessionAuthz.placeOf(it.pathParamAsUuid("sessionId")) }
 
 private val sessionVoidGate =
     Gate.At(Act.VOID) { SessionAuthz.placeOf(it.pathParamAsUuid("sessionId")) }
-
-private val concernsGate =
-    Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage concerns")
