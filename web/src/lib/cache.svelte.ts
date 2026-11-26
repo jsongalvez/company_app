@@ -1,7 +1,7 @@
 import { ApiError } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
 import { LANDED, opOf, pendingOps, SENT, tokenUser, type Landed } from "./outbox.svelte";
-import { applyOps, mutates, takeAnswer, type PendingOp } from "./mutators";
+import type { PendingOp } from "./mutators";
 import { disk } from "./disk";
 import type { Key } from "./keys";
 import { onChanged, Seen, staleKeys, stillStale, type Tables } from "./tables";
@@ -134,29 +134,43 @@ onChanged((changed) => {
     for (const k of staleKeys(store, changed)) markStale(store.get(k)!);
 });
 
+/** The local mutators load on first use: a phone with nothing queued opens Today without their code. */
+type Mutators = typeof import("./mutators");
+let mut = $state<Mutators | null>(null);
+let loading: Promise<Mutators> | null = null;
+function mutators(): Promise<Mutators> {
+    return (loading ??= import("./mutators").then((m) => (mut = m)));
+}
+
 /** A queued save landed with its record: it takes the place of what each cached document held, so a page keeps
  *  showing the change between the save leaving the queue and the next read (lib/mutators.ts). */
-function takeLanded(op: PendingOp, answer: unknown) {
+async function takeLanded(op: PendingOp, answer: unknown) {
+    const m = await mutators();
     let hit = false;
     for (const [k, e] of store) {
-        if (e.data === undefined || !mutates(k)) continue;
-        const data = takeAnswer(k, e.data, op, answer);
+        if (e.data === undefined || !m.mutates(k)) continue;
+        const data = m.takeAnswer(k, e.data, op, answer);
         if (data !== e.data) ((e.data = data), (hit = true));
     }
     if (hit) saveSoon();
-    for (const r of live) r.deref()?.take(op, answer);
+    for (const r of live) r.deref()?.take(m, op, answer);
 }
 if (typeof window !== "undefined")
     window.addEventListener(LANDED, (e) => {
         const { item, answer } = (e as CustomEvent<Landed>).detail;
-        takeLanded(opOf(item), answer);
+        void takeLanded(opOf(item), answer);
     });
 
-/** What a page shows for a key: the cached answer with this person's unsent saves applied. */
+/** What a page shows for a key: the cached answer with this person's unsent saves applied. Until the mutators
+ *  have loaded it is the answer as read. */
 function shownDoc<T>(key: Key, doc: T | undefined): T | undefined {
-    if (doc === undefined || !mutates(key)) return doc;
     const ops = pendingOps();
-    return ops.length ? (applyOps(key, doc, ops) as T) : doc;
+    if (doc === undefined || !ops.length) return doc;
+    if (!mut) {
+        void mutators();
+        return doc;
+    }
+    return mut.mutates(key) ? (mut.applyOps(key, doc, ops) as T) : doc;
 }
 
 /** Rights or branches changed: any answer may differ. */
@@ -222,9 +236,9 @@ export class Query<T> {
         this.#raw = v;
     }
     /** A queued save landed: its answer takes the record's place in what this page read. */
-    take(op: PendingOp, answer: unknown) {
-        if (this.#raw === undefined || !mutates(this.#key)) return;
-        const next = takeAnswer(this.#key, this.#raw, op, answer) as T;
+    take(m: Mutators, op: PendingOp, answer: unknown) {
+        if (this.#raw === undefined || !m.mutates(this.#key)) return;
+        const next = m.takeAnswer(this.#key, this.#raw, op, answer) as T;
         if (next !== this.#raw) this.#raw = next;
     }
     error = $state<string | null>(null);
