@@ -1,6 +1,8 @@
 package com.companyb.companyapp.logging
 
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.app.AppConfig
+import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.database.JdbcTiming
 import com.companyb.companyapp.exception.ConflictException
@@ -35,6 +37,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -238,9 +241,12 @@ class WritesMeetReadsTest : BasePostgresTest() {
         )
     }
 
-    /** Every GET route as each reader, with [filledQuery] so handlers that need parameters answer. */
+    /**
+     * Every GET route as each reader, with [filledQuery] so handlers that need parameters answer, plus the
+     * delegates of [missionId]: a helper add writes there, and [fill] points `{branchId}` at [branchId].
+     */
     private fun readAll(): Map<String, Answer> =
-        routes
+        (routes + ApiRoutes.BRANCH_DELEGATES_PATH.replace("{branchId}", missionId.toString()))
             .flatMap { path ->
                 READERS.map { who ->
                     val response = send(HandlerType.GET, path + filledQuery(), who, "")
@@ -263,7 +269,8 @@ class WritesMeetReadsTest : BasePostgresTest() {
             "from" to day.minusDays(WEEK),
             "to" to day,
             "dateFrom" to day.minusDays(WEEK),
-            "dateTo" to day,
+            // Audit ends dateTo at calendar midnight; before the 04:00 cutoff the operational day is yesterday.
+            "dateTo" to maxOf(day, LocalDate.now(BranchDayService.manilaZone)),
             "branchId" to branchId,
             "branchDayId" to today,
             "withToday" to true,
