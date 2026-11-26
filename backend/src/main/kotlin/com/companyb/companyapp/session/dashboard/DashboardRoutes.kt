@@ -145,6 +145,7 @@ internal fun mapDashboardSession(
         requestedPractitionerName =
             session.requestedPractitionerId?.let { enrichment.requestedPractitionerNames[it] },
         branchId = enrichment.branchIdBySession[session.id]?.toString() ?: "",
+        completedAt = session.completedAt?.toString(),
         practitioners =
             enrichment.practitionerBySession[session.id]
                 .orEmpty()

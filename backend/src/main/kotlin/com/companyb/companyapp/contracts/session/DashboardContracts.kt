@@ -42,6 +42,8 @@ data class DashboardSessionResponse(
     val dayStatus: DayStatus? = null,
     /** The single-session read's day row, so its page lists and adds the session's product sales there. */
     val branchDayId: String? = null,
+    /** When the session was marked done (ISO offset time, when it happened on the phone); null unless done. */
+    val completedAt: String? = null,
 )
 
 @Serializable
@@ -77,6 +79,8 @@ data class TodayScreenResponse(
     val earlierWaitingDays: List<String>? = null,
     /** For the branch's members: where and how to share today's unsent work through a site hub. */
     val siteHub: SiteHubResponse? = null,
+    /** The operational day this document is for (ISO date): today, or the past day asked for. */
+    val date: String,
 )
 
 /** A branch day's room on a site hub and the key (base64url, AES-256-GCM) that seals its records there. */

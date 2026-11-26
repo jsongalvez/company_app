@@ -10,6 +10,7 @@ import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branchday.BranchDay
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.branchday.DayWrite
+import com.companyb.companyapp.branchday.OpTime
 import com.companyb.companyapp.client.Client
 import com.companyb.companyapp.client.ClientReads
 import com.companyb.companyapp.commission.CommissionService
@@ -395,7 +396,8 @@ object SessionService {
                     )
                 }
 
-                val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
+                val doneAt = if (newStatus == SessionStatus.COMPLETED) OpTime.occurredWithin(branchDay.date) else null
+                val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion, doneAt)
 
                 SessionAudit.updated(
                     AuditContext(callerId, branchDay.branchId, isRemitted, reason),

@@ -368,6 +368,7 @@ data class AttendanceRosterEntry(
     val displayName: String,
     val slot: Short,
     val present: Boolean,
+    val clockedInAt: OffsetDateTime? = null,
 )
 
 private fun requireTargetExists(targetUserId: UUID) {

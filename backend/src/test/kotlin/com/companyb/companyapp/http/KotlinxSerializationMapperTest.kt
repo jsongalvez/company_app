@@ -23,7 +23,13 @@ class KotlinxSerializationMapperTest {
     @Test
     fun `an object is written with the same bytes as through a JSON tree`() {
         val screen =
-            TodayScreenResponse(dashboard = dashboard, dashboardRefusal = null, bookings = emptyList(), roster = null)
+            TodayScreenResponse(
+                dashboard = dashboard,
+                dashboardRefusal = null,
+                bookings = emptyList(),
+                roster = null,
+                date = "2026-11-26",
+            )
 
         assertEquals(viaTree(screen), mapper.toJsonString(screen, TodayScreenResponse::class.java))
     }

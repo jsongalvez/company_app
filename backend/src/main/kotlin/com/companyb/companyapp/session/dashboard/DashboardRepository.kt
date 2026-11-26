@@ -189,6 +189,7 @@ internal object DashboardRepository {
             nextAppointmentDate = this[SessionTable.nextAppointmentDate],
             createdBy = this[SessionTable.createdBy],
             createdAt = this[SessionTable.createdAt],
+            completedAt = this[SessionTable.completedAt],
             version = this[SessionTable.version],
         )
 }

@@ -94,6 +94,8 @@ data class MemberAttendanceResponse(
     /** Branch Slot ordering (1 = senior); cosmetic, mirrored from the assignment. */
     val slot: Short,
     val present: Boolean,
+    /** When the open clock-in began (ISO offset time), for someone on duty; null when not clocked in. */
+    val clockedInAt: String? = null,
 )
 
 @Serializable

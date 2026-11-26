@@ -2639,6 +2639,7 @@ export interface components {
                         key: string;
                         date: string;
                     } | null;
+                    date: string;
                 } | null;
             } | null;
             replayToken: string;
@@ -2702,6 +2703,7 @@ export interface components {
                     key: string;
                     date: string;
                 } | null;
+                date: string;
             } | null;
         };
         StopViewAsRequest: {
@@ -3148,6 +3150,7 @@ export interface components {
             /** @enum {string|null} */
             dayStatus?: "OPEN" | "PAST" | "REMITTED" | null;
             branchDayId?: string | null;
+            completedAt?: string | null;
         };
         PromoteConcernRequest: {
             id: string;
@@ -3214,6 +3217,7 @@ export interface components {
                     key: string;
                     date: string;
                 } | null;
+                date: string;
             } | null;
         };
         SessionVoidResponse: {
@@ -3246,6 +3250,7 @@ export interface components {
                 key: string;
                 date: string;
             } | null;
+            date: string;
         };
         UnvoidSessionRequest: {
             unvoidedReason: string;
@@ -3363,6 +3368,7 @@ export interface components {
                             key: string;
                             date: string;
                         } | null;
+                        date: string;
                     } | null;
                 } | null;
             } | null;
@@ -3400,6 +3406,7 @@ export interface components {
                         key: string;
                         date: string;
                     } | null;
+                    date: string;
                 } | null;
             } | null;
         };
@@ -3453,6 +3460,7 @@ export interface components {
                         key: string;
                         date: string;
                     } | null;
+                    date: string;
                 } | null;
             } | null;
         };
@@ -3501,6 +3509,7 @@ export interface components {
                         key: string;
                         date: string;
                     } | null;
+                    date: string;
                 } | null;
             } | null;
         };
@@ -3540,6 +3549,7 @@ export interface components {
             displayName: string;
             slot: number;
             present: boolean;
+            clockedInAt?: string | null;
         };
         ReliefAccessRequest: {
             requestId: string;
@@ -6096,7 +6106,10 @@ export interface operations {
     };
     today_screen: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description A past day (YYYY-MM-DD) for that day's document; today when left out */
+                date?: string;
+            };
             header?: never;
             path: {
                 branchId: string;
@@ -6114,8 +6127,26 @@ export interface operations {
                     "application/json": components["schemas"]["TodayScreenResponse"];
                 };
             };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

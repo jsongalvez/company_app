@@ -32,6 +32,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -222,12 +223,14 @@ internal object SessionRepository {
         sessionId: UUID,
         newStatus: SessionStatus,
         expectedVersion: Int,
+        completedAt: OffsetDateTime? = null,
     ): Session {
         val updatedCount =
             SessionTable.update({
                 (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
             }) {
                 it[SessionTable.sessionStatus] = newStatus
+                it[SessionTable.completedAt] = completedAt
                 it[SessionTable.version] = expectedVersion + 1
             }
         if (updatedCount != 1) {
@@ -415,5 +418,6 @@ internal object SessionRepository {
             createdBy = this[SessionTable.createdBy],
             createdAt = this[SessionTable.createdAt],
             version = this[SessionTable.version],
+            completedAt = this[SessionTable.completedAt],
         )
 }

@@ -268,17 +268,18 @@ internal object AttendanceRepository {
         )
     }
 
-    /** user ids with an open clock-in at the branch day (roster presence flags). */
-    fun activeClockInUserIds(branchDayId: UUID): Set<UUID> =
-        traced("AttendanceRepository.activeClockInUserIds") {
+    /** Who is clocked in on [branchDayId], with when their open clock-in began. */
+    fun activeClockIns(branchDayId: UUID): Map<UUID, OffsetDateTime> =
+        traced("AttendanceRepository.activeClockIns") {
             transaction {
                 AttendanceTable
                     .selectAll()
                     .where {
                         (AttendanceTable.branchDayId eq branchDayId) and
                             (AttendanceTable.clockOut.isNull())
-                    }.map { it[AttendanceTable.userId] }
-            }.toSet()
+                    }.map { it[AttendanceTable.userId] to it[AttendanceTable.clockIn] }
+            }.groupBy({ it.first }, { it.second })
+                .mapValues { (_, times) -> times.min() }
         }
 
     /**

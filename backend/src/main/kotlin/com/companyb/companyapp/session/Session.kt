@@ -34,6 +34,8 @@ data class Session(
     val createdBy: UUID?,
     val createdAt: OffsetDateTime,
     val version: Int,
+    /** When it was marked done; null unless [sessionStatus] is COMPLETED. */
+    val completedAt: OffsetDateTime? = null,
 )
 
 private const val PRECISION = 10
@@ -91,6 +93,7 @@ internal object SessionTable : Table("session") {
     val createdBy = javaUUID("created_by").references(AppUserTable.id).nullable()
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
     val version = integer("version").default(1)
+    val completedAt = timestampWithTimeZone("completed_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
 

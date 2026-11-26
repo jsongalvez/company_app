@@ -2,16 +2,17 @@ package com.companyb.companyapp.workforce
 
 import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** A branch's roster and who is clocked in on its day, read together for the Today screen. */
 data class DayPresence(
     val roster: List<RosterMember>,
-    val clockedInUserIds: Set<UUID>,
+    val clockedIn: Map<UUID, OffsetDateTime>,
 ) {
     fun isMember(userId: UUID): Boolean = roster.any { it.userId == userId }
 
-    fun isClockedIn(userId: UUID): Boolean = userId in clockedInUserIds
+    fun isClockedIn(userId: UUID): Boolean = userId in clockedIn
 
     fun entries(): List<AttendanceRosterEntry> =
         roster.map {
@@ -20,7 +21,8 @@ data class DayPresence(
                 it.userId,
                 it.displayName,
                 it.slot,
-                it.userId in clockedInUserIds,
+                it.userId in clockedIn,
+                clockedIn[it.userId],
             )
         }
 }
@@ -38,7 +40,7 @@ object AttendancePresence {
             transaction {
                 DayPresence(
                     roster = AttendanceRepository.rosterRows(branchId),
-                    clockedInUserIds = branchDayId?.let { AttendanceRepository.activeClockInUserIds(it) } ?: emptySet(),
+                    clockedIn = branchDayId?.let { AttendanceRepository.activeClockIns(it) } ?: emptyMap(),
                 )
             }
         }
