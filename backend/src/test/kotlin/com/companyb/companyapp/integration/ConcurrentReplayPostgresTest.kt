@@ -467,7 +467,8 @@ class ConcurrentReplayPostgresTest : BasePostgresTest() {
         }
 
     private fun createApp(): Javalin {
-        val config = AppConfig.parse()
+        // The built web app is not under test, and WEB_DIR may name a build that does not exist here.
+        val config = AppConfig.parse().copy(webDir = null)
         JwtService.init(config)
         return Javalin.create { cfg ->
             configureHttpSurface(cfg, config)
