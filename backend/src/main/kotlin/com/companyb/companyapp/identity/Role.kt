@@ -3,9 +3,6 @@ package com.companyb.companyapp.identity
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 
-internal const val ACCOUNTANT_ROLE = "ACCOUNTANT"
-internal const val PRACTITIONER_ROLE = "PRACTITIONER"
-
 internal object RoleTable : Table("role") {
     val id = javaUUID("id").autoGenerate()
     val name = text("name")

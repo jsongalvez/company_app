@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
@@ -34,8 +35,6 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
-
-private const val ONBOARDING_ROLE = "ONBOARDING"
 
 /** Active assignment projected with its branch name — the user-list shape. */
 data class UserBranchAssignmentSummary(
@@ -411,7 +410,7 @@ internal object UserRepository {
      */
     fun isActiveStaffInTransaction(userId: UUID): Boolean {
         if (!acquireLockInTransaction(userId)) return false
-        if (holdsRoleInTransaction(userId, ACCOUNTANT_ROLE)) return false
+        if (holdsRoleInTransaction(userId, RoleRules.NO_BRANCH)) return false
         return AppUserTable
             .innerJoin(UserRoleTable, { AppUserTable.id }, { UserRoleTable.userId })
             .innerJoin(RoleTable, { UserRoleTable.roleId }, { RoleTable.id })
@@ -419,7 +418,7 @@ internal object UserRepository {
             .where {
                 (AppUserTable.id eq userId) and
                     People.active() and
-                    (RoleTable.name neq ONBOARDING_ROLE)
+                    (RoleTable.name neq RoleRules.NO_ACCESS)
             }.empty()
             .not()
     }

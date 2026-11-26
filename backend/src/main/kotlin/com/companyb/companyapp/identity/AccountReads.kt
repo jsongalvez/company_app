@@ -1,5 +1,6 @@
 package com.companyb.companyapp.identity
 
+import com.companyb.companyapp.authorization.RoleRules
 import java.util.UUID
 
 /**
@@ -20,7 +21,7 @@ object AccountReads {
     fun isActiveUserInTransaction(userId: UUID): Boolean = UserRepository.isActiveUserInTransaction(userId)
 
     fun isAccountantInTransaction(userId: UUID): Boolean =
-        UserRepository.holdsRoleInTransaction(userId, ACCOUNTANT_ROLE)
+        UserRepository.holdsRoleInTransaction(userId, RoleRules.NO_BRANCH)
 
     /** Delegate-eligibility read — runs on the caller's command transaction. */
     fun isActiveStaffInTransaction(userId: UUID): Boolean = UserRepository.isActiveStaffInTransaction(userId)

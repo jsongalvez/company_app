@@ -5,6 +5,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.audit.ViewedAsBy
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.contracts.audit.AuditAction
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.identity.ViewAsResponse
@@ -31,11 +32,10 @@ private val logger = KotlinLogging.logger {}
 object ViewAs {
     const val HEADER = "X-View-As"
     const val CHANGES_HEADER = "X-View-As-Changes"
-    const val SUPERUSER_ROLE = "SUPERUSER"
     private val READ_METHODS = setOf("GET", "HEAD", "OPTIONS")
 
     fun isSuperuser(userId: UUID): Boolean =
-        RoleRepository.findRoleNamesByUser(listOf(userId))[userId].orEmpty().contains(SUPERUSER_ROLE)
+        RoleRepository.findRoleNamesByUser(listOf(userId))[userId].orEmpty().contains(RoleRules.TOP)
 
     /**
      * Auth-filter step: returns the user id the request runs as. Clears the request's
@@ -84,7 +84,7 @@ object ViewAs {
                     val user = MeRepository.findUser(targetId) ?: throw NotFoundException("User not found")
                     if (user.status != UserStatus.ACTIVE) throw ValidationException("That account is not active")
                     val roles = RoleRepository.findRoleNamesForUserInTransaction(targetId)
-                    if (SUPERUSER_ROLE in roles) throw ValidationException("Can't view as another superuser")
+                    if (RoleRules.TOP in roles) throw ValidationException("Can't view as another superuser")
                     ViewAsAudit.record(
                         callerId,
                         targetId,

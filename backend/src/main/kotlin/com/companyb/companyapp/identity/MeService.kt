@@ -4,6 +4,7 @@ import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
 import com.companyb.companyapp.authorization.CapabilityService
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.branchday.BranchDayService
 import com.companyb.companyapp.contracts.authorization.RightsResponse
 import com.companyb.companyapp.contracts.branch.BranchClockInStatus
@@ -47,7 +48,7 @@ object MeService {
                     email = user.email,
                     status = user.status,
                     createdAt = user.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                    canViewAs = ViewAs.SUPERUSER_ROLE in RoleRepository.findRoleNamesForUserInTransaction(userId),
+                    canViewAs = RoleRules.TOP in RoleRepository.findRoleNamesForUserInTransaction(userId),
                 )
             }.also { logger.info { "[GET-ME] Fetched user $userId" } }
         }

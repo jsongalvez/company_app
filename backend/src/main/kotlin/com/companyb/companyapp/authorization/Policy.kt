@@ -185,3 +185,98 @@ object Policy {
     /** The roles whose people get next-appointment alerts at the branches they are assigned to. */
     val ALERTED_ROLES: Set<Role> = Role.entries.filter { ALERTS in it.atBranch }.toSet()
 }
+
+/**
+ * The roles the user screens treat apart, and who may change whose roles or account: only an Owner
+ * or a Superuser gives or takes away Owner or Manager, nobody changes their own roles, only a
+ * Superuser changes or deactivates a Superuser, and only an Owner or a Superuser deactivates an Owner.
+ * Each check returns the refusal, or null when the change may go ahead. Names are `role.name` values.
+ */
+object RoleRules {
+    /** Given and taken away only in the database, never through the API; the only role that views as someone else. */
+    val TOP: String = Role.SUPERUSER.name
+
+    /** What [TOP] is shown as to someone who does not hold it. */
+    val TOP_SHOWN_AS: String = Role.PRACTITIONER.name
+
+    /** No access yet: someone holding only this is not staff. */
+    val NO_ACCESS: String = Role.ONBOARDING.name
+
+    /** Never has a home branch and never helps. */
+    val NO_BRANCH: String = Role.ACCOUNTANT.name
+
+    /** A helper's role when none is picked. */
+    val DEFAULT_HELPER: DelegateRole = DelegateRole.PRACTITIONER
+
+    private val RANKS = setOf(Role.OWNER.name, Role.MANAGER.name)
+    private val ABOVE_RANKS = setOf(Role.OWNER.name, TOP)
+
+    /** The roles a viewer is shown for someone holding [roles]: [TOP] shows as [TOP_SHOWN_AS] unless the viewer holds it. */
+    fun shownTo(
+        roles: List<String>,
+        viewerIsTop: Boolean,
+    ): List<String> = if (viewerIsTop || TOP !in roles) roles else (roles - TOP + TOP_SHOWN_AS).distinct().sorted()
+
+    /**
+     * The roles to save when someone who was shown [before] through [shownTo] asks for [requested]:
+     * the [TOP] role stays, and a [TOP_SHOWN_AS] the target never had is the mask, not a new role.
+     */
+    fun unmasked(
+        callerRoles: Collection<String>,
+        before: Collection<String>,
+        requested: List<String>,
+    ): List<String> =
+        if (TOP in before && TOP !in callerRoles) {
+            requested.filterNot { it == TOP_SHOWN_AS && it !in before } + TOP
+        } else {
+            requested
+        }
+
+    fun roleChange(
+        self: Boolean,
+        callerRoles: Collection<String>,
+        before: Collection<String>,
+        after: Collection<String>,
+    ): String? {
+        val changed = (before.toSet() - after.toSet()) + (after.toSet() - before.toSet())
+        return when {
+            changed.isEmpty() -> {
+                null
+            }
+
+            self -> {
+                "You can't change your own roles"
+            }
+
+            TOP in before && TOP !in callerRoles -> {
+                "Only a Superuser can change a Superuser"
+            }
+
+            changed.any { it in RANKS } && callerRoles.none { it in ABOVE_RANKS } -> {
+                "Only an Owner can give or take away Owner or Manager"
+            }
+
+            else -> {
+                null
+            }
+        }
+    }
+
+    fun statusChange(
+        callerRoles: Collection<String>,
+        targetRoles: Collection<String>,
+    ): String? =
+        when {
+            TOP in targetRoles && TOP !in callerRoles -> {
+                "Only a Superuser can change a Superuser's account"
+            }
+
+            Role.OWNER.name in targetRoles && callerRoles.none { it in ABOVE_RANKS } -> {
+                "Only an Owner can change an Owner's account"
+            }
+
+            else -> {
+                null
+            }
+        }
+}

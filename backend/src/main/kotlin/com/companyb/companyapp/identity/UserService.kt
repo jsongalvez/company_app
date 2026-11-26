@@ -3,6 +3,7 @@ package com.companyb.companyapp.identity
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.contracts.identity.InviteMintRequest
 import com.companyb.companyapp.contracts.identity.InviteMintResponse
 import com.companyb.companyapp.contracts.identity.PersonStatus
@@ -47,9 +48,8 @@ import java.util.UUID
 object UserService {
     private val logger = KotlinLogging.logger {}
     private const val SELF_DEACTIVATE_MESSAGE = "Cannot deactivate yourself"
-    private const val SUPERUSER_ROLE = "SUPERUSER"
-    private const val SUPERUSER_GUARD_MESSAGE =
-        "$SUPERUSER_ROLE cannot be granted or removed through the API"
+    private val SUPERUSER_GUARD_MESSAGE =
+        "${RoleRules.TOP} cannot be granted or removed through the API"
     private const val INVALID_EMAIL_MESSAGE = "Email is invalid"
     private const val BLANK_USERNAME_MESSAGE = "Username is required"
     private const val BLANK_DISPLAY_NAME_MESSAGE = "Display name is required"
@@ -92,7 +92,7 @@ object UserService {
                         ?: throw ValidationException(BAD_USER_ID_MESSAGE)
                 return@traced reinvite(callerId, target)
             }
-            if (request.roles.contains(SUPERUSER_ROLE)) {
+            if (request.roles.contains(RoleRules.TOP)) {
                 throw ValidationException(SUPERUSER_GUARD_MESSAGE)
             }
             val profile = request.asProfile()
@@ -271,12 +271,12 @@ object UserService {
     fun getRoles(): List<RoleResponse> =
         RoleRepository
             .findAllWithCapabilities()
-            .filter { it.name != SUPERUSER_ROLE }
+            .filter { it.name != RoleRules.TOP }
             .map { RoleResponse(name = it.name, capabilities = it.capabilities) }
 
     /**
      * Full replace of the target's role memberships. SUPERUSER is never granted or removed here.
-     * Someone who is not a superuser was shown a superuser as a Practitioner ([rolesAsSeenBy]), so
+     * Someone who is not a superuser was shown a superuser as a Practitioner ([RoleRules.shownTo]), so
      * their request is read through that mask: the Superuser role stays, and a Practitioner role the
      * target never had is the mask, not a new role.
      */
@@ -298,7 +298,7 @@ object UserService {
         }
     }
 
-    /** Transaction-local: the roles to save for [targetId], refused when [RankRule] forbids the change. */
+    /** Transaction-local: the roles to save for [targetId], refused when [RoleRules] forbids the change. */
     private fun rolesToWrite(
         callerId: UUID,
         targetId: UUID,
@@ -306,31 +306,11 @@ object UserService {
         requested: List<String>,
     ): List<String> {
         val callerRoles = RoleRepository.findRoleNamesForUserInTransaction(callerId)
-        val isSuperuser = SUPERUSER_ROLE in before
-        val wanted =
-            if (isSuperuser && SUPERUSER_ROLE !in callerRoles) {
-                requested.filterNot { it == PRACTITIONER_ROLE && it !in before } + SUPERUSER_ROLE
-            } else {
-                requested
-            }
-        if ((SUPERUSER_ROLE in wanted) != isSuperuser) throw ValidationException(SUPERUSER_GUARD_MESSAGE)
-        RankRule.roleChange(callerId == targetId, callerRoles, before, wanted)?.let { throw ForbiddenException(it) }
+        val wanted = RoleRules.unmasked(callerRoles, before, requested)
+        if ((RoleRules.TOP in wanted) != (RoleRules.TOP in before)) throw ValidationException(SUPERUSER_GUARD_MESSAGE)
+        RoleRules.roleChange(callerId == targetId, callerRoles, before, wanted)?.let { throw ForbiddenException(it) }
         return wanted
     }
-
-    /**
-     * The roles [viewer] is shown for someone holding [roles]: "superusers should appear as
-     * practitioners to someone managing users" unless the viewer is one.
-     */
-    private fun rolesAsSeenBy(
-        roles: List<String>,
-        viewerIsSuperuser: Boolean,
-    ): List<String> =
-        if (viewerIsSuperuser || SUPERUSER_ROLE !in roles) {
-            roles
-        } else {
-            (roles - SUPERUSER_ROLE + PRACTITIONER_ROLE).distinct().sorted()
-        }
 
     /** Transaction-local write half of [replaceRoles]: resolve, rewrite, audit on change. */
     private fun replaceMembershipsInTransaction(
@@ -383,7 +363,7 @@ object UserService {
         callerId: UUID,
         targetUserId: UUID,
     ) {
-        RankRule
+        RoleRules
             .statusChange(
                 RoleRepository.findRoleNamesForUserInTransaction(callerId),
                 RoleRepository.findRoleNamesForUserInTransaction(targetUserId),
@@ -499,7 +479,7 @@ object UserService {
                                     slot = assignment.slot,
                                 )
                             },
-                    roles = rolesAsSeenBy(rolesByUser[UUID.fromString(user.id)].orEmpty(), viewerIsSuperuser),
+                    roles = RoleRules.shownTo(rolesByUser[UUID.fromString(user.id)].orEmpty(), viewerIsSuperuser),
                 )
             }
         }

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.authorization.Role
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.identity.RoleTable
 import com.companyb.companyapp.identity.UserRoleTable
@@ -115,7 +116,7 @@ internal object RoleRepository {
         userId: UUID,
         roleIds: List<UUID>,
     ) {
-        if (findIdByNameInTransaction(ACCOUNTANT_ROLE) in roleIds &&
+        if (findIdByNameInTransaction(RoleRules.NO_BRANCH) in roleIds &&
             UserRepository.hasActiveAssignmentInTransaction(userId)
         ) {
             throw ValidationException("An accountant can't have a home branch. Remove their home branches first.")

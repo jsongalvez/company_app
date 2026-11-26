@@ -2,6 +2,7 @@ package com.companyb.companyapp.identity
 
 import com.companyb.companyapp.app.AppConfig
 import com.companyb.companyapp.audit.AuditLogTable
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.contracts.identity.StopViewAsRequest
 import com.companyb.companyapp.contracts.identity.UpdateProfileRequest
 import com.companyb.companyapp.contracts.identity.ViewAsRequest
@@ -41,7 +42,7 @@ class ViewAsTest : BasePostgresTest() {
         IdentityFixtures.insertTestUser(pat, "pat")
         IdentityFixtures.insertTestUser(owner, "owner")
         transaction {
-            val superuser = RoleRepository.findIdByNameInTransaction(ViewAs.SUPERUSER_ROLE)!!
+            val superuser = RoleRepository.findIdByNameInTransaction(RoleRules.TOP)!!
             RoleRepository.assignRoleInTransaction(dev, superuser)
             RoleRepository.assignRoleInTransaction(otherDev, superuser)
         }

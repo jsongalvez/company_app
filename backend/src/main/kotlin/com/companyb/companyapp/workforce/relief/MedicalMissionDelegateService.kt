@@ -3,6 +3,7 @@ package com.companyb.companyapp.workforce.relief
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLog
 import com.companyb.companyapp.audit.AuditedRow
+import com.companyb.companyapp.authorization.RoleRules
 import com.companyb.companyapp.branch.BranchService
 import com.companyb.companyapp.contracts.branch.BranchType
 import com.companyb.companyapp.contracts.workforce.DelegateRole
@@ -28,7 +29,7 @@ object MedicalMissionDelegateService {
         targetUserId: UUID,
         branchId: UUID,
         callerId: UUID,
-        role: DelegateRole = DelegateRole.PRACTITIONER,
+        role: DelegateRole = RoleRules.DEFAULT_HELPER,
     ): MedicalMissionDelegate {
         return traced("MedicalMissionDelegateService.assignDelegate") {
             requireTakesHelpers(branchId)
