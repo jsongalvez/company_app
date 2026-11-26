@@ -1,30 +1,20 @@
 package com.companyb.companyapp.remittance
+
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.api.delete
 import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.patch
 import com.companyb.companyapp.api.post
-import com.companyb.companyapp.api.routes.parsePositiveBigDecimal
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.remittance.AddDayBreakdownRequest
 import com.companyb.companyapp.contracts.remittance.CreateRemittanceDraftRequest
-import com.companyb.companyapp.contracts.remittance.CreateRemittanceLineRequest
-import com.companyb.companyapp.contracts.remittance.RemittanceDayBreakdownResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceDetailResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceDriftResponse
-import com.companyb.companyapp.contracts.remittance.RemittanceFinancialSnapshotResponse
-import com.companyb.companyapp.contracts.remittance.RemittanceLineResponse
-import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
@@ -37,7 +27,6 @@ import com.companyb.companyapp.dto.ErrorResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
-import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
@@ -123,69 +112,6 @@ import java.util.UUID
     ],
 )
 @OpenApi(
-    path = ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH,
-    methods = [HttpMethod.POST],
-    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
-    operationId = "remittance_day_breakdowns",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AddDayBreakdownRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "201", content = [OpenApiContent(from = RemittanceDayBreakdownResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH,
-    methods = [HttpMethod.DELETE],
-    pathParams = [
-        OpenApiParam(
-            name = "remittanceId",
-            type = UUID::class,
-            required = true,
-        ), OpenApiParam(name = "breakdownId", type = UUID::class, required = true),
-    ],
-    operationId = "remittance_day_breakdown_delete",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceDayBreakdownResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.REMITTANCE_LINES_PATH,
-    methods = [HttpMethod.POST],
-    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
-    operationId = "remittance_lines",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = CreateRemittanceLineRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "201", content = [OpenApiContent(from = RemittanceLineResponse::class)]),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.REMITTANCE_LINE_PATH,
-    methods = [HttpMethod.DELETE],
-    pathParams = [
-        OpenApiParam(
-            name = "remittanceId",
-            type = UUID::class,
-            required = true,
-        ), OpenApiParam(name = "lineId", type = UUID::class, required = true),
-    ],
-    operationId = "remittance_line_delete",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = RemittanceLineResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
     path = ApiRoutes.REMITTANCE_SUBMIT_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
@@ -221,9 +147,6 @@ object RemittanceRoutes {
     private fun remittancesGate(branchIdOf: (Context) -> UUID) =
         Gate.At(Act.SUBMIT_REMITTANCE) { Place.Branch(BranchService.findById(branchIdOf(it)).id) }
 
-    private val remittanceGate =
-        Gate.At(Act.SUBMIT_REMITTANCE) { RemittanceAuthz.placeOf(it.pathParamAsUuid("remittanceId")) }
-
     private fun registerReads(config: JavalinConfig) {
         config.get(ApiRoutes.REMITTANCES, remittancesGate { it.uuidFromQuery("branchId") }, ::handleListRemittances)
         config.get(ApiRoutes.REMITTANCE_PATH, remittanceGate, ::handleGetRemittance)
@@ -236,10 +159,7 @@ object RemittanceRoutes {
             remittancesGate { uuidOrThrow(it.bodyAsClass<CreateRemittanceDraftRequest>().branchId, "branch id") },
             ::handleCreateDraft,
         )
-        config.post(ApiRoutes.REMITTANCE_LINES_PATH, remittanceGate, ::handleAddLine)
-        config.delete(ApiRoutes.REMITTANCE_LINE_PATH, remittanceGate, ::handleRemoveLine)
-        config.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, remittanceGate, ::handleAddDayBreakdown)
-        config.delete(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH, remittanceGate, ::handleRemoveDayBreakdown)
+        RemittanceLineRoutes.register(config)
         config.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, remittanceGate, ::handleSubmit)
         config.post(ApiRoutes.REMITTANCE_UNDO_PATH, remittanceGate, ::handleUndo)
         config.patch(ApiRoutes.REMITTANCE_PATH, remittanceGate, ::handleUpdateHeader)
@@ -356,103 +276,6 @@ object RemittanceRoutes {
         context.json(drift.toResponse())
     }
 
-    private fun handleRemoveDayBreakdown(context: Context) {
-        val callerId = context.callerUuid()
-        val remittanceId = context.pathParamAsUuid("remittanceId")
-        val breakdownId = context.pathParamAsUuid("breakdownId")
-
-        val breakdown = RemittanceService.removeDayBreakdown(callerId, remittanceId, breakdownId)
-        context.json(breakdown.toResponse())
-    }
-
-    private fun handleAddLine(context: Context) {
-        val callerId = context.callerUuid()
-        val remittanceId = context.pathParamAsUuid("remittanceId")
-        val request = context.bodyAsClass<CreateRemittanceLineRequest>()
-
-        val id = uuidOrThrow(request.id, "line id")
-        val type =
-            RemittanceLineType.valueOf(request.type.name)
-        val sessionId = request.sessionId?.let { uuidOrThrow(it, "session id") }
-        val productSaleId = request.productSaleId?.let { uuidOrThrow(it, "product sale id") }
-        val amount = parsePositiveBigDecimal(request.amount, "amount")
-        requireMoneyAmount(amount, "amount")
-
-        when (type) {
-            RemittanceLineType.SESSION -> {
-                requireSessionLinePayload(sessionId, productSaleId)
-            }
-
-            RemittanceLineType.PRODUCT_SALE -> {
-                requireProductSaleLinePayload(sessionId, productSaleId)
-            }
-        }
-
-        val line =
-            RemittanceService.addLine(
-                callerId = callerId,
-                remittanceId = remittanceId,
-                new =
-                    NewRemittanceLine(
-                        id = id,
-                        type = type,
-                        sessionId = sessionId,
-                        productSaleId = productSaleId,
-                        amount = amount,
-                    ),
-            )
-
-        context.status(HttpStatus.CREATED)
-        context.json(line.toResponse())
-    }
-
-    private fun requireSessionLinePayload(
-        sessionId: UUID?,
-        productSaleId: UUID?,
-    ) {
-        if (sessionId == null) throw BadRequestResponse("sessionId is required for SESSION line type")
-        if (productSaleId != null) throw BadRequestResponse("productSaleId must be null for SESSION line type")
-    }
-
-    private fun requireProductSaleLinePayload(
-        sessionId: UUID?,
-        productSaleId: UUID?,
-    ) {
-        if (productSaleId == null) {
-            throw BadRequestResponse("productSaleId is required for PRODUCT_SALE line type")
-        }
-        if (sessionId != null) throw BadRequestResponse("sessionId must be null for PRODUCT_SALE line type")
-    }
-
-    private fun handleRemoveLine(context: Context) {
-        val callerId = context.callerUuid()
-        val remittanceId = context.pathParamAsUuid("remittanceId")
-        val lineId = context.pathParamAsUuid("lineId")
-
-        val line = RemittanceService.removeLine(callerId, remittanceId, lineId)
-        context.json(line.toResponse())
-    }
-
-    private fun handleAddDayBreakdown(context: Context) {
-        val callerId = context.callerUuid()
-        val remittanceId = context.pathParamAsUuid("remittanceId")
-        val request = context.bodyAsClass<AddDayBreakdownRequest>()
-
-        val id = uuidOrThrow(request.id, "day breakdown id")
-        val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-
-        val breakdown =
-            RemittanceService.addDayBreakdown(
-                callerId = callerId,
-                remittanceId = remittanceId,
-                id = id,
-                branchDayId = branchDayId,
-            )
-
-        context.status(HttpStatus.CREATED)
-        context.json(breakdown.toResponse())
-    }
-
     private fun handleSubmit(context: Context) {
         val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
@@ -515,102 +338,7 @@ object RemittanceRoutes {
 
         context.json(remittance.toResponse())
     }
-
-    private fun Remittance.toResponse(): RemittanceResponse =
-        RemittanceResponse(
-            id = id.toString(),
-            type = type,
-            status = status,
-            branchId = branchId.toString(),
-            method = method,
-            submittedDate = submittedDate.toString(),
-            submittedAt = submittedAt?.toString(),
-            submittedBy = submittedBy.toString(),
-            dateRangeStart = dateRangeStart.toString(),
-            dateRangeEnd = dateRangeEnd.toString(),
-            createdAt = createdAt.toString(),
-            version = version,
-        )
-
-    private fun RemittanceWithNet.toListResponse(): RemittanceResponse =
-        remittance.toResponse().copy(netIncome = netIncome?.toPlainString())
-
-    private fun RemittanceLine.toResponse(): RemittanceLineResponse =
-        RemittanceLineResponse(
-            id = id.toString(),
-            remittanceId = remittanceId.toString(),
-            type = type,
-            sessionId = sessionId?.toString(),
-            productSaleId = productSaleId?.toString(),
-            createdBy = createdBy.toString(),
-            createdAt = createdAt.toString(),
-            deletedBy = deletedBy?.toString(),
-            deletedAt = deletedAt?.toString(),
-            amount = amount.toPlainString(),
-        )
-
-    private fun RemittanceDayBreakdown.toResponse(): RemittanceDayBreakdownResponse =
-        RemittanceDayBreakdownResponse(
-            id = id.toString(),
-            remittanceId = remittanceId.toString(),
-            branchDayId = branchDayId.toString(),
-        )
-
-    private fun RemittanceDetail.toResponse(): RemittanceDetailResponse =
-        RemittanceDetailResponse(
-            id = remittance.id.toString(),
-            type = remittance.type,
-            status = remittance.status,
-            branchId = remittance.branchId.toString(),
-            method = remittance.method,
-            submittedDate = remittance.submittedDate.toString(),
-            submittedAt = remittance.submittedAt?.toString(),
-            submittedBy = remittance.submittedBy.toString(),
-            dateRangeStart = remittance.dateRangeStart.toString(),
-            dateRangeEnd = remittance.dateRangeEnd.toString(),
-            createdAt = remittance.createdAt.toString(),
-            version = remittance.version,
-            lines = lines.map { it.toResponse() },
-            totalAmount = totalAmount.toPlainString(),
-            dayBreakdowns = dayBreakdowns.map { it.toResponse() },
-            snapshot = snapshot?.toResponse(),
-        )
-
-    private fun RemittanceFinancialSnapshot.toResponse(): RemittanceFinancialSnapshotResponse =
-        RemittanceFinancialSnapshotResponse(
-            remittanceId = remittanceId.toString(),
-            grossIncome = grossIncome.toPlainString(),
-            totalCompensation = totalCompensation.toPlainString(),
-            totalExpenses = totalExpenses.toPlainString(),
-            netIncome = netIncome.toPlainString(),
-            snapshottedAt = snapshottedAt.toString(),
-        )
-
-    private fun RemittanceDrift.toResponse(): RemittanceDriftResponse =
-        RemittanceDriftResponse(
-            frozen = frozen.toResponse(),
-            currentCompensation = currentCompensation.toPlainString(),
-            currentExpenses = currentExpenses.toPlainString(),
-            currentNet = currentNet.toPlainString(),
-        )
-
-    private fun RemittanceSubmissionResult.toSubmitResponse(): RemittanceSubmitResponse =
-        RemittanceSubmitResponse(
-            id = remittance.id.toString(),
-            type = remittance.type,
-            status = remittance.status,
-            branchId = remittance.branchId.toString(),
-            method = remittance.method,
-            submittedDate = remittance.submittedDate.toString(),
-            submittedAt = remittance.submittedAt?.toString(),
-            submittedBy = remittance.submittedBy.toString(),
-            dateRangeStart = remittance.dateRangeStart.toString(),
-            dateRangeEnd = remittance.dateRangeEnd.toString(),
-            createdAt = remittance.createdAt.toString(),
-            version = remittance.version,
-            grossIncome = grossIncome.toPlainString(),
-            totalCompensation = totalCompensation.toPlainString(),
-            totalExpenses = totalExpenses.toPlainString(),
-            netIncome = netIncome.toPlainString(),
-        )
 }
+
+internal val remittanceGate =
+    Gate.At(Act.SUBMIT_REMITTANCE) { RemittanceAuthz.placeOf(it.pathParamAsUuid("remittanceId")) }

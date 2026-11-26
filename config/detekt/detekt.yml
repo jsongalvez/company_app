@@ -718,7 +718,6 @@ style:
       - '**/backend/src/main/kotlin/com/companyb/companyapp/database/DatabaseConfig.kt' #465 frozen #600 ticketed TooGenericExceptionCaught
       - '**/backend/src/main/kotlin/com/companyb/companyapp/commerce/ProductSaleService.kt' #465 frozen #597 ticketed LongMethod
       - '**/backend/src/main/kotlin/com/companyb/companyapp/app/SchedulerLifecycle.kt' #465 frozen #551 retarget #600 ticketed TooGenericExceptionCaught
-      - '**/backend/src/main/kotlin/com/companyb/companyapp/remittance/RemittanceService.kt' #465 frozen #595 ticketed LongMethod
       - '**/backend/src/test/kotlin/com/companyb/companyapp/audit/AuditLogAuthzTest.kt' #465 frozen #600 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/branchday/BranchDayAuthzTest.kt' #465 frozen #600 ticketed LargeClass
       - '**/backend/src/test/kotlin/com/companyb/companyapp/commerce/BranchInventoryAuthzTest.kt' #465 frozen #597 ticketed LargeClass

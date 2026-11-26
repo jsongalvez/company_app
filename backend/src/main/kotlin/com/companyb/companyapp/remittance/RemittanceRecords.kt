@@ -4,6 +4,7 @@ import com.companyb.companyapp.contracts.remittance.RemittanceLineType
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceStatus
 import com.companyb.companyapp.contracts.remittance.RemittanceType
+import org.jetbrains.exposed.v1.core.and
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -63,4 +64,53 @@ data class RemittanceFinancialSnapshotCreateParams(
     val totalCompensation: BigDecimal,
     val totalExpenses: BigDecimal,
     val netIncome: BigDecimal,
+)
+
+data class CreateDraftParams(
+    val id: UUID,
+    val type: RemittanceType,
+    val branchId: UUID,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
+    val submittedDate: LocalDate,
+    val submittedBy: UUID,
+)
+
+data class RemittanceCreateResult(
+    val remittance: Remittance,
+    val created: Boolean,
+)
+
+data class UpdateHeaderParams(
+    val remittanceId: UUID,
+    val expectedVersion: Int,
+    val type: RemittanceType,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
+)
+
+data class RemittanceSubmissionResult(
+    val remittance: Remittance,
+    val grossIncome: BigDecimal,
+    val totalCompensation: BigDecimal,
+    val totalExpenses: BigDecimal,
+    val netIncome: BigDecimal,
+)
+
+data class NewRemittance(
+    val id: UUID,
+    val type: RemittanceType,
+    val branchId: UUID,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
+)
+
+data class RemittanceHeader(
+    val type: RemittanceType,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
 )
