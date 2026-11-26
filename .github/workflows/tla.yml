@@ -1,0 +1,68 @@
+name: tla
+
+# Runs TLC over the save queue's model (tools/tla/outbox): every fixed-* config must pass and
+# every today-*/partial-* config must fail, then ablate.sh checks each fix is still needed.
+# The model drifted 47 commits from the code while nothing ran it, so it runs whenever the
+# model or the code it describes changes. About 3 minutes on 2 cores.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'tools/tla/outbox/**'
+      - 'web/src/lib/outbox*'
+      - 'web/src/lib/cache*'
+      - 'web/src/lib/disk*'
+      - 'web/src/lib/today*'
+      - 'web/src/api/client.ts'
+      - 'web/src/pages/Today.svelte'
+      - 'backend/src/main/kotlin/com/companyb/companyapp/audit/OpLog.kt'
+      - 'backend/src/main/kotlin/com/companyb/companyapp/branchday/OpTime.kt'
+      - '.github/workflows/tla.yml'
+  pull_request:
+    paths:
+      - 'tools/tla/outbox/**'
+      - 'web/src/lib/outbox*'
+      - 'web/src/lib/cache*'
+      - 'web/src/lib/disk*'
+      - 'web/src/lib/today*'
+      - 'web/src/api/client.ts'
+      - 'web/src/pages/Today.svelte'
+      - 'backend/src/main/kotlin/com/companyb/companyapp/audit/OpLog.kt'
+      - 'backend/src/main/kotlin/com/companyb/companyapp/branchday/OpTime.kt'
+      - '.github/workflows/tla.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tla-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  outbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TLA_JAR: ${{ github.workspace }}/.tla/tla2tools.jar
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # run.sh downloads v1.8.0 when the jar is missing; the cache saves that fetch.
+      - uses: actions/cache@v4
+        with:
+          path: .tla
+          key: tla2tools-v1.8.0
+
+      - name: Every config gives its expected verdict
+        run: tools/tla/outbox/run.sh
+
+      - name: Each fix is needed
+        run: tools/tla/outbox/ablate.sh
