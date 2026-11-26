@@ -447,6 +447,10 @@ table.grid tfoot td {
     z-index: 1;
     font-weight: 600;
 }
+/* --text-3 reads under 4.5:1 on --accent-soft; the picked button's count takes its accent colour. */
+.seg > button.on > .faint {
+    color: inherit;
+}
 
 .show-sm {
     display: none;

@@ -4,6 +4,8 @@ import { expect } from "e2e";
 import { FLOORS, PHONE, phoneProblems } from "./phone-check";
 
 // Pages drawn before the phone rules. A rebuilt page leaves this list in the same change and must then fit for every role.
+// A listed page is let off the size floors only: it still may not scroll sideways, wrap a bar or show faint text.
+const BREAKS = /^(scrolls sideways|bar wraps|text contrast)/;
 const LEGACY: readonly string[] = JSON.parse(readFileSync("tests/phone-legacy.json", "utf8"));
 const ROLES = ["practitioner", "coordinator", "manager", "owner", "accountant", "superuser", "relief", "newcomer"] as const;
 const route = (href: string) => href.split("?")[0];
@@ -27,7 +29,8 @@ for (const role of ROLES) {
                     .first(),
             ).toBeHidden();
             const problems = await browser.evaluate(phoneProblems, { ...FLOORS });
-            if (problems.length && !LEGACY.includes(href)) failing.push([href, ...problems.slice(0, 15)].join("\n    "));
+            const counted = LEGACY.includes(href) ? problems.filter((p) => BREAKS.test(p)) : problems;
+            if (counted.length) failing.push([href, ...counted.slice(0, 15)].join("\n    "));
         }
         expect(failing).toEqual([]);
     });
