@@ -3,7 +3,7 @@
     import { act } from "../lib/act.svelte";
     import { visitWhen, whoText, setBooking, type Booking } from "../lib/bookings";
     import { operationalDate } from "../lib/format";
-    import BookVisit from "./BookVisit.svelte";
+    import { later } from "../lib/later.svelte";
     import History from "./History.svelte";
 
     /** A list of booked visits with Change / Cancel, and Start for today's when allowed. */
@@ -26,6 +26,11 @@
     let changing = $state<Booking | null>(null);
     let historyOf = $state<string | null>(null);
     let changeOpen = $state(false);
+    const bookVisit = later(() => import("./BookVisit.svelte"));
+    const BookVisit = $derived(bookVisit.c);
+    $effect(() => {
+        if (changeOpen) bookVisit.load();
+    });
     const today = $derived(operationalDate());
 
     function change(b: Booking) {
@@ -68,7 +73,7 @@
     {/each}
 </ul>
 
-<BookVisit bind:open={changeOpen} booking={changing} onsaved={onchanged} />
+{#if BookVisit}<BookVisit bind:open={changeOpen} booking={changing} onsaved={onchanged} />{/if}
 
 <style>
     .bookings {

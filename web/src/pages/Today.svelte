@@ -19,19 +19,34 @@
     import { findLocal } from "../lib/clientdir.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
-    import NewSession from "../components/NewSession.svelte";
-    import BookVisit from "../components/BookVisit.svelte";
+    import { later } from "../lib/later.svelte";
     import Bookings from "../components/Bookings.svelte";
     import { fetchCached } from "../lib/cache.svelte";
     import { changed } from "../lib/changed";
     import type { Booking } from "../lib/bookings";
-    import ProductSale from "../components/ProductSale.svelte";
+
+    const newSession = later(() => import("../components/NewSession.svelte"));
+    const bookVisit = later(() => import("../components/BookVisit.svelte"));
+    const productSale = later(() => import("../components/ProductSale.svelte"));
+    const NewSession = $derived(newSession.c);
+    const BookVisit = $derived(bookVisit.c);
+    const ProductSale = $derived(productSale.c);
 
     // The Site panel's code loads after Today shows; it draws nothing until a site hub answers.
     let SitePanel = $state<typeof import("../components/SitePanel.svelte").default>();
     $effect(() => {
         const t = setTimeout(() => void import("../components/SitePanel.svelte").then((m) => (SitePanel = m.default)), 3_000);
         return () => clearTimeout(t);
+    });
+    // The dialogs' code loads soon after Today shows, or at once on a tap that opens one.
+    $effect(() => {
+        const t = setTimeout(() => (newSession.load(), bookVisit.load(), productSale.load()), 3_000);
+        return () => clearTimeout(t);
+    });
+    $effect(() => {
+        if (newOpen) newSession.load();
+        if (bookOpen) bookVisit.load();
+        if (saleOpen) productSale.load();
     });
     const bid = $derived(app.branchId);
     // Staff enter yesterday's sessions and sales the next day: ◀ opens an earlier day to add to.
@@ -567,16 +582,16 @@
         </aside>{/if}
 </div>
 
-<NewSession
-    bind:open={newOpen}
-    {startClient}
-    booking={startBooking}
-    date={isToday ? null : date}
-    dayId={isToday ? null : (pastDay.data?.id ?? null)}
-    onsaved={() => (reloadLists(), reloadBookings())}
-/>
-<BookVisit bind:open={bookOpen} onsaved={reloadBookings} />
-<ProductSale bind:open={saleOpen} onsaved={reloadLists} day={isToday ? null : { id: saleDay ?? "", date }} />
+{#if NewSession}<NewSession
+        bind:open={newOpen}
+        {startClient}
+        booking={startBooking}
+        date={isToday ? null : date}
+        dayId={isToday ? null : (pastDay.data?.id ?? null)}
+        onsaved={() => (reloadLists(), reloadBookings())}
+    />{/if}
+{#if BookVisit}<BookVisit bind:open={bookOpen} onsaved={reloadBookings} />{/if}
+{#if ProductSale}<ProductSale bind:open={saleOpen} onsaved={reloadLists} day={isToday ? null : { id: saleDay ?? "", date }} />{/if}
 
 <style>
     .refused {
