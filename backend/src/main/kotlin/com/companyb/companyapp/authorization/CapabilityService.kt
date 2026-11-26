@@ -2,7 +2,6 @@ package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.authorization.RightsResponse
-import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.observability.traced
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -29,8 +28,8 @@ object CapabilityService {
     /** Every act [userId] may do, at each place they stand at. */
     fun rightsOf(userId: UUID): RightsResponse = Rights.of(CapabilityRepository.grantsOf(userId))
 
-    fun getCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
-        CapabilityRepository.findCapabilitiesForUser(userId)
+    /** The grants [userId] holds, one per code and place; `AccessMatrixTest` lists them. */
+    fun grantsOf(userId: UUID): List<Grant> = CapabilityRepository.grantsOf(userId)
 
     /** Distinct branch ids where [userId] holds any active grant (audit read window). */
     fun findBranchWindow(userId: UUID): List<UUID> = CapabilityRepository.findBranchWindow(userId)

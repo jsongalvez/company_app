@@ -478,12 +478,12 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     private fun seatGrants(): Set<String> =
         CapabilityService
-            .getCapabilitiesForUser(targetUserId)
+            .grantsOf(targetUserId)
             .filter {
                 it.contextType == CapabilityContextType.BRANCH &&
-                    it.contextId == branchId.toString() &&
+                    it.contextId == branchId &&
                     it.sourceType == CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-            }.map { it.capabilityCode }
+            }.map { it.code }
             .toSet()
 
     private fun delegateAuditCount(delegateId: UUID): Long =

@@ -65,9 +65,9 @@ class MissionStaffPostgresTest : BasePostgresTest() {
         branchId: UUID,
     ): Set<String> =
         CapabilityService
-            .getCapabilitiesForUser(userId)
-            .filter { it.contextType == CapabilityContextType.BRANCH && it.contextId == branchId.toString() }
-            .map { it.capabilityCode }
+            .grantsOf(userId)
+            .filter { it.contextType == CapabilityContextType.BRANCH && it.contextId == branchId }
+            .map { it.code }
             .toSet()
 
     @Test

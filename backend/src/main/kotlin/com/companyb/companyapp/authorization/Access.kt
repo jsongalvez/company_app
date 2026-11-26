@@ -10,29 +10,37 @@ import io.javalin.http.HandlerType
 import java.time.LocalDate
 import java.util.UUID
 
-/**
- * Which of a person's grants count for an action. A grant sits at a home branch (BRANCH), at
- * every branch (GLOBAL), or at one day (BRANCH_DAY, which is how relief is granted).
- */
-enum class Reach {
-    /** A GLOBAL grant only. */
+/** Where a grant stands from the place of an action: everywhere, at its branch, at its day, or somewhere else. */
+enum class Standing {
     EVERYWHERE,
-
-    /** A grant of the code anywhere at all. */
-    ANYWHERE,
-
-    /** A BRANCH grant at the place's branch. */
     HOME,
+    DAY,
+    ELSEWHERE,
+    ;
 
-    /** A BRANCH grant at the place's branch, or a GLOBAL grant. */
-    HOME_OR_EVERYWHERE,
-
-    /** A BRANCH grant at the place's branch, or a BRANCH_DAY grant for the place's day. GLOBAL does not count. */
-    HOME_OR_DAY,
-
-    /** A BRANCH grant at the place's branch, a GLOBAL grant, or a BRANCH_DAY grant for the place's day. */
-    HOME_OR_EVERYWHERE_OR_DAY,
+    companion object {
+        /** How [grant] stands from [place]. */
+        fun of(
+            grant: Grant,
+            place: Place,
+        ): Standing {
+            val day = (place as? Place.Day)?.dayId
+            return when {
+                grant.contextType == CapabilityContextType.GLOBAL -> EVERYWHERE
+                grant.contextType == CapabilityContextType.BRANCH && grant.contextId == place.branchId -> HOME
+                grant.contextType == CapabilityContextType.BRANCH_DAY && grant.contextId == day -> DAY
+                else -> ELSEWHERE
+            }
+        }
+    }
 }
+
+private val EVERYWHERE = setOf(Standing.EVERYWHERE)
+private val ANYWHERE = Standing.entries.toSet()
+private val HOME = setOf(Standing.HOME)
+private val HOME_OR_EVERYWHERE = setOf(Standing.HOME, Standing.EVERYWHERE)
+private val HOME_OR_DAY = setOf(Standing.HOME, Standing.DAY)
+private val HOME_EVERYWHERE_OR_DAY = setOf(Standing.HOME, Standing.EVERYWHERE, Standing.DAY)
 
 /**
  * Every action the server gates, with the capability it needs and the grants that count. This is
@@ -43,32 +51,32 @@ enum class Reach {
  */
 enum class Act(
     val code: String,
-    val reach: Reach,
+    val counts: Set<Standing>,
     whenReading: Act? = null,
 ) {
-    SEE_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE),
-    SEE_EVERY_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, Reach.EVERYWHERE),
-    SEE_DAY(CapabilityCodes.VIEW_BRANCH_DATA, Reach.HOME_OR_EVERYWHERE_OR_DAY),
-    SEE_ANYWHERE(CapabilityCodes.VIEW_BRANCH_DATA, Reach.ANYWHERE),
-    WORK_DAY(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME_OR_DAY, SEE_DAY),
-    WORK_HOME_BRANCH(CapabilityCodes.EDIT_BRANCH_DATA, Reach.HOME, SEE_BRANCH),
-    WORK_ANYWHERE(CapabilityCodes.EDIT_BRANCH_DATA, Reach.ANYWHERE, SEE_ANYWHERE),
-    VOID(CapabilityCodes.VOID_SESSION, Reach.HOME_OR_DAY),
+    SEE_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, HOME_OR_EVERYWHERE),
+    SEE_EVERY_BRANCH(CapabilityCodes.VIEW_BRANCH_DATA, EVERYWHERE),
+    SEE_DAY(CapabilityCodes.VIEW_BRANCH_DATA, HOME_EVERYWHERE_OR_DAY),
+    SEE_ANYWHERE(CapabilityCodes.VIEW_BRANCH_DATA, ANYWHERE),
+    WORK_DAY(CapabilityCodes.EDIT_BRANCH_DATA, HOME_OR_DAY, SEE_DAY),
+    WORK_HOME_BRANCH(CapabilityCodes.EDIT_BRANCH_DATA, HOME, SEE_BRANCH),
+    WORK_ANYWHERE(CapabilityCodes.EDIT_BRANCH_DATA, ANYWHERE, SEE_ANYWHERE),
+    VOID(CapabilityCodes.VOID_SESSION, HOME_OR_DAY),
 
     /** What members earned in commission: only the branch's members and its relief for the day. */
-    SEE_COMMISSION(CapabilityCodes.VIEW_COMMISSION, Reach.HOME_OR_DAY),
-    CHANGE_CLOSED_DAY(CapabilityCodes.EDIT_PAST_DAY, Reach.HOME),
-    PAY(CapabilityCodes.ASSIGN_COMPENSATION, Reach.HOME_OR_EVERYWHERE),
+    SEE_COMMISSION(CapabilityCodes.VIEW_COMMISSION, HOME_OR_DAY),
+    CHANGE_CLOSED_DAY(CapabilityCodes.EDIT_PAST_DAY, HOME),
+    PAY(CapabilityCodes.ASSIGN_COMPENSATION, HOME_OR_EVERYWHERE),
 
     // The user: "Accountants see remittance lists (view only, any branch)"; so does anyone who sees every branch.
-    SUBMIT_REMITTANCE(CapabilityCodes.SUBMIT_REMITTANCE, Reach.HOME, SEE_EVERY_BRANCH),
-    MANAGE_STOCK(CapabilityCodes.MANAGE_PRODUCTS, Reach.HOME),
-    MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, Reach.EVERYWHERE),
-    MANAGE_USERS(CapabilityCodes.MANAGE_USERS, Reach.EVERYWHERE),
+    SUBMIT_REMITTANCE(CapabilityCodes.SUBMIT_REMITTANCE, HOME, SEE_EVERY_BRANCH),
+    MANAGE_STOCK(CapabilityCodes.MANAGE_PRODUCTS, HOME),
+    MANAGE_CATALOG(CapabilityCodes.MANAGE_CATALOG, EVERYWHERE),
+    MANAGE_USERS(CapabilityCodes.MANAGE_USERS, EVERYWHERE),
 
     /** "Erase personal details": Coordinator and up, member or not. */
-    ERASE_CLIENT(CapabilityCodes.ERASE_CLIENT, Reach.EVERYWHERE),
-    ASSIGN_DELEGATE(CapabilityCodes.ASSIGN_DELEGATE, Reach.EVERYWHERE),
+    ERASE_CLIENT(CapabilityCodes.ERASE_CLIENT, EVERYWHERE),
+    ASSIGN_DELEGATE(CapabilityCodes.ASSIGN_DELEGATE, EVERYWHERE),
     ;
 
     /** The act a GET of this act's routes asks for. */
@@ -111,24 +119,6 @@ sealed interface Place {
 
 /** The only way the server asks whether someone may do something. */
 object Access {
-    /** The grant rows that count for [reach] at [place], or null when a grant of the code anywhere counts. */
-    private fun contextsFor(
-        reach: Reach,
-        place: Place,
-    ): List<Pair<CapabilityContextType, UUID>>? {
-        val home = place.branchId?.let { CapabilityContextType.BRANCH to it }
-        val everywhere = CapabilityContextType.GLOBAL to CapabilityService.GLOBAL_CONTEXT_ID
-        val day = (place as? Place.Day)?.let { CapabilityContextType.BRANCH_DAY to it.dayId }
-        return when (reach) {
-            Reach.ANYWHERE -> null
-            Reach.EVERYWHERE -> listOf(everywhere)
-            Reach.HOME -> listOfNotNull(home)
-            Reach.HOME_OR_EVERYWHERE -> listOfNotNull(home, everywhere)
-            Reach.HOME_OR_DAY -> listOfNotNull(home, day)
-            Reach.HOME_OR_EVERYWHERE_OR_DAY -> listOfNotNull(home, everywhere, day)
-        }
-    }
-
     fun allows(
         userId: UUID,
         act: Act,
@@ -140,10 +130,7 @@ object Access {
         grants: List<Grant>,
         act: Act,
         place: Place,
-    ): Boolean {
-        val contexts = contextsFor(act.reach, place)
-        return grants.any { it.code == act.code && (contexts == null || (it.contextType to it.contextId) in contexts) }
-    }
+    ): Boolean = grants.any { it.code == act.code && Standing.of(it, place) in act.counts }
 
     fun require(
         userId: UUID,
@@ -188,17 +175,9 @@ object Access {
     private val READS = setOf(HandlerType.GET, HandlerType.HEAD)
 
     private fun defaultMessage(act: Act): String =
-        when (act.reach) {
-            Reach.EVERYWHERE, Reach.ANYWHERE -> {
-                "${act.code} capability required"
-            }
-
-            Reach.HOME, Reach.HOME_OR_EVERYWHERE -> {
-                "${act.code} capability required for this branch"
-            }
-
-            Reach.HOME_OR_DAY, Reach.HOME_OR_EVERYWHERE_OR_DAY -> {
-                "${act.code} capability required for this branch or day"
-            }
+        when {
+            Standing.HOME !in act.counts || Standing.ELSEWHERE in act.counts -> "${act.code} capability required"
+            Standing.DAY in act.counts -> "${act.code} capability required for this branch or day"
+            else -> "${act.code} capability required for this branch"
         }
 }

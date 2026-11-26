@@ -186,7 +186,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         assertFalse(has(inactiveOwnerUser, CapabilityCodes.ASSIGN_DELEGATE))
         assertFalse(has(inactiveOwnerUser, CapabilityCodes.VIEW_BRANCH_DATA))
         assertTrue(
-            CapabilityService.getCapabilitiesForUser(inactiveOwnerUser).isEmpty(),
+            CapabilityService.grantsOf(inactiveOwnerUser).isEmpty(),
             "INACTIVE user must have zero capabilities",
         )
     }
@@ -194,14 +194,14 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
     @Test
     fun `zero-role user gets nothing`() {
         assertFalse(has(noRoleUser, CapabilityCodes.MANAGE_USERS))
-        assertTrue(CapabilityService.getCapabilitiesForUser(noRoleUser).isEmpty())
+        assertTrue(CapabilityService.grantsOf(noRoleUser).isEmpty())
     }
 
     // ── Dedup between direct and derived rows ──────────────────────────────
 
     @Test
     fun `derived rows are reported with ROLE source and GLOBAL context`() {
-        val caps = CapabilityService.getCapabilitiesForUser(ownerUser)
+        val caps = CapabilityService.grantsOf(ownerUser)
         val derived = caps.filter { it.sourceType == CapabilitySourceType.ROLE }
         assertEquals(
             6,
@@ -210,7 +210,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
         )
         derived.forEach {
             assertEquals(CapabilityContextType.GLOBAL, it.contextType)
-            assertEquals(CapabilityService.GLOBAL_CONTEXT_ID.toString(), it.contextId)
+            assertEquals(CapabilityService.GLOBAL_CONTEXT_ID, it.contextId)
         }
         assertEquals(
             setOf(
@@ -221,7 +221,7 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
                 CapabilityCodes.VIEW_BRANCH_DATA,
                 CapabilityCodes.ERASE_CLIENT,
             ),
-            derived.map { it.capabilityCode }.toSet(),
+            derived.map { it.code }.toSet(),
         )
     }
 

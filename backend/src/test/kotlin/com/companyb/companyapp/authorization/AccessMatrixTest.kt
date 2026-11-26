@@ -107,10 +107,10 @@ class AccessMatrixTest : BasePostgresTest() {
                 }
                 appendLine("grants:")
                 CapabilityService
-                    .getCapabilitiesForUser(people.getValue(who))
+                    .grantsOf(people.getValue(who))
                     .map { g ->
-                        val at = labels[UUID.fromString(g.contextId)] ?: "unknown"
-                        "  ${g.capabilityCode} ${g.contextType} $at ${g.sourceType}"
+                        val at = labels[g.contextId] ?: "unknown"
+                        "  ${g.code} ${g.contextType} $at ${g.sourceType}"
                     }.sorted()
                     .forEach { appendLine(it) }
             }

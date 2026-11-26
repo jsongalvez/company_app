@@ -2,7 +2,6 @@ package com.companyb.companyapp.authorization
 
 import com.companyb.companyapp.branch.BranchTable
 import com.companyb.companyapp.contracts.authorization.CapabilityContextType
-import com.companyb.companyapp.contracts.authorization.UserCapabilityResponse
 import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.contracts.workforce.DelegateRole
 import com.companyb.companyapp.identity.AppUserTable
@@ -133,17 +132,6 @@ internal object CapabilityRepository {
                     .mapValues { it.value.toSet() },
         )
     }
-
-    fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
-        grantsOf(userId)
-            .map {
-                UserCapabilityResponse(
-                    capabilityCode = it.code,
-                    contextType = it.contextType,
-                    contextId = it.contextId.toString(),
-                    sourceType = it.sourceType,
-                )
-            }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }
 
     /**
      * Distinct branch context ids where [userId] holds any active grant — the

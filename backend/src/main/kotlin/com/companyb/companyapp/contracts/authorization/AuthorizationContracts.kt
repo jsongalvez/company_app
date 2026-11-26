@@ -25,14 +25,6 @@ enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, 
 @Serializable
 enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, ROLE }
 
-@Serializable
-data class UserCapabilityResponse(
-    val capabilityCode: String,
-    val contextType: CapabilityContextType,
-    val contextId: String,
-    val sourceType: CapabilitySourceType,
-)
-
 /** What a person [may] do at a place, and which acts' routes they may [reads] (GET) there. */
 @Serializable
 data class ActsResponse(

@@ -169,9 +169,9 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
 
     private fun derivedCodesAtBranch(userId: UUID): Set<String> =
         CapabilityService
-            .getCapabilitiesForUser(userId)
+            .grantsOf(userId)
             .filter { it.contextType == CapabilityContextType.BRANCH && it.sourceType == CapabilitySourceType.ROLE }
-            .map { it.capabilityCode }
+            .map { it.code }
             .toSet()
 
     // ── Derivation matrix: role × ACTIVE assignment ────────────────────────
@@ -324,9 +324,9 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
         )
         val viewRows =
             CapabilityService
-                .getCapabilitiesForUser(multiRoleUser)
+                .grantsOf(multiRoleUser)
                 .filter {
-                    it.capabilityCode == CapabilityCodes.VIEW_BRANCH_DATA &&
+                    it.code == CapabilityCodes.VIEW_BRANCH_DATA &&
                         it.contextType == CapabilityContextType.BRANCH &&
                         it.sourceType == CapabilitySourceType.ROLE
                 }
@@ -335,7 +335,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
 
     @Test
     fun `ONBOARDING assignment still derives nothing`() {
-        assertTrue(CapabilityService.getCapabilitiesForUser(onboardingUser).isEmpty())
+        assertTrue(CapabilityService.grantsOf(onboardingUser).isEmpty())
     }
 
     // ── Assignment-state windows ────────────────────────────────────────────
@@ -357,7 +357,7 @@ class StaffRoleBranchDerivationPostgresTest : BasePostgresTest() {
     @Test
     fun `INACTIVE user is excluded even with an open assignment`() {
         assertFalse(hasBranch(inactiveCoordinator, CapabilityCodes.VIEW_BRANCH_DATA))
-        assertTrue(CapabilityService.getCapabilitiesForUser(inactiveCoordinator).isEmpty())
+        assertTrue(CapabilityService.grantsOf(inactiveCoordinator).isEmpty())
     }
 
     @Test

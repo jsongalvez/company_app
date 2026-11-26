@@ -28,10 +28,10 @@ class MissionSeatFactPostgresTest : BasePostgresTest() {
 
     private fun codesAtMission(): Set<String> =
         CapabilityService
-            .getCapabilitiesForUser(person)
-            .filter { it.contextType == CapabilityContextType.BRANCH && it.contextId == mission.toString() }
+            .grantsOf(person)
+            .filter { it.contextType == CapabilityContextType.BRANCH && it.contextId == mission }
             .onEach { assertEquals(CapabilitySourceType.MEDICAL_MISSION_DELEGATE, it.sourceType) }
-            .map { it.capabilityCode }
+            .map { it.code }
             .toSet()
 
     @Test
