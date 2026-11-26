@@ -211,7 +211,10 @@ object RoleRules {
     private val RANKS = setOf(Role.OWNER.name, Role.MANAGER.name)
     private val ABOVE_RANKS = setOf(Role.OWNER.name, TOP)
 
-    /** The roles a viewer is shown for someone holding [roles]: [TOP] shows as [TOP_SHOWN_AS] unless the viewer holds it. */
+    /**
+     * The roles a viewer is shown for someone holding [roles]:
+     * [TOP] shows as [TOP_SHOWN_AS] unless the viewer holds it.
+     */
     fun shownTo(
         roles: List<String>,
         viewerIsTop: Boolean,
