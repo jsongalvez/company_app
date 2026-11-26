@@ -13,7 +13,7 @@
     import { act } from "../lib/act.svelte";
     import { askReason } from "../lib/ask.svelte";
     import { go, route, viewSetting } from "../lib/router.svelte";
-    import { peso, time, label, sum, day, clientName, operationalDate, addDays } from "../lib/format";
+    import { peso, time, label, sum, day, clientName, operationalDate, addDays, nowIso } from "../lib/format";
     import { allowedTargets, statusClass, type Status } from "../lib/rules";
     import { discard, heldMarks, outbox, pendingSales, pendingSessions, retry, sessionsSeen, type Standing } from "../lib/outbox.svelte";
     import { findLocal } from "../lib/clientdir.svelte";
@@ -246,7 +246,16 @@
         if (isToday && r?.id === s.id && r.sessionStatus && dash.data) {
             const next = {
                 ...dash.data,
-                sessions: dash.data.sessions.map((x) => (x.id === s.id ? { ...x, sessionStatus: r.sessionStatus!, version: r.version ?? x.version } : x)),
+                sessions: dash.data.sessions.map((x) =>
+                    x.id === s.id
+                        ? {
+                              ...x,
+                              sessionStatus: r.sessionStatus!,
+                              version: r.version ?? x.version,
+                              completedAt: r.sessionStatus === "COMPLETED" ? nowIso() : null,
+                          }
+                        : x,
+                ),
             };
             dash.data = next;
             seed(dash.key, next);
@@ -458,7 +467,8 @@
                                         </span>
                                     {:else if s.isVoided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(s.sessionStatus)}"
                                             >{label(s.sessionStatus)}</span
-                                        >{#if s.held}<span class="mark warn" title="Waiting on this phone for signal">Not sent</span>{/if}{/if}
+                                        >{#if s.sessionStatus === "COMPLETED" && s.completedAt}<span class="faint at">{time(s.completedAt)}</span
+                                            >{/if}{#if s.held}<span class="mark warn" title="Waiting on this phone for signal">Not sent</span>{/if}{/if}
                                 </td>
                                 <td class="ellipsis pr">
                                     {#if s.practitioners?.length}
@@ -523,6 +533,7 @@
                                     <td class="ellipsis who" title={m.displayName}
                                         >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
                                     >
+                                    <td class="faint num nowrap">{m.present ? time(m.clockedInAt) : ""}</td>
                                     <td class="right nowrap">
                                         {#if !edit}
                                             {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
@@ -605,6 +616,9 @@
     .slot {
         width: 24px;
     }
+    .at {
+        margin-left: var(--s1);
+    }
     .name {
         max-width: 240px;
     }
@@ -618,7 +632,7 @@
         text-align: right;
     }
     .acts button {
-        margin-left: 4px;
+        margin-left: var(--s1);
     }
     @media (max-width: 1000px) {
         .layout {
