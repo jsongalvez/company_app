@@ -11,7 +11,6 @@ import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.requireMoneyAmount
 import com.companyb.companyapp.api.routes.uuidFromQuery
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
@@ -116,16 +115,12 @@ object ExpenseRoutes {
         Gate.At(Act.WORK_DAY) { Place.day(it.uuidFromQuery("branchDayId")) }
 
     private val expensesCreateGate =
-        Gate.Before { context ->
+        Gate.Pick(setOf(Act.WORK_HOME_BRANCH, Act.WORK_DAY)) { context ->
             val request = context.bodyAsClass<CreateExpenseRequest>()
             if (request.branchDayId == null) {
-                Access.require(
-                    context,
-                    Act.WORK_HOME_BRANCH,
-                    Place.Branch(uuidOrThrow(request.branchId ?: "", "branch id")),
-                )
+                listOf(Gate.Need(Act.WORK_HOME_BRANCH, Place.Branch(uuidOrThrow(request.branchId ?: "", "branch id"))))
             } else {
-                Access.require(context, Act.WORK_DAY, Place.day(uuidOrThrow(request.branchDayId, "branch day id")))
+                listOf(Gate.Need(Act.WORK_DAY, Place.day(uuidOrThrow(request.branchDayId, "branch day id"))))
             }
         }
 

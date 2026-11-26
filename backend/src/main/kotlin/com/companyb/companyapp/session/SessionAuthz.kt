@@ -1,12 +1,10 @@
 package com.companyb.companyapp.session
 
-import com.companyb.companyapp.authorization.Access
+import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
 import com.companyb.companyapp.contracts.session.SessionStatus
 import com.companyb.companyapp.contracts.session.isStatusCorrection
-import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
@@ -20,16 +18,6 @@ import java.util.UUID
  * that scope lives here, next to the routes that need it.
  */
 object SessionAuthz {
-    /**
-     * [Access.require] for [act] on the session's day.
-     * Throws NotFoundResponse (404) when the session does not exist.
-     */
-    fun requireForSession(
-        context: Context,
-        sessionId: UUID,
-        act: Act,
-    ) = Access.require(context, act, placeOf(sessionId))
-
     /** The session's day. Throws NotFoundResponse (404) when the session does not exist. */
     fun placeOf(sessionId: UUID): Place.Day {
         val session =
@@ -38,17 +26,29 @@ object SessionAuthz {
         return Place.day(session.branchDayId)
     }
 
-    /** The command repeats this check after locking the branch day. */
-    fun requireStatusCorrectionCapability(
-        context: Context,
+    /**
+     * What moving the session to [newStatus] asks for on its day: [Act.WORK_DAY], then [Act.VOID] for a
+     * correction. The command repeats the correction check after locking the branch day.
+     * Throws NotFoundResponse (404) when the session does not exist.
+     */
+    fun statusNeeds(
         sessionId: UUID,
         newStatus: SessionStatus,
-    ) {
+    ): List<Gate.Need> {
         val session =
             SessionReads.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
-        if (isStatusCorrection(session.sessionStatus, newStatus)) {
-            requireForSession(context, sessionId, Act.VOID)
-        }
+        val day = Place.day(session.branchDayId)
+        val acts =
+            if (isStatusCorrection(
+                    session.sessionStatus,
+                    newStatus,
+                )
+            ) {
+                listOf(Act.WORK_DAY, Act.VOID)
+            } else {
+                listOf(Act.WORK_DAY)
+            }
+        return acts.map { Gate.Need(it, day) }
     }
 }

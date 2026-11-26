@@ -170,7 +170,7 @@ object ReliefAccessRoutes {
     }
 
     fun listReliefAccess(config: JavalinConfig) {
-        config.get(ApiRoutes.RELIEF_ACCESS, Gate.InHandler("ReliefAccessService")) { context ->
+        config.get(ApiRoutes.RELIEF_ACCESS, Gate.SignedIn("members see every request, others their own")) { context ->
             context.status(HttpStatus.OK)
             // two addressing forms: branchDayId directly, or the notification
             // deep-link pair (branchId + date). Each leg keeps the single-val service-call

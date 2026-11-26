@@ -8,6 +8,8 @@ import com.companyb.companyapp.api.patch
 import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.contracts.workforce.AssignmentResponse
 import com.companyb.companyapp.contracts.workforce.BranchMemberResponse
 import com.companyb.companyapp.contracts.workforce.CreateAssignmentRequest
@@ -123,22 +125,47 @@ object UserBranchAssignmentRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val ASSIGNMENT_ID_PARAM = "assignmentId"
 
-    fun register(config: JavalinConfig) {
-        config.post(
-            ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
-            Gate.InHandler("UserBranchAssignmentService"),
-            ::handleCreateAssignment,
+    // The address and body are checked before the access check, so a bad request answers 400 for everyone.
+    private val createGate =
+        Gate.At(Act.MANAGE_USERS, "MANAGE_USERS capability required to create assignments") { context ->
+            createInput(context)
+            Place.Everywhere
+        }
+
+    private val removeGate =
+        Gate.At(Act.MANAGE_USERS, "MANAGE_USERS capability required to remove assignments") { context ->
+            context.pathParamAsUuid(BRANCH_ID_PARAM)
+            context.pathParamAsUuid(ASSIGNMENT_ID_PARAM)
+            Place.Everywhere
+        }
+
+    private class CreateInput(
+        val branchId: UUID,
+        val assignmentId: UUID,
+        val userId: UUID,
+        val slot: Short,
+    )
+
+    private fun createInput(context: Context): CreateInput {
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val request = context.bodyAsClass<CreateAssignmentRequest>()
+        if (request.slot < 1) throw BadRequestResponse("Slot must be 1 or greater")
+        return CreateInput(
+            branchId,
+            uuidOrThrow(request.id, "assignment id"),
+            uuidOrThrow(request.userId, "user id"),
+            request.slot,
         )
+    }
+
+    fun register(config: JavalinConfig) {
+        config.post(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, createGate, ::handleCreateAssignment)
         config.get(
             ApiRoutes.BRANCH_ASSIGNMENTS_PATH,
             Gate.InHandler("UserBranchAssignmentService"),
             ::handleGetAssignments,
         )
-        config.delete(
-            ApiRoutes.BRANCH_ASSIGNMENT_PATH,
-            Gate.InHandler("UserBranchAssignmentService"),
-            ::handleRemoveAssignment,
-        )
+        config.delete(ApiRoutes.BRANCH_ASSIGNMENT_PATH, removeGate, ::handleRemoveAssignment)
         config.patch(
             ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH,
             Gate.InHandler("UserBranchAssignmentService"),
@@ -149,20 +176,14 @@ object UserBranchAssignmentRoutes {
     }
 
     private fun handleCreateAssignment(context: Context) {
-        val callerId = context.callerUuid()
-        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-        val request = context.bodyAsClass<CreateAssignmentRequest>()
-        if (request.slot < 1) throw BadRequestResponse("Slot must be 1 or greater")
-        val assignmentId = uuidOrThrow(request.id, "assignment id")
-        val targetUserId = uuidOrThrow(request.userId, "user id")
-
+        val input = createInput(context)
         val result =
             UserBranchAssignmentService.create(
-                callerId = callerId,
-                id = assignmentId,
-                branchId = branchId,
-                userId = targetUserId,
-                slot = request.slot,
+                callerId = context.callerUuid(),
+                id = input.assignmentId,
+                branchId = input.branchId,
+                userId = input.userId,
+                slot = input.slot,
             )
 
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)

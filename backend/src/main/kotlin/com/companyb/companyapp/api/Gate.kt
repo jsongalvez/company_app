@@ -29,7 +29,7 @@ sealed interface Gate {
         val why: String,
     ) : Gate
 
-    /** The caller may do [act] everywhere; unlike [Before], a test can read which act the route asks for. */
+    /** The caller may do [act] everywhere. */
     data class Can(
         val act: Act,
         val message: String? = null,
@@ -45,10 +45,21 @@ sealed interface Gate {
         val where: (Context) -> Place,
     ) : Gate
 
-    /** [check] runs before the handler and throws to refuse. Only for a check no [Can] or [At] can state. */
-    class Before(
-        val check: (Context) -> Unit,
+    /**
+     * The act depends on the request: [pick] reads it and names what the caller must do, and where, in the
+     * order to check. Every picked act is one of [acts], so a test reads which acts the route can ask for;
+     * [GatedHandler] fails the request when [pick] names any other.
+     */
+    class Pick(
+        val acts: Set<Act>,
+        val pick: (Context) -> List<Need>,
     ) : Gate
+
+    /** One act a [Pick] asks for, at its place. */
+    data class Need(
+        val act: Act,
+        val place: Place,
+    )
 }
 
 /** A route's handler with its [gate] in front. `RouteGateTest` finds every route by this type. */
@@ -58,10 +69,24 @@ class GatedHandler(
 ) : Handler {
     override fun handle(ctx: Context) {
         when (gate) {
-            is Gate.Before -> gate.check(ctx)
-            is Gate.Can -> require(ctx, gate.act, Place.Everywhere, gate.message)
-            is Gate.At -> require(ctx, gate.act, gate.where(ctx), gate.message)
-            else -> Unit
+            is Gate.Can -> {
+                require(ctx, gate.act, Place.Everywhere, gate.message)
+            }
+
+            is Gate.At -> {
+                require(ctx, gate.act, gate.where(ctx), gate.message)
+            }
+
+            is Gate.Pick -> {
+                gate.pick(ctx).forEach { need ->
+                    check(need.act in gate.acts) { "${need.act} is not one of the acts this route declares" }
+                    require(ctx, need.act, need.place, null)
+                }
+            }
+
+            else -> {
+                Unit
+            }
         }
         handler.handle(ctx)
     }

@@ -15,17 +15,17 @@ POST /api/view-as                                                    400  400  4
 POST /api/view-as/stop                                               400  400  400  400  400  400  400  400  400  400  InHandler: ViewAs.stop: logs the caller's own stop
 GET /api/me/branches                                                 200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own branches
 GET /api/me/active-attendance                                        200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own clock-in
-POST /api/attendance/clock-in                                        400  400  400  400  400  400  400  400  400  400  InHandler: WORK_DAY at the body's branch today
-POST /api/attendance/clock-out                                       400  400  400  400  400  400  400  400  400  400  InHandler: AttendanceService: the caller's own attendance
+POST /api/attendance/clock-in                                        400  400  400  400  400  400  400  400  400  400  At: WORK_DAY
+POST /api/attendance/clock-out                                       400  400  400  400  400  400  400  400  400  400  SignedIn: AttendanceService: the caller's own attendance only
 POST /api/branches/{branchId}/attendance/marks                       400  400  400  400  400  400  400  400  400  400  InHandler: AttendanceService.mark
 GET /api/branches/accessible                                         200  200  200  200  200  200  200  200  200  200  SignedIn: lists only the branches the caller may see
 POST /api/branches                                                   400  403  403  403  400  400  400  403  403  403  Can: MANAGE_USERS
 GET /api/branches                                                    200  403  403  403  200  200  200  403  403  403  Can: MANAGE_USERS
 PATCH /api/branches/{branchId}                                       400  403  403  403  400  400  400  403  403  403  At: SEE_BRANCH
 GET /api/branches/{branchId}                                         200  200  200  200  200  200  200  403  403  403  At: SEE_BRANCH
-POST /api/branches/{branchId}/assignments                            400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
+POST /api/branches/{branchId}/assignments                            400  400  400  400  400  400  400  400  400  400  At: MANAGE_USERS
 GET /api/branches/{branchId}/assignments                             200  200  200  200  200  200  200  403  403  403  InHandler: UserBranchAssignmentService
-DELETE /api/branches/{branchId}/assignments/{assignmentId}           404  403  403  403  404  404  404  403  403  403  InHandler: UserBranchAssignmentService
+DELETE /api/branches/{branchId}/assignments/{assignmentId}           404  403  403  403  404  404  404  403  403  403  At: MANAGE_USERS
 PATCH /api/branches/{branchId}/assignments/{assignmentId}/slot       400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
 POST /api/branches/{branchId}/slots/swap                             400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
 GET /api/branches/{branchId}/members                                 200  200  200  200  200  200  200  403  200  403  InHandler: UserBranchAssignmentService
@@ -39,17 +39,17 @@ POST /api/relief-access/request                                      400  400  4
 PATCH /api/relief-access/{requestId}/grant                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
 PATCH /api/relief-access/{requestId}/deny                            404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
 PATCH /api/relief-access/{requestId}/cancel                          404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
-GET /api/relief-access                                               400  400  400  400  400  400  400  400  400  400  InHandler: ReliefAccessService
+GET /api/relief-access                                               400  400  400  400  400  400  400  400  400  400  SignedIn: members see every request, others their own
 GET /api/relief-access/mine                                          200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own requests
 GET /api/relief-access/branch-options                                200  200  200  200  200  200  200  200  200  200  SignedIn: branch names for the relief request picker
 POST /api/branches/{branchId}/relief-invites                         400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
-POST /api/relief-invites/{inviteId}/accept                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService: the invitee only
-POST /api/relief-invites/{inviteId}/decline                          404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService: the invitee only
+POST /api/relief-invites/{inviteId}/accept                           404  404  404  404  404  404  404  404  404  404  SignedIn: ReliefInviteService: the invitee only
+POST /api/relief-invites/{inviteId}/decline                          404  404  404  404  404  404  404  404  404  404  SignedIn: ReliefInviteService: the invitee only
 POST /api/relief-invites/{inviteId}/retract                          404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService
 POST /api/relief-invites/{inviteId}/revoke                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefInviteService
 GET /api/branches/{branchId}/relief-invites                          200  403  200  200  200  200  403  403  403  403  InHandler: ReliefInviteService
 GET /api/branches/{branchId}/relief-invites/accepted                 200  403  200  200  200  200  403  403  403  403  InHandler: ReliefInviteService
-GET /api/branches/{branchId}/relief-invites/by-date                  400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
+GET /api/branches/{branchId}/relief-invites/by-date                  400  400  400  400  400  400  400  400  400  400  SignedIn: members see every invite of the day, others those sent to them
 GET /api/branches/{branchId}/relief-candidates                       400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
 GET /api/relief-invites                                              200  200  200  200  200  200  200  200  200  200  SignedIn: invites sent to the caller
 GET /api/branches/{branchId}/delegates                               400  403  403  403  400  400  400  403  403  403  Can: ASSIGN_DELEGATE
@@ -70,7 +70,7 @@ GET /api/clients/{clientId}/bookings                                 200  200  2
 GET /api/sessions/{sessionId}                                        404  404  404  404  404  404  404  404  404  404  InHandler: DashboardService.getSessionDetail: the session's day
 POST /api/sessions                                                   400  400  400  400  400  400  400  400  400  400  InHandler: SessionSaveService: the body's day
 GET /api/sessions/{sessionId}/practitioners                          404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
-PATCH /api/sessions/{sessionId}/status                               400  400  400  400  400  400  400  400  400  400  Before
+PATCH /api/sessions/{sessionId}/status                               400  400  400  400  400  400  400  400  400  400  Pick: WORK_DAY/VOID
 PATCH /api/sessions/{sessionId}/final-price                          404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
 POST /api/sessions/{sessionId}/void                                  404  404  404  404  404  404  404  404  404  404  At: VOID
 POST /api/sessions/{sessionId}/unvoid                                404  404  404  404  404  404  404  404  404  404  At: VOID
@@ -96,7 +96,7 @@ POST /api/branches/{branchId}/inventory/{productId}/restock          400  403  4
 GET /api/branches/{branchId}/inventory                               200  200  200  200  200  200  200  403  200  403  At: SEE_DAY
 GET /api/branches/{branchId}/inventory/low-stock                     200  200  200  200  200  200  200  403  200  403  At: SEE_DAY
 GET /api/branches/{branchId}/inventory/movements                     200  200  200  200  200  200  200  403  200  403  At: SEE_DAY
-POST /api/branches/{branchId}/inventory/{productId}/movement         400  400  400  400  400  400  400  400  400  400  Before
+POST /api/branches/{branchId}/inventory/{productId}/movement         400  400  400  400  400  400  400  400  400  400  Pick: WORK_HOME_BRANCH/MANAGE_STOCK
 PUT /api/branches/{branchId}/inventory/{productId}/price             404  403  404  404  404  404  403  403  403  403  At: WORK_HOME_BRANCH
 GET /api/branches/{branchId}/today                                   200  200  200  200  200  200  200  403  200  403  At: WORK_DAY
 GET /api/branch-days/{branchDayId}/users                             200  403  403  200  200  200  200  403  403  403  At: PAY
@@ -119,7 +119,7 @@ POST /api/commission/recalculate/{branchDayId}                       403  403  4
 GET /api/branches/{branchId}/daily-summary                           400  400  400  400  400  400  400  400  400  400  At: SEE_DAY
 GET /api/branches/{branchId}/daily-summaries                         200  200  200  200  200  200  200  403  403  403  At: SEE_BRANCH
 GET /api/expenses                                                    400  400  400  400  400  400  400  400  400  400  At: WORK_DAY
-POST /api/expenses                                                   400  400  400  400  400  400  400  400  400  400  Before
+POST /api/expenses                                                   400  400  400  400  400  400  400  400  400  400  Pick: WORK_DAY/WORK_HOME_BRANCH
 PATCH /api/expenses/{expenseId}                                      404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
 DELETE /api/expenses/{expenseId}                                     404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
 POST /api/expenses/{expenseId}/restore                               404  404  404  404  404  404  404  404  404  404  At: WORK_DAY

@@ -6,7 +6,6 @@ import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
@@ -162,7 +161,7 @@ object BranchInventoryRoutes {
     private val stockReadGate = Gate.At(Act.SEE_DAY) { Place.today(requireKnownBranchId(it)) }
 
     private val branchInventoryMovementGate =
-        Gate.Before { context ->
+        Gate.Pick(setOf(Act.MANAGE_STOCK, Act.WORK_HOME_BRANCH)) { context ->
             val branchId = requireKnownBranchId(context)
             val request = context.bodyAsClass<InventoryMovementRequest>()
             val reason = validateMovementReason(request.reason)
@@ -171,7 +170,7 @@ object BranchInventoryRoutes {
             // the route is branch-scoped via the path — a day-grant check on the body's day
             // would authorize a write against a DIFFERENT branch (the parent-child scoping
             // trap). Inventory is not relief-eligible; see the resolution.
-            Access.require(context, act, Place.Branch(branchId))
+            listOf(Gate.Need(act, Place.Branch(branchId)))
         }
 
     private fun registerHandlers(config: JavalinConfig) {

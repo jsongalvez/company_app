@@ -31,7 +31,7 @@ import java.util.UUID
  * (`/api/branches/{branchId}/relief-*`) + bearer-gated invitee surface
  * (`/api/relief-invites`). All gates are service-level — the inviter gate is the active
  * `user_branch_assignment` (a membership record, not a capability), so every route here is
- * `Gate.InHandler` or `Gate.SignedIn`.
+ * `Gate.InHandler` (member only) or `Gate.SignedIn` (the invitee's own, or rows scoped to the caller).
  */
 @OpenApi(
     path = ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH,
@@ -186,12 +186,12 @@ object ReliefInviteRoutes {
         config.post(ApiRoutes.BRANCH_RELIEF_INVITES_PATH, Gate.InHandler("ReliefInviteService"), ::handleCreate)
         config.post(
             ApiRoutes.RELIEF_INVITE_ACCEPT_PATH,
-            Gate.InHandler("ReliefInviteService: the invitee only"),
+            Gate.SignedIn("ReliefInviteService: the invitee only"),
             ::handleAccept,
         )
         config.post(
             ApiRoutes.RELIEF_INVITE_DECLINE_PATH,
-            Gate.InHandler("ReliefInviteService: the invitee only"),
+            Gate.SignedIn("ReliefInviteService: the invitee only"),
             ::handleDecline,
         )
         config.post(ApiRoutes.RELIEF_INVITE_RETRACT_PATH, Gate.InHandler("ReliefInviteService"), ::handleRetract)
@@ -217,7 +217,10 @@ object ReliefInviteRoutes {
 
         // deep-link day read: the notification tap's (branchId, date) pair, every
         // invite status at that day. Audience scoping lives in the service.
-        config.get(ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH, Gate.InHandler("ReliefInviteService")) { context ->
+        config.get(
+            ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH,
+            Gate.SignedIn("members see every invite of the day, others those sent to them"),
+        ) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val date = parseRequiredDate(context.queryParam("date"), "date")

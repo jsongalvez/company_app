@@ -29,7 +29,7 @@ class RouteGateTest {
 
     @Test
     fun `routes that hide their action from this test only go down`() {
-        val hidden = gates(::registerAllRoutes).count { it is Gate.Before || it is Gate.InHandler }
+        val hidden = gates(::registerAllRoutes).count { it is Gate.InHandler }
         assertEquals(HIDDEN_ACTION_ROUTES, hidden, HIDDEN_FIX)
     }
 
@@ -40,10 +40,10 @@ class RouteGateTest {
                 config.get("/api/open", Gate.SignedIn("test")) { it.result("ok") }
                 config.get("/api/can", Gate.Can(Act.SEE_BRANCH)) { it.result("ok") }
                 config.get("/api/at", Gate.At(Act.SEE_BRANCH) { Place.Everywhere }) { it.result("ok") }
-                config.get("/api/before", Gate.Before { }) { it.result("ok") }
+                config.get("/api/pick", Gate.Pick(setOf(Act.SEE_BRANCH)) { emptyList() }) { it.result("ok") }
                 config.get("/api/handler", Gate.InHandler("test")) { it.result("ok") }
             }
-        assertEquals(2, gates.count { it is Gate.Before || it is Gate.InHandler })
+        assertEquals(1, gates.count { it is Gate.InHandler })
     }
 
     private fun gates(register: (JavalinConfig) -> Unit): List<Gate> {
@@ -71,8 +71,8 @@ class RouteGateTest {
     }
 
     private companion object {
-        /** Routes whose gate is a lambda or an in-handler check: no test can read the action they ask for. */
-        const val HIDDEN_ACTION_ROUTES = 34
+        /** Routes whose service asks `Access` itself: no test can read the action they ask for. */
+        const val HIDDEN_ACTION_ROUTES = 23
         const val HIDDEN_FIX =
             "Gate a new route with an action this test can read, and lower HIDDEN_ACTION_ROUTES when a route stops " +
                 "hiding its action. The policy table (docs/rebuild/plan.md) replaces these gates."

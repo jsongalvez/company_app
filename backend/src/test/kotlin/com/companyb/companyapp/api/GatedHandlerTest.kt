@@ -65,6 +65,20 @@ class GatedHandlerTest : BasePostgresTest() {
         assertEquals(1, ran.get())
     }
 
+    @Test
+    fun `Pick checks each act it picks, in order, at its place`() {
+        assertEquals(200, post("/pick/work-home/$home"))
+        assertEquals(403, post("/pick/work-home/$other"))
+        assertEquals(403, post("/pick/work-then-stock/$home"))
+        assertEquals(1, ran.get())
+    }
+
+    @Test
+    fun `Pick fails a picked act the route does not declare, before the handler`() {
+        assertEquals(500, post("/pick/undeclared/$home"))
+        assertEquals(0, ran.get())
+    }
+
     private fun post(path: String): Int = testServer.client.post(path, "{}", asUser(member)).code
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
@@ -91,6 +105,18 @@ class GatedHandlerTest : BasePostgresTest() {
                 cfg.post("/at/work-home/{id}", Gate.At(Act.WORK_HOME_BRANCH, where = branch)) { ran.incrementAndGet() }
                 cfg.post("/at/manage-stock/{id}", Gate.At(Act.MANAGE_STOCK, where = branch)) { ran.incrementAndGet() }
                 cfg.post("/at/missing/{id}", Gate.At(Act.WORK_HOME_BRANCH) { throw NotFoundResponse() }) {
+                    ran.incrementAndGet()
+                }
+                val home: (io.javalin.http.Context) -> Gate.Need = { Gate.Need(Act.WORK_HOME_BRANCH, branch(it)) }
+                val work = setOf(Act.WORK_HOME_BRANCH, Act.MANAGE_STOCK)
+                cfg.post("/pick/work-home/{id}", Gate.Pick(work) { listOf(home(it)) }) { ran.incrementAndGet() }
+                cfg.post(
+                    "/pick/work-then-stock/{id}",
+                    Gate.Pick(work) { listOf(home(it), Gate.Need(Act.MANAGE_STOCK, branch(it))) },
+                ) {
+                    ran.incrementAndGet()
+                }
+                cfg.post("/pick/undeclared/{id}", Gate.Pick(setOf(Act.MANAGE_STOCK)) { listOf(home(it)) }) {
                     ran.incrementAndGet()
                 }
                 cfg.post("/can/work-anywhere", Gate.Can(Act.WORK_ANYWHERE)) { ran.incrementAndGet() }

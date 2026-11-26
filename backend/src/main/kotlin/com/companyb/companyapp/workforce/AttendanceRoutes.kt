@@ -5,7 +5,6 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.post
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.api.routes.uuidOrThrow
-import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
 import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.branch.BranchService
@@ -90,7 +89,7 @@ object AttendanceRoutes {
     fun clockOut(config: JavalinConfig) {
         config.post(
             ApiRoutes.ATTENDANCE_CLOCK_OUT,
-            Gate.InHandler("AttendanceService: the caller's own attendance"),
+            Gate.SignedIn("AttendanceService: the caller's own attendance only"),
         ) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockOutRequest>()
@@ -116,21 +115,22 @@ object AttendanceRoutes {
         }
     }
 
-    fun clockIn(config: JavalinConfig) {
-        config.post(ApiRoutes.ATTENDANCE_CLOCK_IN, Gate.InHandler("WORK_DAY at the body's branch today")) { context ->
-            val callerId = context.callerUuid()
+    /** A role at the body's branch, or relief approved for today; the body is checked and the branch found first. */
+    private val clockInGate =
+        Gate.At(Act.WORK_DAY, "Only this branch's staff, or relief approved for today, can clock in here") { context ->
             val request = context.bodyAsClass<ClockInRequest>()
-
-            val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
+            uuidOrThrow(request.attendanceId, "attendance id")
             val branchId = uuidOrThrow(request.branchId, "branch id")
             BranchService.findById(branchId)
-            // A role at the branch, or an approved relief request.
-            Access.require(
-                callerId,
-                Act.WORK_DAY,
-                Place.today(branchId),
-                "Only this branch's staff, or relief approved for today, can clock in here",
-            )
+            Place.today(branchId)
+        }
+
+    fun clockIn(config: JavalinConfig) {
+        config.post(ApiRoutes.ATTENDANCE_CLOCK_IN, clockInGate) { context ->
+            val callerId = context.callerUuid()
+            val request = context.bodyAsClass<ClockInRequest>()
+            val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
+            val branchId = uuidOrThrow(request.branchId, "branch id")
 
             val result = AttendanceService.clockIn(attendanceId, branchId, callerId)
 

@@ -427,11 +427,10 @@ object SessionRoutes {
 }
 
 private val sessionStatusGate =
-    Gate.Before { context ->
+    Gate.Pick(setOf(Act.WORK_DAY, Act.VOID)) { context ->
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
-        SessionAuthz.requireForSession(context, sessionId, Act.WORK_DAY)
-        SessionAuthz.requireStatusCorrectionCapability(context, sessionId, request.status)
+        SessionAuthz.statusNeeds(sessionId, request.status)
     }
 
 internal val sessionDayGate =

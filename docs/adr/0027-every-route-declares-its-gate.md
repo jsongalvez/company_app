@@ -15,7 +15,8 @@ Every route is declared with a gate argument: `config.get(path, gate) { ... }` (
 - `Gate.Open(why)`: no sign-in (health, sign-in, invite and reset links).
 - `Gate.SignedIn(why)`: anyone signed in; the route only touches the caller's own things or filters to what they may see.
 - `Gate.InHandler(why)`: the handler or its service asks `Access` once it has loaded the row that names the branch or day.
-- `Gate.Before { context -> Access.require(...) }`: the check runs before the handler, for that route only.
+- `Gate.Can(act)` and `Gate.At(act) { place }`: `GatedHandler` asks `Access` for the named act, everywhere or at the place the lambda finds.
+- `Gate.Pick(acts) { needs }`: the act depends on the request; the lambda names which of the declared `acts` to check and where, and `GatedHandler` fails a pick outside them.
 
 `RouteGateTest` fails when any route is registered without a gate or any path filter is registered. `RouteAccessTest` records the status code every route gives ten kinds of people for an empty body, with each route's gate, in `backend/src/test/resources/route-access.txt`; a change to who can do what shows as a diff of that file (`WRITE_ROUTE_ACCESS=1` rewrites it).
 
@@ -23,4 +24,4 @@ Every route is declared with a gate argument: `config.get(path, gate) { ... }` (
 
 - A gate runs after the global filters (security headers, request log, NUL-character check), so refusals now carry the security headers and a NUL character in the URL gives 400 before 403.
 - A method that has no route on a gated path now gives 404 instead of the filter's 403.
-- `InHandler` routes are listed, not proven: moving their checks into `Gate.Before` is follow-up work, checked against `route-access.txt`.
+- `InHandler` routes are listed, not proven: their services check membership or rows they load or lock. Moving a check into the gate is checked against `route-access.txt`.
