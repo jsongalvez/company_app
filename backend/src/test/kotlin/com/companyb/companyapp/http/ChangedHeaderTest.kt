@@ -17,7 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** The app's own filters tell a signed-in caller which tables its request changed, on every way out. */
+/** The app's own filters tell a signed-in caller which tables its request read and changed, on every way out. */
 class ChangedHeaderTest : BasePostgresTest() {
     override fun initTestData() = Unit
 
@@ -54,6 +54,10 @@ class ChangedHeaderTest : BasePostgresTest() {
                 transaction(db) { exec("SELECT 1") }
                 it.result("ok")
             }
+            cfg.routes.get("/api/read-table") {
+                transaction(db) { exec("SELECT id FROM app_user WHERE false") }
+                it.result("ok")
+            }
             cfg.routes.post("/out/write") {
                 write()
                 it.result("ok")
@@ -62,6 +66,8 @@ class ChangedHeaderTest : BasePostgresTest() {
     }
 
     private fun Response.changed(): String? = headers().get(RequestLog.CHANGED_HEADER)?.firstOrNull()
+
+    private fun Response.reads(): String? = headers().get(RequestLog.READS_HEADER)?.firstOrNull()
 
     @Test
     fun `a write names the table it changed`() =
@@ -84,8 +90,28 @@ class ChangedHeaderTest : BasePostgresTest() {
         }
 
     @Test
+    fun `a read names the table it read`() =
+        JavalinTest.test(app()) { _, client ->
+            assertEquals("app_user", client.get("/api/read-table").reads())
+        }
+
+    @Test
+    fun `a write names the table it read`() =
+        JavalinTest.test(app()) { _, client ->
+            assertEquals("app_user", client.post("/api/write").reads())
+        }
+
+    @Test
+    fun `a statement over no table says it read nothing`() =
+        JavalinTest.test(app()) { _, client ->
+            assertEquals("", client.get("/api/read").reads())
+        }
+
+    @Test
     fun `a signed-out caller is told nothing`() =
         JavalinTest.test(app()) { _, client ->
-            assertNull(client.post("/out/write").changed())
+            val response = client.post("/out/write")
+            assertNull(response.changed())
+            assertNull(response.reads())
         }
 }

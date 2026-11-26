@@ -48,6 +48,71 @@ class RequestQueryTallyTest {
     }
 
     @Test
+    fun `deleting a report also changes the triage row its foreign key cascades to`() {
+        RequestQueryTally.startRequest()
+        RequestQueryTally.record("DELETE FROM user_feedback WHERE id = ?", 1)
+        RequestQueryTally.record("DELETE FROM agent_feedback WHERE id = ?", 1)
+        assertEquals(setOf("user_feedback", "agent_feedback", "feedback_triage"), RequestQueryTally.changed())
+    }
+
+    @Test
+    fun `an update of a report changes only the report`() {
+        RequestQueryTally.startRequest()
+        RequestQueryTally.record("UPDATE user_feedback SET status=? WHERE id = ?", 1)
+        assertEquals(setOf("user_feedback"), RequestQueryTally.changed())
+    }
+
+    @Test
+    fun `a request lists the tables its statements read`() {
+        RequestQueryTally.startRequest()
+        RequestQueryTally.record(
+            "SELECT branch.id, \"session\".id FROM branch INNER JOIN branch_day bd ON bd.branch_id = branch.id " +
+                "LEFT JOIN \"session\" ON \"session\".branch_day_id = bd.id WHERE branch.name = 'from x' " +
+                "AND EXTRACT(YEAR FROM bd.date) = ? AND bd.note IS DISTINCT FROM ?",
+            1,
+        )
+        RequestQueryTally.record("SELECT a.id FROM app_user a, user_role r WHERE r.user_id = a.id", 1)
+        RequestQueryTally.record("SELECT 1", 1)
+        RequestQueryTally.record("SET LOCAL pg_trgm.similarity_threshold = 0.2", 1)
+        assertEquals(setOf("branch", "branch_day", "session", "app_user", "user_role"), RequestQueryTally.reads())
+    }
+
+    @Test
+    fun `a read of a view lists the tables under it`() {
+        RequestQueryTally.startRequest()
+        RequestQueryTally.record("SELECT * FROM daily_sales_summary WHERE branch_day_id = ?", 1)
+        assertEquals(
+            setOf(
+                "branch_day",
+                "session",
+                "session_void",
+                "compensation",
+                "expense",
+                "product_sale",
+                "commission_split",
+            ),
+            RequestQueryTally.reads(),
+        )
+    }
+
+    @Test
+    fun `a write reads its own table and the tables in its subqueries`() {
+        RequestQueryTally.startRequest()
+        RequestQueryTally.record("UPDATE app_user SET status=? WHERE id IN (SELECT user_id FROM user_role)", 1)
+        RequestQueryTally.record("WITH gone AS (DELETE FROM shift RETURNING id) SELECT count(*) FROM gone", 1)
+        assertEquals(setOf("app_user", "user_role", "shift"), RequestQueryTally.reads())
+    }
+
+    @Test
+    fun `a read whose tables the text does not name is listed as unnamed`() {
+        for (sql in listOf("(batch)", "SELECT * FROM unnest(?)", "CALL refresh_totals()")) {
+            RequestQueryTally.startRequest()
+            RequestQueryTally.record(sql, 1)
+            assertEquals(setOf(RequestQueryTally.UNNAMED_READ), RequestQueryTally.reads(), sql)
+        }
+    }
+
+    @Test
     fun `a kept read lasts until a write to a table it read`() {
         RequestQueryTally.startRequest()
         var loads = 0

@@ -54,19 +54,20 @@ object RequestQueryTally {
 
     private val logger = KotlinLogging.logger {}
     private val quotedLiteral = Regex("'(?:[^']|'')*'")
-    private val changesNoTable = Regex("^\\s*(?:SELECT|SET|SHOW)\\b", RegexOption.IGNORE_CASE)
-    private val writeTarget =
-        Regex("^\\s*(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+\"?(\\w+)\"?[\\s(]", RegexOption.IGNORE_CASE)
 
     private class Tally {
         var nanos = 0L
         var queries = 0
         val changed = HashSet<String>()
+        val read = HashSet<String>()
         val untilWrite = HashMap<ReadKey, Held>()
     }
 
     /** Stands in [changed] for a write whose statement text names no table, such as a batch. */
-    const val UNNAMED_WRITE = "*"
+    const val UNNAMED_WRITE = StatementTables.UNNAMED
+
+    /** Stands in [reads] for a read whose statement text doesn't name its tables, such as a function in a `FROM`. */
+    const val UNNAMED_READ = StatementTables.UNNAMED
 
     /** Names one request-scoped read kept by [untilWrite]; implement it with a data class. */
     interface ReadKey
@@ -108,6 +109,17 @@ object RequestQueryTally {
             .orEmpty()
 
     /**
+     * The tables this request's statements read, each view as the tables under it, with
+     * [UNNAMED_READ] for a read whose tables the text does not name. Empty outside a request.
+     */
+    fun reads(): Set<String> =
+        current
+            .get()
+            ?.read
+            ?.toSet()
+            .orEmpty()
+
+    /**
      * [load]'s answer for [key], kept for the rest of this request until a statement writes one of
      * the tables in [reads], or one this can't name (a batch, a rollback), so a read never outlives a
      * write that could change it. Outside a request it just loads.
@@ -142,10 +154,6 @@ object RequestQueryTally {
         current.get()?.untilWrite?.clear()
     }
 
-    /** The table [sql] writes: null for a read or a setting, [UNNAMED_WRITE] when the text names none. */
-    private fun writtenBy(sql: String): String? =
-        if (changesNoTable.containsMatchIn(sql)) null else writeTarget.find(sql)?.groupValues?.get(1) ?: UNNAMED_WRITE
-
     private fun Tally.wrote(table: String) {
         changed += table
         if (table == UNNAMED_WRITE) untilWrite.clear() else untilWrite.values.removeIf { table in it.reads }
@@ -158,7 +166,11 @@ object RequestQueryTally {
         current.get()?.let {
             it.nanos += nanos
             it.queries++
-            writtenBy(sql)?.let { table -> it.wrote(table) }
+            val tables = StatementTables.of(sql)
+            it.read += SchemaLinks.underViews(tables.reads)
+            SchemaLinks.underViews(tables.writes + SchemaLinks.withCascades(tables.deletes)).forEach { table ->
+                it.wrote(table)
+            }
         }
         val ms = nanos / NANOS_PER_MILLI
         if (ms >= slowMs) {

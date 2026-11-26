@@ -142,6 +142,31 @@ class RouteAccessTest : BasePostgresTest() {
         assertEquals(emptyList(), problems)
     }
 
+    /**
+     * The web marks an answer stale when a save changes a table the answer read (Revisions 2), so a GET
+     * whose reads come back unnamed would be marked stale by every save, and a name that is no table
+     * means the statement text was misread.
+     */
+    @Test
+    fun `a GET names every table it read, and only tables`() {
+        val tables =
+            transaction {
+                exec("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()") { rs ->
+                    generateSequence { if (rs.next()) rs.getString(1) else null }.toSet()
+                }.orEmpty()
+            }
+        val problems =
+            routes.filter { it.method == HandlerType.GET }.flatMap { r ->
+                Who.entries.flatMap { who ->
+                    listOf("", filledQuery()).mapNotNull { query ->
+                        val read = "GET ${r.path}${if (query.isEmpty()) "" else "?{query}"} as $who"
+                        (reads(r.path + query, who) - tables).takeIf { it.isNotEmpty() }?.let { "$read read $it" }
+                    }
+                }
+            }
+        assertEquals(emptyList(), problems)
+    }
+
     private fun filledQuery(): String {
         val day = TestFixtures.today
         return listOf(
@@ -167,6 +192,16 @@ class RouteAccessTest : BasePostgresTest() {
             .firstValue(RequestLog.CHANGED_HEADER)
             .map { header -> header.split(",").filter { it.isNotEmpty() }.toSet() }
             .orElse(setOf(RequestQueryTally.UNNAMED_WRITE))
+
+    private fun reads(
+        path: String,
+        who: Who,
+    ): Set<String> =
+        send(HandlerType.GET, path, who)
+            .headers()
+            .firstValue(RequestLog.READS_HEADER)
+            .map { header -> header.split(",").filter { it.isNotEmpty() }.toSet() }
+            .orElse(setOf(RequestQueryTally.UNNAMED_READ))
 
     private fun call(
         method: HandlerType,
@@ -312,7 +347,7 @@ class RouteAccessTest : BasePostgresTest() {
                 }
                 registerAllRoutes(cfg)
                 cfg.routes.after { ctx ->
-                    RequestLog.sendChanged(ctx)
+                    RequestLog.sendTables(ctx)
                     RequestQueryTally.endRequest()
                 }
             }

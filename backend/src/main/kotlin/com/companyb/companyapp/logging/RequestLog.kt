@@ -51,6 +51,9 @@ object RequestLog {
     /** The tables the request changed, comma-separated, empty for none; `*` means any table. */
     const val CHANGED_HEADER = "X-Changed"
 
+    /** The tables the request read, comma-separated, empty for none; `*` means any table. */
+    const val READS_HEADER = "X-Reads"
+
     /** The exception behind a 500, set by the catch-all handler in `Main.kt`. */
     const val SERVER_ERROR_ATTRIBUTE = "serverError"
     private const val EVENT_COMPLETED = "request_completed"
@@ -59,9 +62,13 @@ object RequestLog {
 
     private val logger = KotlinLogging.logger {}
 
-    /** Sent even when empty, so a missing header means the server didn't say and the web marks every read stale. */
-    fun sendChanged(context: Context) {
+    /**
+     * Sent even when empty, so a missing [CHANGED_HEADER] means the server didn't say and the web marks
+     * every read stale, and a missing [READS_HEADER] means the answer read every table.
+     */
+    fun sendTables(context: Context) {
         context.header(CHANGED_HEADER, RequestQueryTally.changed().sorted().joinToString(","))
+        context.header(READS_HEADER, RequestQueryTally.reads().sorted().joinToString(","))
     }
 
     /**
@@ -84,7 +91,7 @@ object RequestLog {
         // Signed-in calls only: the app's own telemetry reads it, and a stranger learns nothing from sign-in timings.
         if (context.attribute<String>("userId") != null) {
             context.header(SERVER_TIMING_HEADER, "db;dur=${db.dbMs}, app;dur=${(elapsedMs - db.dbMs).coerceAtLeast(0)}")
-            sendChanged(context)
+            sendTables(context)
         }
         val error = context.attribute<Throwable>(SERVER_ERROR_ATTRIBUTE)
         val outcome =
