@@ -1,2 +1,3 @@
 src/api/schema.d.ts
 tests/unit/rights.vectors.json
+tests/unit/fixtures/mutators.json

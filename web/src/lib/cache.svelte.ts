@@ -1,6 +1,7 @@
 import { ApiError } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
-import { SENT, tokenUser } from "./outbox.svelte";
+import { LANDED, opOf, pendingOps, SENT, tokenUser, type Landed } from "./outbox.svelte";
+import { applyOps, mutates, takeAnswer, type PendingOp } from "./mutators";
 import { disk } from "./disk";
 import type { Key } from "./keys";
 import { onChanged, Seen, staleKeys, stillStale, type Tables } from "./tables";
@@ -133,6 +134,31 @@ onChanged((changed) => {
     for (const k of staleKeys(store, changed)) markStale(store.get(k)!);
 });
 
+/** A queued save landed with its record: it takes the place of what each cached document held, so a page keeps
+ *  showing the change between the save leaving the queue and the next read (lib/mutators.ts). */
+function takeLanded(op: PendingOp, answer: unknown) {
+    let hit = false;
+    for (const [k, e] of store) {
+        if (e.data === undefined || !mutates(k)) continue;
+        const data = takeAnswer(k, e.data, op, answer);
+        if (data !== e.data) ((e.data = data), (hit = true));
+    }
+    if (hit) saveSoon();
+    for (const r of live) r.deref()?.take(op, answer);
+}
+if (typeof window !== "undefined")
+    window.addEventListener(LANDED, (e) => {
+        const { item, answer } = (e as CustomEvent<Landed>).detail;
+        takeLanded(opOf(item), answer);
+    });
+
+/** What a page shows for a key: the cached answer with this person's unsent saves applied. */
+function shownDoc<T>(key: Key, doc: T | undefined): T | undefined {
+    if (doc === undefined || !mutates(key)) return doc;
+    const ops = pendingOps();
+    return ops.length ? (applyOps(key, doc, ops) as T) : doc;
+}
+
 /** Rights or branches changed: any answer may differ. */
 export function everythingStale() {
     for (const e of store.values()) markStale(e);
@@ -185,12 +211,26 @@ export function refreshOnSent() {
 }
 
 export class Query<T> {
-    data = $state<T | undefined>(undefined);
+    /** The server's answer as read; `data` is what the page shows (unsent saves applied, [shownDoc]). */
+    #key = $state("" as Key);
+    #raw = $state<T | undefined>(undefined);
+    #shown = $derived(shownDoc(this.#key, this.#raw));
+    get data(): T | undefined {
+        return this.#shown;
+    }
+    set data(v: T | undefined) {
+        this.#raw = v;
+    }
+    /** A queued save landed: its answer takes the record's place in what this page read. */
+    take(op: PendingOp, answer: unknown) {
+        if (this.#raw === undefined || !mutates(this.#key)) return;
+        const next = takeAnswer(this.#key, this.#raw, op, answer) as T;
+        if (next !== this.#raw) this.#raw = next;
+    }
     error = $state<string | null>(null);
     loading = $state(false);
     /** No signal and nothing saved for this yet: it loads by itself once the signal is back. */
     waiting = $state(false);
-    #key = "" as Key;
     #fn: (seen: Seen) => Promise<T>;
     get key() {
         return this.#key;

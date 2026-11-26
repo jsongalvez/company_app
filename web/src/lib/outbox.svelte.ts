@@ -13,6 +13,7 @@ import { replayBody } from "./replay";
 import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 import { traceparent } from "./telemetry";
 import { answered, QUEUED } from "./tables";
+import type { PendingOp } from "./mutators";
 
 export type Item = {
     id: string;
@@ -195,6 +196,17 @@ function pendingTo(method: string, path: RegExp): { item: Item; body: Record<str
         .map((item) => ({ item, body: parseBody(item.body) }));
 }
 const waitingBodies = (method: string, path: RegExp) => pendingTo(method, path).filter((x) => x.item.sentAt === undefined);
+
+/** A queued save as the local mutators read it (lib/mutators.ts). */
+export const opOf = (i: Item): PendingOp => ({ method: i.method, path: i.path, body: parseBody(i.body), at: i.at, user: i.user });
+
+/** This person's saves the server may not hold yet, oldest first: pages show them applied to what they read. */
+export function pendingOps(): PendingOp[] {
+    if (!outbox.items.length) return [];
+    return mine()
+        .filter((i) => !i.failed && i.sentAt === undefined)
+        .map(opOf);
+}
 
 /** A client made with no signal, shaped like the server's answer. */
 function heldClient(b: Record<string, unknown>): S["ClientResponse"] {
