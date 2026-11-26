@@ -1,26 +1,22 @@
-<script module lang="ts">
-    // Opened folds stay open while the app is open; a fresh start folds them again.
-    const unfolded = $state({ roster: false, booked: false });
-</script>
-
 <script lang="ts">
     import { MediaQuery } from "svelte/reactivity";
     import { api, ok, BASE_STATUS, type S } from "../api/client";
     import { app, can, canRead, branchName } from "../lib/app.svelte";
-    import { today, refreshDay, clockIn, selectBranch, onDutyAt, markMember } from "../lib/today.svelte";
+    import { today, refreshDay, clockIn, selectBranch, onDutyAt } from "../lib/today.svelte";
     import { Query, saveNow, seed } from "../lib/cache.svelte";
     import { load } from "../lib/data";
     import { act } from "../lib/act.svelte";
     import { askReason } from "../lib/ask.svelte";
     import { go, route, viewSetting } from "../lib/router.svelte";
-    import { peso, time, label, sum, day, clientName, operationalDate, addDays, nowIso } from "../lib/format";
-    import { allowedTargets, statusClass, type Status } from "../lib/rules";
-    import { discard, heldMarks, outbox, pendingSales, pendingSessions, retry, sessionsSeen, type Standing } from "../lib/outbox.svelte";
-    import { findLocal } from "../lib/clientdir.svelte";
+    import { peso, label, sum, day, operationalDate, addDays, nowIso } from "../lib/format";
+    import type { Status } from "../lib/rules";
+    import { heldMarks, outbox, pendingSales, pendingSessions, sessionsSeen } from "../lib/outbox.svelte";
     import PageHead from "../components/PageHead.svelte";
     import State from "../components/State.svelte";
     import { later } from "../lib/later.svelte";
-    import Bookings from "../components/Bookings.svelte";
+    import TodaySessions from "./TodaySessions.svelte";
+    import { heldRow } from "../lib/today-rows";
+    import TodayAside, { type Roster } from "./TodayAside.svelte";
     import { fetchCached } from "../lib/cache.svelte";
     import { changed } from "../lib/changed";
     import type { Booking } from "../lib/bookings";
@@ -106,10 +102,7 @@
     const ownCommission = $derived(
         isToday ? dash.data?.commission.amount : sum((pastSplit.data ?? []).filter((s) => s.userId === app.me?.id).map((s) => s.amount)),
     );
-    type Roster = Awaited<ReturnType<ReturnType<typeof load.roster>["fn"]>>;
     const roster = new Query<Roster>();
-    /** The roster with a just-confirmed mark shown before the server has answered. */
-    const rosterShown = $derived(roster.data?.map((m) => (today.marking?.userId === m.userId ? { ...m, present: today.marking.present } : m)));
     const booked = new Query<Booking[]>();
     const earlierWaiting = new Query<string[]>();
     /** The on-duty list is for the branch's own staff; others get a note instead. */
@@ -132,8 +125,6 @@
 
     type F = "all" | "PENDING" | "COMPLETED" | "other" | "void";
     const phone = new MediaQuery("max-width: 1000px");
-    const rosterOpen = $derived(!phone.current || unfolded.roster);
-    const bookedOpen = $derived(!phone.current || unfolded.booked);
     const showVs = viewSetting("show", "all", ["all", "PENDING", "COMPLETED", "other", "void"]);
     let filter = $state<F>(showVs.read as F);
     $effect(() => showVs.keep(filter));
@@ -166,35 +157,6 @@
         return [...fromServer, ...pending];
     });
 
-    type Local = { state: Exclude<Standing, "sent">; item: string; failed?: string } | null;
-    /** The server picks a held session's type when it lands, so the row has none yet. */
-    function heldRow(
-        at: string,
-        b: Record<string, unknown>,
-    ): Omit<S["DashboardSessionResponse"], "sessionType"> & { sessionType?: S["DashboardSessionResponse"]["sessionType"]; held: boolean; local: Local } {
-        const cid = String(b.clientId);
-        const c = findLocal(cid);
-        const price = String(b.finalPrice ?? "0");
-        return {
-            id: String(b.id),
-            clientId: cid,
-            clientName: c ? clientName(c) : "New session",
-            isWalkIn: !!b.isWalkIn,
-            sessionStatus: "PENDING" as const,
-            basePrice: price,
-            finalPrice: price,
-            remarks: (b.remarks as string) ?? null,
-            otherConcerns: (b.otherConcerns as string) ?? null,
-            bookedAt: at,
-            nextAppointmentDate: (b.nextAppointmentDate as string) ?? null,
-            version: 0,
-            isVoided: false,
-            practitioners: [],
-            concerns: [],
-            held: true,
-            local: null,
-        };
-    }
     const shown = $derived(
         sessions.filter((s) =>
             filter === "all"
@@ -275,12 +237,6 @@
             dash.data = next;
             seed(dash.key, next);
         } else reloadLists();
-    }
-
-    async function setPresent(m: S["MemberAttendanceResponse"], present: boolean) {
-        const mine = m.userId === app.me?.id;
-        if (!confirm(`${present ? "Clock in" : "Clock out"} ${mine ? "yourself" : m.displayName}?`)) return;
-        await markMember(m.userId, present, bid);
     }
 
     // The server refused the list before a clock-in this phone holds: that refusal is out of date.
@@ -444,142 +400,20 @@
         {/if}
 
         {#if shown.length}
-            <div class="table-wrap" class:dim={switching}>
-                <table class="grid stack">
-                    <thead>
-                        <tr>
-                            <th>Booked</th>
-                            <th>Client</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Practitioners</th>
-                            <th>Illnesses</th>
-                            <th class="num">Price</th>
-                            <th>Next visit</th>
-                            {#if canMark}<th></th>{/if}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {#each shown as s (s.id)}
-                            <tr class:click={!s.local} class:struck={s.isVoided} onclick={() => !s.local && go(`/sessions/${s.id}`)}>
-                                <td class="hide-sm">{time(s.bookedAt)}</td>
-                                <td class="ellipsis name lead">
-                                    {s.clientName ?? "(details erased)"}
-                                    {#if s.isWalkIn}<span class="mark plain">Walk-in</span>{/if}
-                                </td>
-                                <td class="muted hide-sm">{label(s.sessionType)}</td>
-                                <td>
-                                    {#if s.local?.state === "failed"}
-                                        <span class="refused" onclick={(e) => e.stopPropagation()} role="presentation">
-                                            <span class="mark bad">Couldn't save</span>
-                                            <span class="err">{s.local.failed}</span>
-                                            <button class="sm primary" onclick={() => retry(s.local!.item)}>Retry</button>
-                                            <button
-                                                class="sm ghost"
-                                                onclick={() => confirm("Throw this session away? It won't be saved.") && discard(s.local!.item)}
-                                                >Throw away</button
-                                            >
-                                        </span>
-                                    {:else if s.isVoided}<span class="mark bad">Voided</span>{:else}<span class="mark {statusClass(s.sessionStatus)}"
-                                            >{label(s.sessionStatus)}</span
-                                        >{#if s.sessionStatus === "COMPLETED" && s.completedAt}<span class="faint at">{time(s.completedAt)}</span
-                                            >{/if}{#if s.held}<span class="mark warn" title="Waiting on this phone for signal">Not sent</span>{/if}{/if}
-                                </td>
-                                <td class="ellipsis pr">
-                                    {#if s.practitioners?.length}
-                                        {s.practitioners.map((p) => p.displayName).join(", ")}
-                                    {:else if s.requestedPractitionerName}
-                                        <span class="faint">Req: {s.requestedPractitionerName}</span>
-                                    {/if}
-                                </td>
-                                <td class="ellipsis cc muted hide-sm">{s.concerns?.map((c) => c.label).join(", ") ?? ""}</td>
-                                <td class="num">
-                                    {peso(s.finalPrice)}
-                                    {#if s.finalPrice !== s.basePrice}<span class="faint" title="List price {peso(s.basePrice)}">*</span>{/if}
-                                </td>
-                                <td class="muted hide-sm">{s.nextAppointmentDate ? day(s.nextAppointmentDate) : ""}</td>
-                                {#if canMark}
-                                    <td class="acts full" onclick={(e) => e.stopPropagation()}>
-                                        {#if s.local?.state === "sending"}<span class="faint">Saving…</span>
-                                        {:else if !s.isVoided && (!s.local || s.local.state === "waiting")}
-                                            {#each allowedTargets(s.sessionStatus as Status, s.isWalkIn, false) as to (to)}
-                                                <button class="sm" class:primary={to === "COMPLETED"} onclick={() => mark(s, to)}
-                                                    >{to === "COMPLETED" ? "Done" : to === "PENDING" ? "Undo" : label(to)}</button
-                                                >
-                                            {/each}
-                                        {/if}
-                                    </td>
-                                {/if}
-                            </tr>
-                        {/each}
-                    </tbody>
-                    {#if filter === "all" && live.length > 1}
-                        <tfoot>
-                            <tr>
-                                <td colspan="6">{live.length} sessions, {completed.length} done</td>
-                                <td class="num">{peso(sum(completed.map((s) => s.finalPrice)))}</td>
-                                <td colspan={canMark ? 2 : 1}></td>
-                            </tr>
-                        </tfoot>
-                    {/if}
-                </table>
-            </div>
+            <TodaySessions {shown} {live} {completed} all={filter === "all"} {switching} {canMark} {mark} />
         {/if}
     </section>
 
-    {#if isToday}<aside class="panel roster">
-            {#if member}
-                <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-                <header class:foldbar={phone.current} onclick={() => phone.current && (unfolded.roster = !unfolded.roster)}>
-                    <h2>
-                        {#if phone.current}<button class="fold" aria-expanded={rosterOpen}>Who's clocked in</button>{:else}Who's clocked in{/if}
-                    </h2>
-                    <span class="spacer"></span><span class="faint" use:changed={rosterShown?.filter((m) => m.present).length}
-                        >{rosterShown?.filter((m) => m.present).length ?? 0} of {rosterShown?.length ?? 0} in</span
-                    >
-                </header>
-                {#if rosterOpen}<State q={roster} empty={!!roster.data && roster.data.length === 0} emptyText="No members assigned." />{/if}
-                {#if rosterOpen && roster.data?.length}
-                    <table class="grid">
-                        <tbody>
-                            {#each rosterShown ?? [] as m, i (m.assignmentId)}
-                                <tr>
-                                    <td class="faint num slot">{i + 1}</td>
-                                    <td class="ellipsis who" title={m.displayName}
-                                        >{m.displayName}{#if m.userId === app.me?.id}<span class="faint">&nbsp;(you)</span>{/if}</td
-                                    >
-                                    <td class="faint num nowrap">{m.present ? time(m.clockedInAt) : ""}</td>
-                                    <td class="right nowrap">
-                                        {#if !edit}
-                                            {#if m.present}<span class="mark ok">Clocked in</span>{:else}<span class="faint">Not in</span>{/if}
-                                        {:else}
-                                            <button
-                                                class="sm clockbtn"
-                                                class:ok={m.present}
-                                                onclick={() => setPresent(m, !m.present)}
-                                                aria-label="{m.present ? 'Clock out' : 'Clock in'} {m.displayName}"
-                                                >{m.present ? "Clock out" : "Clock in"}</button
-                                            >
-                                        {/if}
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                {/if}
-            {/if}
-            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <header class:bk-head={member} class:foldbar={phone.current} onclick={() => phone.current && (unfolded.booked = !unfolded.booked)}>
-                <h2>
-                    {#if phone.current}<button class="fold" aria-expanded={bookedOpen}>Booked visits</button>{:else}Booked visits{/if}
-                </h2>
-                <span class="spacer"></span><span class="faint">{booked.data?.length ?? 0}</span>
-            </header>
-            {#if bookedOpen}<State q={booked} empty={!!booked.data && booked.data.length === 0} emptyText="No visits booked." />{/if}
-            {#if bookedOpen && booked.data?.length}
-                <Bookings list={booked.data} {edit} onstart={onDutyAt(bid) ? startFromBooking : undefined} onchanged={reloadBookings} />
-            {/if}
-        </aside>{/if}
+    {#if isToday}<TodayAside
+            {bid}
+            {edit}
+            {member}
+            phone={phone.current}
+            {roster}
+            {booked}
+            onstart={onDutyAt(bid) ? startFromBooking : undefined}
+            onchanged={reloadBookings}
+        />{/if}
 </div>
 
 {#if NewSession}<NewSession
@@ -594,97 +428,18 @@
 {#if ProductSale}<ProductSale bind:open={saleOpen} onsaved={reloadLists} day={isToday ? null : { id: saleDay ?? "", date }} />{/if}
 
 <style>
-    .refused {
-        display: inline-flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.25rem 0.5rem;
-        max-width: 100%;
-    }
     .mb {
         margin-bottom: 10px;
-    }
-    .dim {
-        opacity: 0.6;
     }
     .layout {
         display: flex;
         gap: var(--s3);
         align-items: flex-start;
     }
-    .roster {
-        width: 300px;
-        flex: none;
-    }
-    /* the name takes what the status and button leave, and is cut with "…" */
-    .roster .clockbtn {
-        width: 80px;
-        justify-content: center;
-    }
-    .roster td.who {
-        max-width: 0;
-        width: 100%;
-    }
-    .roster table.grid td {
-        border-bottom-color: var(--line);
-    }
-    .slot {
-        width: var(--s5);
-    }
-    .at {
-        margin-left: var(--s1);
-    }
-    .name {
-        max-width: 240px;
-    }
-    .pr {
-        max-width: 200px;
-    }
-    .cc {
-        max-width: 180px;
-    }
-    .acts {
-        text-align: right;
-    }
-    .acts button {
-        margin-left: var(--s1);
-    }
     @media (max-width: 1000px) {
         .layout {
             flex-direction: column-reverse;
             align-items: stretch;
         }
-        .roster {
-            width: auto;
-        }
-    }
-    /* The whole title is the tap target; the arrow says whether it is open. */
-    .foldbar {
-        cursor: pointer;
-    }
-    .fold {
-        all: unset;
-        cursor: pointer;
-        display: block;
-        min-height: var(--s6);
-        line-height: 32px;
-    }
-    .fold::before {
-        content: "▸" / "";
-        display: inline-block;
-        width: 1.2em;
-    }
-    .fold[aria-expanded="true"]::before {
-        content: "▾" / "";
-    }
-    .fold:focus-visible {
-        outline: 2px solid var(--accent);
-    }
-    .bk-head {
-        border-top: 1px solid var(--line);
-    }
-    .note {
-        margin: 0;
-        padding: 8px 10px;
     }
 </style>

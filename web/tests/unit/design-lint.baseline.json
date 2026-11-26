@@ -32,6 +32,8 @@
     "pages/Relief.svelte": 1,
     "pages/RemittanceDetail.svelte": 2,
     "pages/SessionDetail.svelte": 4,
-    "pages/Today.svelte": 9,
+    "pages/Today.svelte": 1,
+    "pages/TodayAside.svelte": 3,
+    "pages/TodaySessions.svelte": 4,
     "pages/Users.svelte": 1
 }
