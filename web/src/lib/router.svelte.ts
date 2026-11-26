@@ -11,25 +11,28 @@ function parse(): Route {
 
 export const route = $state<{ current: Route }>({ current: parse() });
 
-// How many in-app page changes happened since the app opened, so Back knows
-// whether the previous page is ours or another site.
-let steps = 0;
-let backing = false;
+// How many in-app page changes led to this history entry, so Back knows whether the previous
+// page is ours or another site. Kept in the entry's history.state, which a reload keeps too.
+const DEPTH = "appDepth";
+let depth = ((history.state as Record<string, unknown> | null)?.[DEPTH] as number | undefined) ?? 0;
+history.replaceState({ ...(history.state ?? {}), [DEPTH]: depth }, "");
 
 addEventListener("hashchange", (e) => {
     const from = new URL(e.oldURL).hash.split("?")[0];
     route.current = parse();
-    if (backing) backing = false;
-    else if (from !== location.hash.split("?")[0]) steps++;
+    const saved = (history.state as Record<string, unknown> | null)?.[DEPTH];
+    // An entry seen before (Back, Forward, a reload) keeps its depth; a new one is one deeper.
+    if (typeof saved === "number") depth = saved;
+    else {
+        if (from !== location.hash.split("?")[0]) depth++;
+        history.replaceState({ ...(history.state ?? {}), [DEPTH]: depth }, "");
+    }
 });
 
 /** Back to the page you came from inside the app; to `fallback` when there is none. */
 export function goBack(fallback = "/today") {
-    if (steps > 0 && history.length > 1) {
-        steps--;
-        backing = true;
-        history.back();
-    } else go(fallback);
+    if (depth > 0 && history.length > 1) history.back();
+    else go(fallback);
 }
 
 export function go(path: string, query?: Record<string, string | null | undefined>) {

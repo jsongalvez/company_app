@@ -1,7 +1,7 @@
 <script lang="ts">
     import { app, can, canRead, signOut, stopViewAs, setViewAsChanges } from "../lib/app.svelte";
     import { today, selectBranch, clockIn, clockOut } from "../lib/today.svelte";
-    import { route, go } from "../lib/router.svelte";
+    import { route, go, goBack } from "../lib/router.svelte";
     import ThemeIcon from "./ThemeIcon.svelte";
     import FullIcon from "./FullIcon.svelte";
     import InstallApp from "./InstallApp.svelte";
@@ -150,8 +150,7 @@
     function toggleAlerts(e: MouseEvent) {
         if (section !== "/notifications") return;
         e.preventDefault();
-        if (history.length > 1) history.back();
-        else location.hash = "#/today";
+        goBack();
     }
 
     // Branch picker: home/relief branches first, then all-branch read access.
