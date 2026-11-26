@@ -5,6 +5,7 @@ import type { PendingOp } from "./mutators";
 import { disk } from "./disk";
 import type { Key } from "./keys";
 import { onChanged, Seen, staleKeys, stillStale, type Tables } from "./tables";
+import { wiring, type Stop } from "./wiring";
 /**
  * Tiny query cache, McMaster-style snappiness: show cached data instantly,
  * revalidate in the background, prefetch on hover. Keys are strings.
@@ -155,11 +156,6 @@ async function takeLanded(op: PendingOp, answer: unknown) {
     if (hit) saveSoon();
     for (const r of live) r.deref()?.take(m, op, answer);
 }
-if (typeof window !== "undefined")
-    window.addEventListener(LANDED, (e) => {
-        const { item, answer } = (e as CustomEvent<Landed>).detail;
-        void takeLanded(opOf(item), answer);
-    });
 
 /** What a page shows for a key: the cached answer with this person's unsent saves applied. Until the mutators
  *  have loaded it is the answer as read. */
@@ -216,9 +212,14 @@ export function clearCache() {
 /** Reactive query: stale data shows at once; `loading` only when nothing is cached. */
 /** Pages showing data, so waiting saves that just went out can refresh what's on screen. */
 const live = new Set<WeakRef<Query<unknown>>>();
-/** After held saves go out, what's cached is out of date: refresh what's on screen. */
-export function refreshOnSent() {
-    window.addEventListener(SENT, () => {
+/** A save that landed updates what's cached from the server's answer; after held saves go out, what's cached is out of date: refresh what's on screen. */
+export function keepCacheFresh(): Stop {
+    const w = wiring();
+    w.on<CustomEvent<Landed>>(window, LANDED, (e) => {
+        const { item, answer } = e.detail;
+        void takeLanded(opOf(item), answer);
+    });
+    w.on(window, SENT, () => {
         everythingStale();
         for (const r of live) {
             const q = r.deref();
@@ -226,6 +227,7 @@ export function refreshOnSent() {
             else live.delete(r);
         }
     });
+    return w.stop;
 }
 
 export class Query<T> {

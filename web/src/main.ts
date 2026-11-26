@@ -7,11 +7,16 @@ import { diskKind, keepOnPhone } from "./lib/disk";
 import { getToken } from "./api/client";
 import { loadShell } from "./lib/shell";
 import { reveal, saveSnapshotOnLeave } from "./lib/snapshot";
+import { startRouter } from "./lib/router.svelte";
+import { startScreen } from "./lib/screen.svelte";
 
 // The phone's saved data loads first (lib/disk.ts awaits IndexedDB), so the page may have finished
 // loading before this line runs: a step meant for after load then runs at once.
 const afterLoad = (f: () => void) => (document.readyState === "complete" ? f() : addEventListener("load", f));
 
+// These run as long as the page does, so their stop handles go unused here.
+startRouter();
+startScreen();
 installRecorder();
 startBackgroundSync();
 // Signed in: fetch the app alongside the start request. Signed out: after the sign-in screen is up.

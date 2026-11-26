@@ -2,6 +2,8 @@
 // Full screen: Android, computers and iPads; iPhone Safari has no full screen for pages.
 // Install: Chrome/Edge/Android offer a prompt we can trigger; iPhone/iPad need Share > Add to Home Screen.
 
+import { wiring, type Stop } from "./wiring";
+
 type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
 const ua = navigator.userAgent;
@@ -25,18 +27,23 @@ export const screen = $state({
 
 let deferred: InstallPrompt | null = null;
 
-addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferred = e as InstallPrompt;
-    screen.canPrompt = true;
-});
-addEventListener("appinstalled", () => {
-    deferred = null;
-    screen.canPrompt = false;
-    screen.installed = true;
-});
-standaloneQuery.addEventListener("change", () => (screen.installed = installed()));
-document.addEventListener("fullscreenchange", () => (screen.full = !!document.fullscreenElement));
+/** Follow install and full-screen changes; called from main.ts. */
+export function startScreen(): Stop {
+    const w = wiring();
+    w.on(window, "beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferred = e as InstallPrompt;
+        screen.canPrompt = true;
+    });
+    w.on(window, "appinstalled", () => {
+        deferred = null;
+        screen.canPrompt = false;
+        screen.installed = true;
+    });
+    w.on(standaloneQuery, "change", () => (screen.installed = installed()));
+    w.on(document, "fullscreenchange", () => (screen.full = !!document.fullscreenElement));
+    return w.stop;
+}
 
 export async function toggleFull() {
     try {

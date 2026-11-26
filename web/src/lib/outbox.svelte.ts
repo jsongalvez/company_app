@@ -15,6 +15,7 @@ import { RECONNECTED, reportNetFailure, reportNetOk } from "./net.svelte";
 import { traceparent } from "./telemetry";
 import { answered, QUEUED } from "./tables";
 import type { PendingOp } from "./mutators";
+import { wiring, type Stop } from "./wiring";
 
 export type Item = {
     id: string;
@@ -470,9 +471,11 @@ export async function flush(): Promise<void> {
 }
 
 /** Send what's waiting when the signal is back, every 30 s, and once just after the app opens. */
-export function startOutbox() {
-    window.addEventListener(RECONNECTED, () => void flush());
-    window.addEventListener("online", () => void flush());
-    setInterval(() => waiting().length && navigator.onLine && void flush(), 30_000);
-    setTimeout(() => void flush(), 1000);
+export function startOutbox(): Stop {
+    const w = wiring();
+    w.on(window, RECONNECTED, () => void flush());
+    w.on(window, "online", () => void flush());
+    w.every(30_000, () => waiting().length && navigator.onLine && void flush());
+    w.after(1000, () => void flush());
+    return w.stop;
 }

@@ -1,3 +1,5 @@
+import { wiring, type Stop } from "./wiring";
+
 /**
  * Refresh without a blank frame: on leaving, save the screen's HTML; index.html shows it before the
  * app's script runs, and `reveal()` swaps the live app in once it has drawn its first real screen. After an
@@ -28,14 +30,16 @@ function drawn(el: HTMLElement) {
     return !!el.querySelector(".shell main") && !el.querySelector(".boot") && !el.innerText.includes("Loading…");
 }
 
-export function saveSnapshotOnLeave() {
+export function saveSnapshotOnLeave(): Stop {
+    const w = wiring();
     const save = () => {
         const el = appEl();
         if (document.getElementById("snap") || !drawn(el) || el.innerHTML.length > MAX_CHARS) return;
         localStorage.setItem(KEY, JSON.stringify({ v: version(), hash: location.hash, css: styles(), cssText: styleText(), html: el.innerHTML }));
     };
-    addEventListener("pagehide", save);
-    document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && save());
+    w.on(window, "pagehide", save);
+    w.on(document, "visibilitychange", () => document.visibilityState === "hidden" && save());
+    return w.stop;
 }
 
 export function forgetSnapshot() {

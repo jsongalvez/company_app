@@ -1,7 +1,11 @@
 import { api, getToken, OFFLINE_REFUSED, type OfflineRefused, uuid } from "../api/client";
 import { REFUSED, type Refused } from "./outbox.svelte";
 import { createRecorder, describe, fieldOf, norm, plainPath, routeOf, sendBatch } from "./telemetry";
+import type { Middleware } from "openapi-fetch";
 import { APP_VERSION } from "./version";
+import { wiring, type Stop } from "./wiring";
+
+type Wiring = ReturnType<typeof wiring>;
 
 /** The live recorder for this page load; its id goes into problem reports so the replay tool can find it. */
 export const recorder = createRecorder(uuid(), (body) => sendBatch(body, getToken(), fetch));
@@ -41,21 +45,24 @@ function network(e: PerformanceResourceTiming): Record<string, unknown> {
     };
 }
 
-function recordNetwork() {
+function recordNetwork(w: Wiring) {
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     if (nav) recorder.record("net", { ...network(nav), nav: nav.type });
     if (typeof PerformanceObserver === "undefined") return;
-    new PerformanceObserver((list) => {
+    const watcher = new PerformanceObserver((list) => {
         for (const e of list.getEntries() as PerformanceResourceTiming[]) {
             const path = new URL(e.name).pathname;
             if (e.initiatorType === "fetch" && (path.startsWith("/api/") || path.startsWith("/auth/")) && path !== "/api/telemetry")
                 recorder.record("net", network(e));
         }
-    }).observe({ type: "resource", buffered: false });
-    addEventListener("resourcetimingbufferfull", () => performance.clearResourceTimings());
+    });
+    watcher.observe({ type: "resource", buffered: false });
+    w.also(() => watcher.disconnect());
+    w.on(window, "resourcetimingbufferfull", () => performance.clearResourceTimings());
 }
 
-export function installRecorder() {
+export function installRecorder(): Stop {
+    const w = wiring();
     recorder.record("boot", {
         v: APP_VERSION,
         r: route(),
@@ -66,9 +73,9 @@ export function installRecorder() {
         sw: !!navigator.serviceWorker?.controller,
         ...link(),
     });
-    recordNetwork();
+    recordNetwork(w);
     let hiddenAt: number | null = null;
-    document.addEventListener("visibilitychange", () => {
+    w.on(document, "visibilitychange", () => {
         if (document.visibilityState === "hidden") {
             hiddenAt = performance.now();
             recorder.record("vis", { st: "hidden", r: route() });
@@ -84,14 +91,15 @@ export function installRecorder() {
             hiddenAt = null;
         }
     });
-    addEventListener("online", () => recorder.record("vis", { st: "online", ...link() }));
-    addEventListener("offline", () => recorder.record("vis", { st: "offline" }));
-    addEventListener("hashchange", () => recorder.record("nav", { r: route() }));
-    document.addEventListener("click", (e) => e.target instanceof Element && recorder.record("tap", { r: route(), el: describe(e.target) }), {
+    w.on(window, "online", () => recorder.record("vis", { st: "online", ...link() }));
+    w.on(window, "offline", () => recorder.record("vis", { st: "offline" }));
+    w.on(window, "hashchange", () => recorder.record("nav", { r: route() }));
+    w.on(document, "click", (e) => e.target instanceof Element && recorder.record("tap", { r: route(), el: describe(e.target) }), {
         capture: true,
         passive: true,
     });
-    document.addEventListener(
+    w.on(
+        document,
         "change",
         (e) => {
             const t = e.target;
@@ -100,24 +108,24 @@ export function installRecorder() {
         },
         true,
     );
-    addEventListener("error", (e) => recorder.record("error", { r: route(), msg: norm(String(e.message)) }));
-    addEventListener("unhandledrejection", (e) =>
+    w.on<ErrorEvent>(window, "error", (e) => recorder.record("error", { r: route(), msg: norm(String(e.message)) }));
+    w.on<PromiseRejectionEvent>(window, "unhandledrejection", (e) =>
         recorder.record("error", { r: route(), msg: norm(e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason)) }),
     );
-    addEventListener(REFUSED, (e) => {
-        const f = (e as CustomEvent<Refused>).detail;
+    w.on<CustomEvent<Refused>>(window, REFUSED, (e) => {
+        const f = e.detail;
         recorder.record("error", { r: route(), outbox: `${f.method} ${plainPath(f.path)}`, s: f.status });
         void recorder.flush();
     });
     // Where people hit "needs signal": which screen, which save.
-    addEventListener(OFFLINE_REFUSED, (e) => {
-        const f = (e as CustomEvent<OfflineRefused>).detail;
+    w.on<CustomEvent<OfflineRefused>>(window, OFFLINE_REFUSED, (e) => {
+        const f = e.detail;
         recorder.record("net", { r: route(), offline: `${f.method} ${plainPath(f.path)}` });
     });
-    addEventListener("pagehide", () => void recorder.flush());
+    w.on(window, "pagehide", () => void recorder.flush());
 
     const started = new WeakMap<Request, number>();
-    api.use({
+    const timing: Middleware = {
         onRequest({ request }) {
             started.set(request, performance.now());
         },
@@ -147,5 +155,8 @@ export function installRecorder() {
                 err: error instanceof Error ? error.name : "unknown",
             });
         },
-    });
+    };
+    api.use(timing);
+    w.also(() => api.eject(timing));
+    return w.stop;
 }

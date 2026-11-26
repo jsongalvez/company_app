@@ -1,3 +1,5 @@
+import { wiring, type Stop } from "./wiring";
+
 /**
  * Connection state for weak mobile signal. `online` follows the browser; `trouble` is set
  * when requests fail even though the browser thinks it's online (one bar, dead Wi-Fi).
@@ -34,12 +36,18 @@ export function reportNetOk() {
 }
 
 /** Follow the browser's own online/offline events. */
-export function watchConnection() {
-    window.addEventListener("online", () => {
+export function watchConnection(): Stop {
+    const w = wiring();
+    w.on(window, "online", () => {
         net.online = true;
         reconnected();
     });
-    window.addEventListener("offline", () => (net.online = false));
+    w.on(window, "offline", () => (net.online = false));
+    w.also(() => {
+        clearInterval(pinging);
+        pinging = undefined;
+    });
+    return w.stop;
 }
 
 /** Resolves when the browser is back online, or after `ms`, whichever is first. */

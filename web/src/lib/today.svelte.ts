@@ -12,6 +12,7 @@ import { read, seedTodayScreen } from "./data";
 import { act } from "./act.svelte";
 import { app, branchName, onToday, pull, takeStart, toast } from "./app.svelte";
 import { worksAt } from "./rights";
+import { wiring, type Stop } from "./wiring";
 
 type Day = S["BranchDayTodayResponse"];
 type Shift = S["ActiveShiftResponse"];
@@ -64,8 +65,10 @@ function takeLanded(e: Event) {
         if (screen && typeof b.branchId === "string") takeLists(b.branchId, screen);
     }
 }
-export function watchLanded() {
-    window.addEventListener(LANDED, takeLanded);
+export function watchLanded(): Stop {
+    const w = wiring();
+    w.on(window, LANDED, takeLanded);
+    return w.stop;
 }
 export function catchUpDay() {
     s.marking = null;

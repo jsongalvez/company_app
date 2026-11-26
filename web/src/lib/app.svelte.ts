@@ -8,6 +8,7 @@ import { RECONNECTED } from "./net.svelte";
 import { SENT } from "./outbox.svelte";
 import { allows, reads, NO_RIGHTS, type Act, type Place, type Rights } from "./rights";
 import { today, takeDay, takeLists, restoreDay, resetDay, catchUpDay } from "./today.svelte";
+import { wiring, type Stop } from "./wiring";
 
 export const app = $state({
     ready: false,
@@ -187,12 +188,14 @@ const catchUp = () => {
 };
 
 /** End a timed "view as" when it runs out, and catch up when the signal returns or held saves go out. */
-export function watchSession() {
-    setInterval(() => {
+export function watchSession(): Stop {
+    const w = wiring();
+    w.every(15_000, () => {
         if (app.viewAs && app.viewAs.until <= Date.now()) void stopViewAs("timed out");
-    }, 15_000);
-    window.addEventListener(RECONNECTED, catchUp);
-    window.addEventListener(SENT, catchUp);
+    });
+    w.on(window, RECONNECTED, catchUp);
+    w.on(window, SENT, catchUp);
+    return w.stop;
 }
 
 /** Re-read branch names after a rename (picker and top bar). */

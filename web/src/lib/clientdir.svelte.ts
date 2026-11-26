@@ -7,6 +7,7 @@ import { api, ok, type S } from "../api/client";
 import { RECONNECTED } from "./net.svelte";
 import { disk } from "./disk";
 import { pendingClients, SENT, tokenUser } from "./outbox.svelte";
+import { wiring, type Stop } from "./wiring";
 
 type C = S["ClientResponse"];
 type Saved = { at: number; list: C[] };
@@ -89,7 +90,9 @@ export function searchLocal(term: string, limit = 20): C[] {
 }
 
 /** Re-read the client list when the signal is back and after held saves go out. */
-export function keepDirectoryFresh() {
-    window.addEventListener(RECONNECTED, () => void refreshDirectory());
-    window.addEventListener(SENT, () => void refreshDirectory(true));
+export function keepDirectoryFresh(): Stop {
+    const w = wiring();
+    w.on(window, RECONNECTED, () => void refreshDirectory());
+    w.on(window, SENT, () => void refreshDirectory(true));
+    return w.stop;
 }

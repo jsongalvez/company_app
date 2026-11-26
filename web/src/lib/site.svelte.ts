@@ -16,6 +16,7 @@ import { outbox, pendingClients, tokenUser, waiting, type Item } from "./outbox.
 import { parseBody } from "./outbox-classify";
 import { today } from "./today.svelte";
 import { ticketKey, type Member, type Ticket } from "./site-ticket";
+import type { Stop } from "./wiring";
 
 export const HUB = "https://hub.kiel.party";
 /** A hub not heard from for this long counts as gone. */
@@ -233,18 +234,24 @@ async function tick(t: Ticket): Promise<boolean> {
     return restarted;
 }
 
-let running = false;
+/** Which start the running loop belongs to, 0 while stopped: a loop from an earlier start ends at its next wake. */
+let run = 0;
+let starts = 0;
+let next: ReturnType<typeof setTimeout> | undefined;
+let permission: PermissionStatus | null = null;
 let probedAt = 0;
 let asked = false;
 
 /** Chrome's permission for reaching local devices; "none" where the browser has no such question. */
-async function watchLocalNetwork() {
+async function watchLocalNetwork(mine: number) {
     for (const name of ["local-network-access", "local-network"]) {
         try {
             const st = await navigator.permissions.query({ name } as unknown as PermissionDescriptor);
+            if (mine !== run) return;
             const set = () => (site.localNetwork = st.state);
             set();
             st.onchange = set;
+            permission = st;
             return;
         } catch {
             // This browser doesn't know the name: try the next, else it never asks.
@@ -258,7 +265,8 @@ export function findHub() {
     probedAt = 0;
 }
 /** Wakes every FAST_MS; calls the hub when one answered lately or this phone has no signal or unsent saves, else once a SLOW_MS. */
-async function loop() {
+async function loop(mine: number) {
+    if (mine !== run) return;
     const t = ticket();
     let again = FAST_MS;
     const looking = site.connected || !net.online || net.trouble || waiting().length > 0;
@@ -274,14 +282,22 @@ async function loop() {
             if (Date.now() - site.lastAt > GONE_MS) site.connected = false;
         }
     }
-    setTimeout(loop, again);
+    if (mine === run) next = setTimeout(() => void loop(mine), again);
 }
 
 /** Starts looking for a site hub; called once at app start. */
-export function startSite() {
-    if (running || typeof crypto?.subtle === "undefined") return;
-    running = true;
-    void watchLocalNetwork().finally(() => void loop());
+export function startSite(): Stop {
+    const stop = () => {
+        run = 0;
+        clearTimeout(next);
+        next = undefined;
+        if (permission) permission.onchange = null;
+        permission = null;
+    };
+    if (run || typeof crypto?.subtle === "undefined") return () => {};
+    const mine = (run = ++starts);
+    void watchLocalNetwork(mine).finally(() => void loop(mine));
+    return () => mine === run && stop();
 }
 
 /** The Site panel's lists, from every record seen today. */

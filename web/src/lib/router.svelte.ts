@@ -1,4 +1,5 @@
 /** Hash router: #/path/segments?query. No history API needed for static hosting. */
+import { wiring, type Stop } from "./wiring";
 
 export type Route = { path: string; parts: string[]; query: URLSearchParams };
 
@@ -14,20 +15,27 @@ export const route = $state<{ current: Route }>({ current: parse() });
 // How many in-app page changes led to this history entry, so Back knows whether the previous
 // page is ours or another site. Kept in the entry's history.state, which a reload keeps too.
 const DEPTH = "appDepth";
-let depth = ((history.state as Record<string, unknown> | null)?.[DEPTH] as number | undefined) ?? 0;
-history.replaceState({ ...(history.state ?? {}), [DEPTH]: depth }, "");
+let depth = 0;
 
-addEventListener("hashchange", (e) => {
-    const from = new URL(e.oldURL).hash.split("?")[0];
+/** Follow the address; called from main.ts before the app mounts. */
+export function startRouter(): Stop {
+    const w = wiring();
     route.current = parse();
-    const saved = (history.state as Record<string, unknown> | null)?.[DEPTH];
-    // An entry seen before (Back, Forward, a reload) keeps its depth; a new one is one deeper.
-    if (typeof saved === "number") depth = saved;
-    else {
-        if (from !== location.hash.split("?")[0]) depth++;
-        history.replaceState({ ...(history.state ?? {}), [DEPTH]: depth }, "");
-    }
-});
+    depth = ((history.state as Record<string, unknown> | null)?.[DEPTH] as number | undefined) ?? 0;
+    history.replaceState({ ...(history.state ?? {}), [DEPTH]: depth }, "");
+    w.on<HashChangeEvent>(window, "hashchange", (e) => {
+        const from = new URL(e.oldURL).hash.split("?")[0];
+        route.current = parse();
+        const saved = (history.state as Record<string, unknown> | null)?.[DEPTH];
+        // An entry seen before (Back, Forward, a reload) keeps its depth; a new one is one deeper.
+        if (typeof saved === "number") depth = saved;
+        else {
+            if (from !== location.hash.split("?")[0]) depth++;
+            history.replaceState({ ...(history.state ?? {}), [DEPTH]: depth }, "");
+        }
+    });
+    return w.stop;
+}
 
 /** Back to the page you came from inside the app; to `fallback` when there is none. */
 export function goBack(fallback = "/today") {

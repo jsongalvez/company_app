@@ -5,6 +5,7 @@
  */
 import { RECONNECTED } from "./net.svelte";
 import { BUILD } from "./version";
+import { wiring, type Stop } from "./wiring";
 
 /** coming: the server has a newer build that the phone is still downloading; ready: Update would open it. */
 export const update = $state({ coming: false, ready: false });
@@ -36,16 +37,19 @@ async function reloadOpens(): Promise<string | undefined> {
 }
 
 /** Look for a newer build soon after start (the phone opens its saved copy), when the app is shown again, the signal returns, and every 15 minutes. */
-export function watchForUpdates() {
-    if (!import.meta.env.PROD) return;
+export function watchForUpdates(): Stop {
+    const w = wiring();
+    if (!import.meta.env.PROD) return w.stop;
     // After start-up settles: sent first, it took the open connection and /api/start waited for a new one.
-    setTimeout(() => void checkForUpdate(), 5_000);
-    document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && void checkForUpdate());
-    window.addEventListener(RECONNECTED, () => void checkForUpdate());
-    setInterval(() => void checkForUpdate(), 15 * 60_000);
+    w.after(5_000, () => void checkForUpdate());
+    w.on(document, "visibilitychange", () => document.visibilityState === "visible" && void checkForUpdate());
+    w.on(window, RECONNECTED, () => void checkForUpdate());
+    w.every(15 * 60_000, () => void checkForUpdate());
     // The service worker says when it has saved a build, so the offer shows as soon as Update would open it.
-    navigator.serviceWorker?.addEventListener("message", (e: MessageEvent) => {
-        if (typeof e.data?.coming === "string" && e.data.coming !== mine()) update.coming = true;
-        if (typeof e.data?.saved === "string" && e.data.saved !== mine()) void checkForUpdate();
-    });
+    if (navigator.serviceWorker)
+        w.on<MessageEvent>(navigator.serviceWorker, "message", (e) => {
+            if (typeof e.data?.coming === "string" && e.data.coming !== mine()) update.coming = true;
+            if (typeof e.data?.saved === "string" && e.data.saved !== mine()) void checkForUpdate();
+        });
+    return w.stop;
 }
