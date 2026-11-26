@@ -193,11 +193,15 @@ export function forgetShown(prefixes: Key[]) {
 /** Re-read, in place, the screens whose entry a save made stale and nothing has refreshed since. Call it once the
  *  save's answer is taken in: what the answer seeded, or a page re-read itself, is not asked for again. */
 export function rereadStale(): Promise<unknown> {
+    // Decide before refreshing: once one screen asks again, the key no longer looks stale, yet another screen on
+    // the same key (a page opened again before the old one is collected) only gets the answer by asking too.
+    // The asks share one request.
+    const stale = new Set<Key>();
+    for (const [k, e] of store) if (stillStale(e)) stale.add(k);
     const done: Promise<void>[] = [];
     for (const r of live) {
         const q = r.deref();
-        const e = q && store.get(q.key);
-        if (q && e && stillStale(e)) done.push(q.refresh());
+        if (q && stale.has(q.key)) done.push(q.refresh());
     }
     return Promise.all(done);
 }
