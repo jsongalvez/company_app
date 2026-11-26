@@ -1,5 +1,3 @@
-@file:Suppress("LargeClass") // #600
-
 package com.companyb.companyapp.branchday
 
 import com.companyb.companyapp.app.AppConfig

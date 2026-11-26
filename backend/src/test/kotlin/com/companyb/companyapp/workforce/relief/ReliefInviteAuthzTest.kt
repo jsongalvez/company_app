@@ -1,5 +1,3 @@
-@file:Suppress("LargeClass") // #598
-
 package com.companyb.companyapp.workforce.relief
 
 import com.companyb.companyapp.api.ApiRoutes

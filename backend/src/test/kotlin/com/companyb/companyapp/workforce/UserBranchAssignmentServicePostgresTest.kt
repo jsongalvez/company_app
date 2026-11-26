@@ -3,17 +3,12 @@ package com.companyb.companyapp.workforce
 import com.companyb.companyapp.audit.AuditContext
 import com.companyb.companyapp.audit.AuditLogTable
 import com.companyb.companyapp.authorization.Role
-import com.companyb.companyapp.contracts.authorization.CapabilityCodes
-import com.companyb.companyapp.contracts.authorization.CapabilityContextType
 import com.companyb.companyapp.contracts.branch.BranchType
-import com.companyb.companyapp.contracts.identity.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.identity.AppUserTable
 import com.companyb.companyapp.test.TestFixtures
-import com.companyb.companyapp.testsupport.database.BasePostgresTest
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
 import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.workforce.UserBranchAssignmentCreateParams
@@ -26,8 +21,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -39,22 +32,31 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@Suppress("LargeClass") // #598
-class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
-    private val callerId = TestFixtures.uuid()
-    private val sourceId = TestFixtures.uuid()
-    private val nonManagerId = TestFixtures.uuid()
-    private val userAId = TestFixtures.uuid()
-    private val userBId = TestFixtures.uuid()
-    private val branchId = TestFixtures.uuid()
+/** Creating a branch assignment: replays, id conflicts, races and who may create one. */
+class UserBranchAssignmentServicePostgresTest : UserBranchAssignmentServicePostgresBase() {
+    private fun auditChangedBy(assignmentId: UUID): String =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq "user_branch_assignment") and
+                        (AuditLogTable.recordId eq assignmentId)
+                }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
+                .limit(1)
+                .single()[AuditLogTable.changedBy]
+                .toString()
+        }
 
-    override fun initTestData() {
-        IdentityFixtures.insertTestUser(callerId, "caller")
-        IdentityFixtures.insertTestUser(nonManagerId, "nonmgr")
-        IdentityFixtures.insertTestUser(userAId, "usera")
-        IdentityFixtures.insertTestUser(userBId, "userb")
-        BranchWorkforceFixtures.insertTestBranch(branchId, name = "Test Branch")
-    }
+    private fun activeAssignmentCount(userId: UUID): Long =
+        transaction {
+            UserBranchAssignmentTable
+                .selectAll()
+                .where {
+                    (UserBranchAssignmentTable.userId eq userId) and
+                        (UserBranchAssignmentTable.branchId eq branchId) and
+                        UserBranchAssignmentTable.endedAt.isNull()
+                }.count()
+        }
 
     @Test
     fun `create persists assignment and writes audit row`() {
@@ -374,492 +376,5 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             UserBranchAssignmentService.create(nonManagerId, assignmentId, branchId, userAId, 1)
         }
-    }
-
-    @Test
-    fun `remove sets endedAt and writes audit row`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val assignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
-
-        UserBranchAssignmentService.remove(callerId, branchId, assignmentId)
-
-        assertNotNull(assignmentEndedAt(assignmentId))
-        assertEquals(2L, auditEntryCount(assignmentId))
-        val auditRow = latestAuditEntry(assignmentId)
-        assertEquals("UPDATE", auditRow.action)
-    }
-
-    @Test
-    fun `stale remove identity cannot end replacement assignment`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val staleAssignmentId = TestFixtures.uuid()
-        val replacementAssignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, staleAssignmentId, branchId, userAId, 1)
-        UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
-        UserBranchAssignmentService.create(callerId, replacementAssignmentId, branchId, userAId, 2)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
-        }
-
-        assertNull(assignmentEndedAt(replacementAssignmentId))
-        assertEquals(2, assignedSlot(replacementAssignmentId))
-    }
-
-    @Test
-    fun `remove without MANAGE_USERS is forbidden at service layer`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val assignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
-
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.remove(nonManagerId, branchId, assignmentId)
-        }
-
-        assertNull(assignmentEndedAt(assignmentId))
-    }
-
-    @Test
-    fun `remove with non-existent branch throws NotFound`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val unknownBranchId = TestFixtures.uuid()
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.remove(callerId, unknownBranchId, TestFixtures.uuid())
-        }
-    }
-
-    @Test
-    fun `remove with no active assignment throws NotFound`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.remove(callerId, branchId, TestFixtures.uuid())
-        }
-    }
-
-    @Test
-    fun `updateSlot by manager updates slot and writes audit`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val assignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
-
-        UserBranchAssignmentService.updateSlot(callerId, branchId, assignmentId, 5)
-
-        assertEquals(5, assignedSlot(assignmentId))
-        val audit = latestAuditEntry(assignmentId)
-        assertEquals("UPDATE", audit.action)
-        assertEquals("1", audit.oldSlot)
-        assertEquals("5", audit.newSlot)
-    }
-
-    @Test
-    fun `updateSlot self-update allowed without MANAGE_USERS`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val assignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, assignmentId, branchId, nonManagerId, 2)
-
-        UserBranchAssignmentService.updateSlot(nonManagerId, branchId, assignmentId, 7)
-
-        assertEquals(7, assignedSlot(assignmentId))
-    }
-
-    @Test
-    fun `updateSlot with no active assignment throws NotFound`() {
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.updateSlot(callerId, branchId, TestFixtures.uuid(), 1)
-        }
-    }
-
-    @Test
-    fun `updateSlot by non-manager for other user throws Forbidden`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val assignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
-
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.updateSlot(nonManagerId, branchId, assignmentId, 3)
-        }
-
-        assertEquals(1, assignedSlot(assignmentId))
-    }
-
-    @Test
-    fun `stale slot update identity cannot edit replacement assignment`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val staleAssignmentId = TestFixtures.uuid()
-        val replacementAssignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, staleAssignmentId, branchId, userAId, 1)
-        UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
-        UserBranchAssignmentService.create(callerId, replacementAssignmentId, branchId, userAId, 2)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.updateSlot(callerId, branchId, staleAssignmentId, 9)
-        }
-
-        assertEquals(2, assignedSlot(replacementAssignmentId))
-    }
-
-    @Test
-    fun `swapSlots swaps slots and writes audit`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val idA = TestFixtures.uuid()
-        val idB = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 2)
-        UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 8)
-
-        UserBranchAssignmentService.swapSlots(callerId, branchId, idA, idB)
-
-        assertEquals(8, assignedSlot(idA))
-        assertEquals(2, assignedSlot(idB))
-        assertEquals(2L, auditEntryCount(idA))
-    }
-
-    @Test
-    fun `swapSlots without MANAGE_USERS is forbidden at service layer`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val idA = TestFixtures.uuid()
-        val idB = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
-        UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
-
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.swapSlots(nonManagerId, branchId, idA, idB)
-        }
-
-        assertEquals(1, assignedSlot(idA))
-        assertEquals(2, assignedSlot(idB))
-    }
-
-    @Test
-    fun `swapSlots self-service by participant is allowed without MANAGE_USERS`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val idA = TestFixtures.uuid()
-        val idB = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
-        UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
-
-        UserBranchAssignmentService.swapSlots(userAId, branchId, idA, idB)
-
-        assertEquals(2, assignedSlot(idA))
-        assertEquals(1, assignedSlot(idB))
-    }
-
-    @Test
-    fun `swapSlots with the same user on both sides throws validation without audit rows`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val idA = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
-
-        assertFailsWith<ValidationException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, idA, idA)
-        }
-
-        assertEquals(1, assignedSlot(idA))
-        assertEquals(1L, auditEntryCount(idA))
-    }
-
-    @Test
-    fun `swapSlots with missing assignment A throws NotFound`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val idB = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 1)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, idB, TestFixtures.uuid())
-        }
-    }
-
-    @Test
-    fun `swapSlots with missing assignment B throws NotFound`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val idA = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, idA, TestFixtures.uuid())
-        }
-    }
-
-    @Test
-    fun `stale swap identity cannot edit replacement assignment`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val staleAssignmentId = TestFixtures.uuid()
-        val replacementAssignmentId = TestFixtures.uuid()
-        val otherAssignmentId = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, staleAssignmentId, branchId, userAId, 1)
-        UserBranchAssignmentService.remove(callerId, branchId, staleAssignmentId)
-        UserBranchAssignmentService.create(callerId, replacementAssignmentId, branchId, userAId, 3)
-        UserBranchAssignmentService.create(callerId, otherAssignmentId, branchId, userBId, 7)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.swapSlots(callerId, branchId, staleAssignmentId, otherAssignmentId)
-        }
-
-        assertEquals(3, assignedSlot(replacementAssignmentId))
-        assertEquals(7, assignedSlot(otherAssignmentId))
-    }
-
-    @Test
-    fun `findActiveByBranch returns active assignments sorted by slot`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userBId, 5)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-
-        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
-
-        assertEquals(2, assignments.size)
-        assertEquals(userAId, assignments[0].userId)
-        assertEquals(1, assignments[0].slot)
-        assertEquals(userBId, assignments[1].userId)
-        assertEquals(5, assignments[1].slot)
-    }
-
-    @Test
-    fun `findActiveByBranch excludes ended assignments`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-        val idB = TestFixtures.uuid()
-        UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
-        UserBranchAssignmentService.remove(callerId, branchId, idB)
-
-        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
-
-        assertEquals(1, assignments.size)
-        assertEquals(userAId, assignments[0].userId)
-    }
-
-    @Test
-    fun `findActiveByBranch without MANAGE_USERS is forbidden at service layer`() {
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
-        }
-    }
-
-    @Test
-    fun `findActiveByBranch with MANAGE_USERS returns empty list`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-
-        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
-
-        assertTrue(assignments.isEmpty())
-    }
-
-    @Test
-    fun `findActiveByBranch with unknown branch throws NotFoundException`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.findActiveByBranch(callerId, TestFixtures.uuid())
-        }
-    }
-
-    @Test
-    fun `findActiveByBranch without MANAGE_USERS on unknown branch stays forbidden`() {
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.findActiveByBranch(nonManagerId, TestFixtures.uuid())
-        }
-    }
-
-    // --- #366 requested-practitioner directory ---
-
-    @Test
-    fun `listActiveMembers returns active member names in slot order`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, callerId, 3)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userBId, 5)
-
-        val members = UserBranchAssignmentService.listActiveMembers(userAId, branchId)
-
-        assertEquals(
-            listOf("Test usera", "Test caller", "Test userb"),
-            members.map { it.displayName },
-        )
-        assertEquals(3, members.map { it.id }.distinct().size)
-    }
-
-    @Test
-    fun `listActiveMembers without membership is forbidden at service layer`() {
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
-        }
-    }
-
-    @Test
-    fun `listActiveMembers with unknown branch throws NotFoundException`() {
-        assertFailsWith<NotFoundException> {
-            UserBranchAssignmentService.listActiveMembers(nonManagerId, TestFixtures.uuid())
-        }
-    }
-
-    @Test
-    fun `listActiveMembers rejects a member of a different branch`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        val otherBranchId = TestFixtures.uuid()
-        BranchWorkforceFixtures.insertTestBranch(otherBranchId)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), otherBranchId, userBId, 1)
-
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.listActiveMembers(userBId, branchId)
-        }
-    }
-
-    @Test
-    fun `listActiveMembers excludes deactivated users`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userBId, 2)
-        transaction {
-            AppUserTable.update({ AppUserTable.id eq userBId }) {
-                it[status] = UserStatus.INACTIVE
-            }
-        }
-
-        val members = UserBranchAssignmentService.listActiveMembers(userAId, branchId)
-
-        assertEquals(listOf(userAId), members.map { it.id })
-    }
-
-    @Test
-    fun `listActiveMembers allows a BRANCH_DAY edit grant for todays branch day`() {
-        // #402 — relief duty: the grant shape the session-create gate accepts must also
-        // load the practitioner directory those flows pick from.
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-        val todayBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.reliefDay(
-            userId = nonManagerId,
-            branchDayId = todayBranchDayId,
-            sourceId = sourceId,
-        )
-
-        val members = UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
-
-        assertEquals(listOf("Test usera"), members.map { it.displayName })
-    }
-
-    @Test
-    fun `listActiveMembers allows a branch member when a day row exists`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-        BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        IdentityFixtures.member(nonManagerId, branchId)
-
-        val members = UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
-
-        assertEquals(setOf("Test usera", "Test nonmgr"), members.map { it.displayName }.toSet())
-    }
-
-    @Test
-    fun `listActiveMembers allows a branch member with no day row yet`() {
-        IdentityFixtures.hold(callerId, Role.MANAGER)
-        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
-        IdentityFixtures.member(nonManagerId, branchId)
-
-        val members = UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
-
-        assertEquals(setOf("Test usera", "Test nonmgr"), members.map { it.displayName }.toSet())
-    }
-
-    @Test
-    fun `listActiveMembers rejects a day grant scoped to another days row`() {
-        // Today's row exists but the grant references yesterday's — the mismatch path
-        // (not the missing-day fallback) must reject.
-        val todayBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(branchId)
-        val yesterdayBranchDayId =
-            BranchWorkforceFixtures.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
-        check(todayBranchDayId != yesterdayBranchDayId)
-        IdentityFixtures.reliefDay(
-            userId = nonManagerId,
-            branchDayId = yesterdayBranchDayId,
-            sourceId = sourceId,
-        )
-
-        assertFailsWith<ForbiddenException> {
-            UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
-        }
-    }
-
-    private fun assignedSlot(assignmentId: UUID): Short =
-        transaction {
-            UserBranchAssignmentTable
-                .selectAll()
-                .where { UserBranchAssignmentTable.id eq assignmentId }
-                .single()[UserBranchAssignmentTable.slot]
-        }
-
-    private fun assignmentEndedAt(assignmentId: UUID): OffsetDateTime? =
-        transaction {
-            UserBranchAssignmentTable
-                .selectAll()
-                .where { UserBranchAssignmentTable.id eq assignmentId }
-                .singleOrNull()
-                ?.let { it[UserBranchAssignmentTable.endedAt] }
-        }
-
-    private fun auditEntryCount(assignmentId: UUID): Long =
-        transaction {
-            AuditLogTable
-                .selectAll()
-                .where {
-                    (AuditLogTable.auditTableName eq "user_branch_assignment") and
-                        (AuditLogTable.recordId eq assignmentId)
-                }.count()
-        }
-
-    private fun auditChangedBy(assignmentId: UUID): String =
-        transaction {
-            AuditLogTable
-                .selectAll()
-                .where {
-                    (AuditLogTable.auditTableName eq "user_branch_assignment") and
-                        (AuditLogTable.recordId eq assignmentId)
-                }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
-                .limit(1)
-                .single()[AuditLogTable.changedBy]
-                .toString()
-        }
-
-    private data class AssignmentAudit(
-        val action: String,
-        val oldSlot: String,
-        val newSlot: String,
-    )
-
-    private fun latestAuditEntry(assignmentId: UUID): AssignmentAudit =
-        transaction {
-            val row =
-                AuditLogTable
-                    .selectAll()
-                    .where {
-                        (AuditLogTable.auditTableName eq "user_branch_assignment") and
-                            (AuditLogTable.recordId eq assignmentId)
-                    }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
-                    .limit(1)
-                    .single()
-
-            AssignmentAudit(
-                action = row[AuditLogTable.action].name,
-                oldSlot = TestFixtures.extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "slot"),
-                newSlot = TestFixtures.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "slot"),
-            )
-        }
-
-    private fun activeAssignmentCount(userId: UUID): Long =
-        transaction {
-            UserBranchAssignmentTable
-                .selectAll()
-                .where {
-                    (UserBranchAssignmentTable.userId eq userId) and
-                        (UserBranchAssignmentTable.branchId eq branchId) and
-                        UserBranchAssignmentTable.endedAt.isNull()
-                }.count()
-        }
-
-    private companion object {
-        const val CONCURRENT_ASSIGNMENTS = 2
-        const val EXECUTOR_TERMINATION_SECONDS = 5L
     }
 }

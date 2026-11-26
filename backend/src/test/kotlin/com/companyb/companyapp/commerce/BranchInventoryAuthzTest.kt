@@ -1,5 +1,3 @@
-@file:Suppress("LargeClass") // #597
-
 package com.companyb.companyapp.commerce
 
 import com.companyb.companyapp.app.AppConfig

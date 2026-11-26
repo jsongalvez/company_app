@@ -1,5 +1,3 @@
-@file:Suppress("LargeClass") // #595
-
 package com.companyb.companyapp.remittance
 
 import com.companyb.companyapp.app.AppConfig

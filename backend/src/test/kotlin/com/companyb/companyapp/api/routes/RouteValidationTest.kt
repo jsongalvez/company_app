@@ -1,166 +1,36 @@
-@file:Suppress("LargeClass") // #600
-
 package com.companyb.companyapp.api.routes
 
-import com.companyb.companyapp.app.AppConfig
-import com.companyb.companyapp.authorization.Role
-import com.companyb.companyapp.client.ClientRoutes
-import com.companyb.companyapp.client.ClientTable
 import com.companyb.companyapp.commerce.BranchInventoryRoutes
 import com.companyb.companyapp.commerce.ProductRoutes
 import com.companyb.companyapp.commerce.ProductSaleRoutes
-import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.finance.ExpenseCategory
-import com.companyb.companyapp.contracts.notification.NotificationHistoryResponse
-import com.companyb.companyapp.contracts.notification.NotificationUnreadCountResponse
 import com.companyb.companyapp.contracts.remittance.RemittanceMethod
 import com.companyb.companyapp.contracts.remittance.RemittanceType
-import com.companyb.companyapp.contracts.reporting.DailySalesSummaryBrowseResponse
-import com.companyb.companyapp.exception.ConflictException
-import com.companyb.companyapp.exception.ForbiddenException
-import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.finance.AllowanceRoutes
 import com.companyb.companyapp.finance.CompensationRoutes
 import com.companyb.companyapp.finance.CompensationTable
 import com.companyb.companyapp.finance.ExpenseRoutes
 import com.companyb.companyapp.finance.ExpenseTable
-import com.companyb.companyapp.http.KotlinxSerializationMapper
-import com.companyb.companyapp.identity.JwtService
-import com.companyb.companyapp.identity.Password
-import com.companyb.companyapp.notification.NotificationRoutes
-import com.companyb.companyapp.notification.NotificationTable
 import com.companyb.companyapp.remittance.RemittanceRoutes
 import com.companyb.companyapp.remittance.RemittanceTable
-import com.companyb.companyapp.reporting.DailySalesSummaryRoutes
-import com.companyb.companyapp.reporting.ExportRoutes
 import com.companyb.companyapp.session.SessionRoutes
-import com.companyb.companyapp.session.dashboard.DashboardRoutes
-import com.companyb.companyapp.test.JavalinTestServerRule
 import com.companyb.companyapp.test.TestFixtures
-import com.companyb.companyapp.testsupport.database.BasePostgresTest
-import com.companyb.companyapp.testsupport.database.TestDatabaseLifecycle
 import com.companyb.companyapp.testsupport.fixtures.BranchWorkforceFixtures
-import com.companyb.companyapp.testsupport.fixtures.CommerceFinanceFixtures
-import com.companyb.companyapp.testsupport.fixtures.IdentityFixtures
 import com.companyb.companyapp.testsupport.fixtures.SessionClientFixtures
 import com.companyb.companyapp.workforce.UserBranchAssignmentRoutes
-import io.javalin.Javalin
-import io.javalin.config.JavalinConfig
-import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.junit.ClassRule
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
-class RouteValidationTest : BasePostgresTest() {
-    private val json = Json { ignoreUnknownKeys = true }
-    private val testUserId = TEST_USER_ID
-    private val testBranchId = TestFixtures.uuid()
-    private var testBranchDayId: UUID = TestFixtures.uuid()
-    private val testCategoryId = TestFixtures.uuid()
-    private val testProductId = TestFixtures.uuid()
-    private val testClientId = TestFixtures.uuid()
-    private val testClientNoSessionsId = TestFixtures.uuid()
-    private val testSessionId = TestFixtures.uuid()
-
-    override fun initTestData() {
-        IdentityFixtures.insertTestUser(testUserId, "route-test")
-        BranchWorkforceFixtures.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
-        IdentityFixtures.member(testUserId, testBranchId, Role.SUPERUSER)
-        testBranchDayId = BranchWorkforceFixtures.createBranchDayForToday(testBranchId)
-        CommerceFinanceFixtures.insertTestCategory(testCategoryId)
-        CommerceFinanceFixtures.insertTestProduct(testProductId, categoryId = testCategoryId)
-        SessionClientFixtures.insertTestClient(testClientId)
-        SessionClientFixtures.insertTestClient(testClientNoSessionsId)
-        SessionClientFixtures.insertTestSession(
-            id = testSessionId,
-            clientId = testClientId,
-            branchDayId = testBranchDayId,
-        )
-    }
-
-    companion object {
-        @JvmField
-        @ClassRule
-        val testServer = JavalinTestServerRule(::createApp)
-
-        val TEST_USER_ID = TestFixtures.uuid()
-
-        fun createApp(): Javalin {
-            val config = AppConfig.parse()
-            JwtService.init(config)
-            Password.init(config.authDummyPassword)
-
-            return Javalin.create { cfg ->
-                cfg.jsonMapper(KotlinxSerializationMapper())
-                cfg.routes.before { ctx ->
-                    Database.connect(TestDatabaseLifecycle.requireTestDataSource())
-                    ctx.attribute("userId", TEST_USER_ID.toString())
-                }
-                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                    ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-                }
-                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-                }
-                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-                }
-                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-                }
-                registerAllRoutes(cfg)
-            }
-        }
-
-        private fun registerAllRoutes(config: JavalinConfig) {
-            AllowanceRoutes.register(config)
-            CompensationRoutes.register(config)
-            DashboardRoutes.register(config)
-            SessionRoutes.register(config)
-            ClientRoutes.register(config)
-            ProductRoutes.register(config)
-            BranchInventoryRoutes.register(config)
-            ProductSaleRoutes.register(config)
-            UserBranchAssignmentRoutes.register(config)
-            RemittanceRoutes.register(config)
-            ExportRoutes.register(config)
-            DailySalesSummaryRoutes.register(config)
-            ExpenseRoutes.register(config)
-            NotificationRoutes.register(config)
-        }
-    }
-
-    private fun uuid() = TestFixtures.uuid().toString()
-
-    private fun assertPost(
-        code: Int,
-        path: String,
-        body: Map<String, Any?>? = null,
-    ) {
-        val response = body?.let { testServer.client.post(path, it) } ?: testServer.client.post(path)
-        assertEquals(code, response.code, "POST $path $body")
-    }
-
-    private fun assertPatch(
-        code: Int,
-        path: String,
-        body: Map<String, Any?>? = null,
-    ) {
-        val response = body?.let { testServer.client.patch(path, it) } ?: testServer.client.patch(path)
-        assertEquals(code, response.code, "PATCH $path $body")
-    }
-
+/**
+ * Route validation for allowances, compensation, sessions, products, stock, product sales, assignments, remittances
+ * and expenses.
+ */
+class RouteValidationTest : RouteValidationBase() {
     private fun assertDelete(
         code: Int,
         path: String,
@@ -169,11 +39,6 @@ class RouteValidationTest : BasePostgresTest() {
         val response = body?.let { testServer.client.delete(path, it) } ?: testServer.client.delete(path)
         assertEquals(code, response.code, "DELETE $path $body")
     }
-
-    private fun assertGet(
-        code: Int,
-        path: String,
-    ) = assertEquals(code, testServer.client.get(path).code, "GET $path")
 
     private fun allowance(
         amount: String = "100.00",
@@ -204,15 +69,6 @@ class RouteValidationTest : BasePostgresTest() {
         "isWalkIn" to false,
         "finalPrice" to finalPrice,
     )
-
-    private fun clientBody(vararg overrides: Pair<String, Any?>) =
-        mapOf(
-            "id" to uuid(),
-            "firstName" to "John",
-            "lastName" to "Doe",
-            "gender" to "M",
-            "age" to 25,
-        ) + overrides
 
     private fun product(
         name: String = "Test Product",
@@ -294,21 +150,6 @@ class RouteValidationTest : BasePostgresTest() {
         "amount" to amount,
         "category" to category,
     )
-
-    private fun notification(): UUID {
-        val notificationId = TestFixtures.uuid()
-        transaction {
-            NotificationTable.insert {
-                it[NotificationTable.id] = notificationId
-                it[NotificationTable.sessionId] = testSessionId
-                it[NotificationTable.userId] = testUserId
-                it[NotificationTable.branchId] = testBranchId
-                it[NotificationTable.message] = "Test notification"
-                it[NotificationTable.dedupKey] = "APPT:$testSessionId:$notificationId"
-            }
-        }
-        return notificationId
-    }
 
     // ──────────────────────────────────────────────
     // AllowanceRoutes
@@ -417,163 +258,6 @@ class RouteValidationTest : BasePostgresTest() {
         val remittedSessionId = TestFixtures.uuid()
         SessionClientFixtures.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
         assertGet(200, "/api/sessions/$remittedSessionId/concerns")
-    }
-
-    // ──────────────────────────────────────────────
-    // ClientRoutes
-    // ──────────────────────────────────────────────
-
-    @Test
-    fun `POST client blank firstName returns 400`() = assertPost(400, "/api/clients", clientBody("firstName" to "  "))
-
-    @Test
-    fun `POST client blank lastName returns 400`() = assertPost(400, "/api/clients", clientBody("lastName" to "  "))
-
-    @Test
-    fun `POST client partial BP systolic only returns 400`() =
-        assertPost(400, "/api/clients", clientBody("systolicBp" to 120))
-
-    @Test
-    fun `POST client partial BP diastolic only returns 400`() =
-        assertPost(400, "/api/clients", clientBody("diastolicBp" to 80))
-
-    @Test
-    fun `POST client out-of-range age returns 400`() = assertPost(400, "/api/clients", clientBody("age" to 999))
-
-    @Test
-    fun `POST client out-of-range BP returns 400`() =
-        assertPost(400, "/api/clients", clientBody("systolicBp" to 10, "diastolicBp" to 80))
-
-    @Test
-    fun `POST client overlong phone returns 400`() =
-        assertPost(400, "/api/clients", clientBody("phoneNumber" to "123456789012345678901"))
-
-    @Test
-    fun `GET clients blank search query returns 400`() = assertGet(400, "/api/clients?q=%20%20")
-
-    @Test
-    fun `GET clients missing search query returns 400`() = assertGet(400, "/api/clients")
-
-    @Test
-    fun `GET clients includes authoritative session count`() {
-        val response = testServer.client.get("/api/clients?q=Test")
-        val clients = json.decodeFromString<List<ClientResponse>>(response.body.string())
-
-        assertEquals(200, response.code)
-        assertEquals(1, clients.single { it.id == testClientId.toString() }.sessionCount)
-        assertEquals(0, clients.single { it.id == testClientNoSessionsId.toString() }.sessionCount)
-    }
-
-    @Test
-    fun `PATCH client blank firstName returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("firstName" to "  "))
-
-    @Test
-    fun `PATCH client blank lastName returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("lastName" to "  "))
-
-    @Test
-    fun `PATCH client partial BP returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("systolicBp" to 120))
-
-    @Test
-    fun `PATCH client out-of-range age returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("age" to 999))
-
-    @Test
-    fun `PATCH client out-of-range BP returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("systolicBp" to 120, "diastolicBp" to 10))
-
-    @Test
-    fun `PATCH client overlong phone returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("phoneNumber" to "123456789012345678901"))
-
-    @Test
-    fun `PATCH client clear phone persists null`() {
-        assertEquals(
-            200,
-            testServer.client.patch("/api/clients/$testClientId", mapOf("phoneNumber" to "09171234567")).code,
-        )
-        val response =
-            testServer.client.patch(
-                "/api/clients/$testClientId",
-                mapOf("clearFields" to listOf("phoneNumber")),
-            )
-        assertEquals(200, response.code)
-        val updated = json.decodeFromString<ClientResponse>(response.body.string())
-        assertNull(updated.phoneNumber)
-        assertEquals("Test", updated.firstName)
-    }
-
-    @Test
-    fun `PATCH client clear BP pair persists nulls`() {
-        val seeded =
-            testServer.client.patch(
-                "/api/clients/$testClientId",
-                mapOf("systolicBp" to 120, "diastolicBp" to 80),
-            )
-        assertEquals(200, seeded.code)
-        val response =
-            testServer.client.patch(
-                "/api/clients/$testClientId",
-                mapOf("clearFields" to listOf("systolicBp", "diastolicBp")),
-            )
-        assertEquals(200, response.code)
-        val updated = json.decodeFromString<ClientResponse>(response.body.string())
-        assertNull(updated.systolicBp)
-        assertNull(updated.diastolicBp)
-    }
-
-    @Test
-    fun `PATCH client unknown clear field returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("nickname")))
-
-    @Test
-    fun `PATCH client clear required field returns 400`() {
-        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("firstName")))
-        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("age")))
-    }
-
-    @Test
-    fun `PATCH client half BP clear returns 400`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("clearFields" to listOf("systolicBp")))
-
-    @Test
-    fun `PATCH client set and clear on the same field returns 400`() =
-        assertPatch(
-            400,
-            "/api/clients/$testClientId",
-            mapOf("phoneNumber" to "0917", "clearFields" to listOf("phoneNumber")),
-        )
-
-    @Test
-    fun `PATCH client blank optional returns 400 without storing whitespace`() =
-        assertPatch(400, "/api/clients/$testClientId", mapOf("phoneNumber" to "   "))
-
-    @Test
-    fun `POST anonymize client with pending session returns 409 and keeps PII`() {
-        val response = testServer.client.post("/api/clients/$testClientId/anonymize")
-
-        assertEquals(409, response.code)
-        transaction {
-            val row = ClientTable.selectAll().where { ClientTable.id eq testClientId }.single()
-            assertEquals("Test", row[ClientTable.firstName])
-            assertEquals("Client", row[ClientTable.lastName])
-            assertNull(row[ClientTable.deletedAt])
-        }
-    }
-
-    @Test
-    fun `POST anonymize client without sessions returns 204`() {
-        val response = testServer.client.post("/api/clients/$testClientNoSessionsId/anonymize")
-
-        assertEquals(204, response.code)
-        transaction {
-            val row =
-                ClientTable.selectAll().where { ClientTable.id eq testClientNoSessionsId }.single()
-            assertNull(row[ClientTable.firstName])
-            assertNull(row[ClientTable.lastName])
-        }
     }
 
     // ──────────────────────────────────────────────
@@ -733,158 +417,6 @@ class RouteValidationTest : BasePostgresTest() {
     fun `POST remittance PRODUCT_SALE line without productSaleId returns 400`() {
         val remittanceId = remittance()
         assertPost(400, "/api/remittances/$remittanceId/lines", remittanceLine(type = "PRODUCT_SALE"))
-    }
-
-    // ──────────────────────────────────────────────
-    // ExportRoutes
-    // ──────────────────────────────────────────────
-
-    @Test
-    fun `GET export report missing format returns 400`() =
-        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16")
-
-    @Test
-    fun `GET export report invalid format returns 400`() =
-        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-15&to=2024-01-16&format=csv")
-
-    @Test
-    fun `GET export report missing from returns 400`() =
-        assertGet(400, "/api/branches/$testBranchId/export/report?to=2024-01-15&format=xlsx")
-
-    @Test
-    fun `GET export report missing to returns 400`() =
-        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-15&format=xlsx")
-
-    @Test
-    fun `GET export report invalid date returns 400`() =
-        assertGet(400, "/api/branches/$testBranchId/export/report?from=not-a-date&to=2024-01-15&format=xlsx")
-
-    @Test
-    fun `GET export report from after to returns 400`() =
-        assertGet(400, "/api/branches/$testBranchId/export/report?from=2024-01-16&to=2024-01-15&format=xlsx")
-
-    @Test
-    fun `GET export report multi-branch unknown type returns 400`() =
-        assertGet(400, "/api/branches/export/report?from=2024-01-15&to=2024-01-16&format=xlsx&type=SPA")
-
-    @Test
-    fun `GET export report multi-branch missing format returns 400`() =
-        assertGet(400, "/api/branches/export/report?from=2024-01-15&to=2024-01-16")
-
-    // ──────────────────────────────────────────────
-    // DailySalesSummaryRoutes — paged daily-summaries feed
-    // ──────────────────────────────────────────────
-
-    @Test
-    fun `GET daily-summaries returns 200 with seeded day`() {
-        val response = testServer.client.get("/api/branches/$testBranchId/daily-summaries")
-        assertEquals(200, response.code)
-        val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
-        assertEquals(1, body.entries.size)
-        assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
-        assertEquals(TestFixtures.today.toString(), body.entries.single().date)
-        assertNull(body.nextCursor)
-    }
-
-    @Test
-    fun `GET daily-summaries returns 200 empty feed for branch without days`() {
-        val noDaysBranchId = TestFixtures.uuid()
-        BranchWorkforceFixtures.insertTestBranch(noDaysBranchId, "No-Days Branch")
-        val response = testServer.client.get("/api/branches/$noDaysBranchId/daily-summaries")
-        assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")
-        val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
-        assertTrue(body.entries.isEmpty())
-        assertNull(body.nextCursor)
-    }
-
-    @Test
-    fun `GET daily-summaries rejects limit zero`() =
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?limit=0")
-
-    @Test
-    fun `GET daily-summaries rejects limit above max`() =
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?limit=101")
-
-    @Test
-    fun `GET daily-summaries rejects non-numeric limit`() =
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?limit=abc")
-
-    @Test
-    fun `GET daily-summaries rejects malformed cursor`() =
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?cursor=not-a-cursor")
-
-    @Test
-    fun `GET daily-summaries rejects malformed from date`() =
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?from=2026-13-99")
-
-    @Test
-    fun `GET daily-summaries rejects malformed to date`() =
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?to=not-a-date")
-
-    @Test
-    fun `GET daily-summaries rejects from after to`() {
-        val tomorrow = TestFixtures.today.plusDays(1)
-        val yesterday = TestFixtures.today.minusDays(1)
-        assertGet(400, "/api/branches/$testBranchId/daily-summaries?from=$tomorrow&to=$yesterday")
-    }
-
-    @Test
-    fun `GET daily-summaries window filters the feed`() {
-        val today = TestFixtures.today
-        val yesterday = today.minusDays(1)
-        val response =
-            testServer.client.get(
-                "/api/branches/$testBranchId/daily-summaries?from=$yesterday&to=$today",
-            )
-        assertEquals(200, response.code)
-        val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
-        assertEquals(1, body.entries.size, "the window admits only the seeded day")
-        assertEquals(today.toString(), body.entries.single().date)
-    }
-
-    // ──────────────────────────────────────────────
-    // NotificationRoutes
-    // ──────────────────────────────────────────────
-
-    @Test
-    fun `POST notifications read-all returns 200 and marks all unread as read`() {
-        val notificationId = notification()
-        val response = testServer.client.post("/api/notifications/read-all")
-        assertEquals(200, response.code)
-        assertTrue(response.body.string().contains("\"unreadCount\":0"))
-        val isRead =
-            transaction {
-                NotificationTable
-                    .selectAll()
-                    .where { NotificationTable.id eq notificationId }
-                    .single()[NotificationTable.isRead]
-            }
-        assertTrue(isRead)
-    }
-
-    @Test
-    fun `PATCH notification read still matches param route when read-all literal registered first`() {
-        val notificationId = notification()
-        assertPatch(200, "/api/notifications/$notificationId/read")
-    }
-
-    @Test
-    fun `GET notifications unread-count returns count without rows`() {
-        val response = testServer.client.get("/api/notifications/unread-count")
-        assertEquals(200, response.code)
-        val body = json.decodeFromString<NotificationUnreadCountResponse>(response.body.string())
-        assertEquals(0, body.unreadCount)
-    }
-
-    @Test
-    fun `GET notifications history pages bounded entries with cursor`() {
-        val first = testServer.client.get("/api/notifications/history?limit=1")
-        assertEquals(200, first.code)
-        val firstBody = json.decodeFromString<NotificationHistoryResponse>(first.body.string())
-        assertTrue(firstBody.entries.size <= 1)
-
-        val second = testServer.client.get("/api/notifications/history?cursor=bad-cursor&limit=1")
-        assertEquals(400, second.code)
     }
 
     // ──────────────────────────────────────────────
