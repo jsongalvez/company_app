@@ -142,6 +142,37 @@ test("a mark, then a price: the mark shows no new version, the price follows it"
     assert.equal(server.v.get("s:s1"), 4);
 });
 
+/** enqueue(): a mark replaces the same session's marks not yet tried; one already tried may be on the server, so it stays. */
+function markAgain(s: ReturnType<typeof sessionPhone>, status: string, tried: Set<string>) {
+    const mine = (i: Item) => i.method === "PATCH" && i.path.endsWith("/status") && !tried.has(i.id);
+    s.q.splice(0, s.q.length, ...s.q.filter((i) => !mine(i)));
+    s.mark(status);
+}
+
+test("a mark shows on the session at once and moves no version, so a second mark taking its place still lands", () => {
+    const server = new Server({ "s:s1": 1 });
+    const s = sessionPhone(server);
+    s.mark("COMPLETED");
+    assert.deepEqual([s.shown().sessionStatus, s.shown().version], ["COMPLETED", 1]);
+    markAgain(s, "NO_SHOW", new Set());
+    assert.equal(s.q.length, 1);
+    assert.deepEqual(JSON.parse(s.q[0]!.body), { status: "NO_SHOW", version: 1, reason: null });
+    assert.deepEqual([s.shown().sessionStatus, s.shown().version], ["NO_SHOW", 1]);
+    allLand(flush(server, s.q));
+    assert.equal(server.v.get("s:s1"), 2);
+});
+
+test("a mark already tried stays, and the mark made after it lands behind it", () => {
+    const server = new Server({ "s:s1": 1 });
+    const s = sessionPhone(server);
+    s.mark("COMPLETED");
+    markAgain(s, "PENDING", new Set([s.q[0]!.id]));
+    s.price("650");
+    assert.deepEqual([s.shown().sessionStatus, s.shown().version], ["PENDING", 2]);
+    allLand(flush(server, s.q));
+    assert.equal(server.v.get("s:s1"), 4);
+});
+
 test("a price shown at once, then a mark and remarks made on top of it, are not moved on twice", () => {
     const server = new Server({ "s:s1": 1 });
     const s = sessionPhone(server);

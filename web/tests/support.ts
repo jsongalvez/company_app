@@ -65,6 +65,15 @@ export async function doneSessionForNewClient(app: App, screen: Screen, browser:
 
 /** On Today, already clocked in: add a session for a brand-new client and mark it done. Returns the client's name. */
 export async function addDoneSessionForNewClient(screen: Screen): Promise<string> {
+    const name = await addSessionForNewClient(screen);
+    const row = screen.getByRole("row").filter({ hasText: name });
+    await row.getByRole("button", "Done").tap();
+    await expect(row.getByText("Done")).toBeVisible();
+    return name;
+}
+
+/** On Today, already clocked in: add a session for a brand-new client, left Waiting. Returns the client's name. */
+export async function addSessionForNewClient(screen: Screen): Promise<string> {
     const first = `Test${Date.now().toString().slice(-6)}`;
     await screen.getByRole("button", "New session").tap();
     const dialog = screen.getByRole("dialog", "New session");
@@ -81,10 +90,7 @@ export async function addDoneSessionForNewClient(screen: Screen): Promise<string
     await expect(dialog.getByLabel(/^Price/)).not.toHaveValue("");
     await dialog.getByRole("button", "Add session").tap();
 
-    const row = screen.getByRole("row").filter({ hasText: `${first} Tester` });
-    await expect(row).toBeVisible();
-    await row.getByRole("button", "Done").tap();
-    await expect(row.getByText("Done")).toBeVisible();
+    await expect(screen.getByRole("row").filter({ hasText: `${first} Tester` })).toBeVisible();
     return `${first} Tester`;
 }
 

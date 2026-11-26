@@ -100,3 +100,77 @@ test("two edits made offline in a row chain their versions, so both land", () =>
     assert.equal(row.amount, "140.00");
     assert.equal(row.version, v + 2);
 });
+
+/** A client's history (`ClientSessionItem`): no version, its own field names, and the session's answer is not its shape. */
+const HISTORY = "client:c1:history";
+const history = () => ({
+    sessions: [
+        {
+            id: "s1",
+            date: "2026-11-27",
+            branchName: "B",
+            status: "PENDING",
+            type: "REGULAR",
+            voided: false,
+            price: "500.00",
+            practitioners: ["Ana"],
+            concerns: [],
+            remarks: null,
+        },
+        {
+            id: "s2",
+            date: "2026-11-20",
+            branchName: "B",
+            status: "COMPLETED",
+            type: "REGULAR",
+            voided: false,
+            price: "500.00",
+            practitioners: ["Ana"],
+            concerns: [],
+            remarks: null,
+        },
+    ],
+    sales: [],
+});
+const sessionOp = (tail: string, method: string, body: Record<string, unknown>): PendingOp => ({
+    method,
+    path: `/api/sessions/s1/${tail}`,
+    body,
+    at: "2026-11-27T02:00:00Z",
+    user: "u1",
+});
+const MARK = sessionOp("status", "PATCH", { status: "COMPLETED", version: 1, reason: null });
+
+test("a waiting mark shows on the session's own page, with the version it was made from", () => {
+    const doc = { id: "s1", sessionStatus: "PENDING", version: 1, isVoided: false, completedAt: null };
+    assert.deepEqual(applyOp("session:s1", doc, MARK), { ...doc, sessionStatus: "COMPLETED", completedAt: MARK.at });
+    const back = sessionOp("status", "PATCH", { status: "PENDING", version: 1, reason: null });
+    assert.deepEqual(applyOps("session:s1", doc, [MARK, back]), doc);
+    // Once it lands the answer is the session as saved.
+    const answer = { id: "s1", sessionStatus: "COMPLETED", version: 2, finalPrice: "500.00" };
+    assert.deepEqual(takeAnswer("session:s1", applyOp("session:s1", doc, MARK), MARK, answer), {
+        ...doc,
+        sessionStatus: "COMPLETED",
+        completedAt: MARK.at,
+        version: 2,
+    });
+});
+
+test("a client's history shows the session's waiting mark, price, void and restore, and keeps them once they land", () => {
+    const ops = [MARK, sessionOp("final-price", "PATCH", { finalPrice: "1234", version: 1, reason: null }), sessionOp("void", "POST", { voidReason: "x" })];
+    const shown = applyOps(HISTORY, history(), ops) as ReturnType<typeof history>;
+    assert.deepEqual(shown.sessions[0], { ...history().sessions[0], status: "COMPLETED", price: "1234.00", voided: true });
+    assert.deepEqual(shown.sessions[1], history().sessions[1]);
+    const restored = applyOp(HISTORY, shown, sessionOp("unvoid", "POST", { unvoidedReason: "x" })) as ReturnType<typeof history>;
+    assert.equal(restored.sessions[0]!.voided, false);
+    // The session's answer has another shape (practitioners as records): the row keeps its own until it is read again.
+    const answer = { id: "s1", sessionStatus: "COMPLETED", version: 2, practitioners: [{ practitionerId: "p1" }] };
+    assert.deepEqual(takeAnswer(HISTORY, history(), MARK, answer), applyOp(HISTORY, history(), MARK));
+});
+
+test("saves on other records leave a client's history as it is, and a mark leaves the client's own record", () => {
+    const doc = history();
+    for (const c of cases) assert.equal(applyOp(HISTORY, doc, c.op), doc, c.name);
+    const client = { id: "c1", firstName: "A" };
+    assert.equal(applyOp("client:c1", client, MARK), client);
+});

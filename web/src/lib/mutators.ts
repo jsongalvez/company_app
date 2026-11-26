@@ -9,11 +9,14 @@
  * Covered, each checked against the server's answer in tests/unit/mutators.test.ts: expense add, change,
  * delete, restore; product sale change (same product), delete, restore; stock movement; client details;
  * session price, void, restore, practitioner remarks, practitioner removed, illness removed, new illness
- * by name; booking change. Left to the server's answer, as the save holds too little to show them: a sale
+ * by name; booking change. A session's mark, price, void and restore show on the client's history too, and
+ * the mark is checked here (tests/unit/mutators.test.ts) rather than against a captured answer, since it
+ * moves no version on this phone. Left to the server's answer, as the save holds too little to show them: a sale
  * moved to another product (its name and price), a restock (no version to tell whether it landed), a
- * practitioner added (name and slot) and an illness picked from the list (its label). New sessions, clients, marks, sales and clock-ins are
+ * practitioner added (name and slot), an illness picked from the list (its label), and a new session on the
+ * client's history (its branch, practitioners and illnesses). New sessions, clients, sales and clock-ins are
  * shown by Today and the client directory themselves (outbox.svelte.ts `pendingSessions`, `pendingClients`,
- * `heldMarks`, `pendingSales`, `heldClock`).
+ * `pendingSales`, `heldClock`); Today also flags its waiting marks (`heldMarks`).
  */
 
 export type PendingOp = { method: string; path: string; body: Record<string, unknown>; at: string; user: string };
@@ -33,6 +36,8 @@ type Mutator = {
     add?: (key: string, op: PendingOp) => Rec | undefined;
     /** The change is what the record holds once the save lands, applied twice or not: a landed save whose answer is not the record applies it. */
     settles?: true;
+    /** The change to the session's row on a client's history (`ClientSessionItem`: no version, its own field names). */
+    row?: Change;
 };
 
 const seg = (n: number) => (op: PendingOp) => op.path.split("/")[n]!;
@@ -84,6 +89,9 @@ const onEntry =
 const dropEntry = (rows: Rec[], i: number) => rows.filter((_, j) => j !== i);
 
 const SESSION = ["session", "dsess", "dash"];
+
+/** A client's history: its session rows are narrower than a session, so only a mutator's `row` applies to them. */
+const isHistory = (key: string) => key.startsWith("client:") && key.endsWith(":history");
 
 const MUTATORS: Mutator[] = [
     {
@@ -215,10 +223,28 @@ const MUTATORS: Mutator[] = [
     },
     {
         method: "PATCH",
+        path: /^\/api\/sessions\/[^/]+\/status$/,
+        families: SESSION,
+        id: seg(3),
+        // The status only, and the version stays: a second mark made before this one goes out takes its place in the
+        // queue and carries the same version (outbox.svelte.ts `enqueue`), which must still be the server's. Once this
+        // one lands, the saves behind it move on (outbox-versions.ts `landed`). Setting a status twice is the same as once.
+        change: (r, op) => {
+            const status = String(op.body.status);
+            if (r.sessionStatus === status) return undefined;
+            const out: Rec = { ...r, sessionStatus: status };
+            if ("completedAt" in r) out.completedAt = status === "COMPLETED" ? op.at : null;
+            return out;
+        },
+        row: (r, op) => (r.status === op.body.status ? undefined : { ...r, status: op.body.status }),
+    },
+    {
+        method: "PATCH",
         path: /^\/api\/sessions\/[^/]+\/final-price$/,
         families: SESSION,
         id: seg(3),
         change: fromVersion("version", (r, op) => ({ ...r, finalPrice: money(op.body.finalPrice) })),
+        row: (r, op) => (r.price === money(op.body.finalPrice) ? undefined : { ...r, price: money(op.body.finalPrice) }),
     },
     {
         method: "POST",
@@ -226,6 +252,7 @@ const MUTATORS: Mutator[] = [
         families: SESSION,
         id: seg(3),
         change: (r) => (r.isVoided ? undefined : { ...r, isVoided: true }),
+        row: (r) => (r.voided ? undefined : { ...r, voided: true }),
     },
     {
         method: "POST",
@@ -233,6 +260,7 @@ const MUTATORS: Mutator[] = [
         families: SESSION,
         id: seg(3),
         change: (r) => (r.isVoided ? { ...r, isVoided: false } : undefined),
+        row: (r) => (r.voided ? { ...r, voided: false } : undefined),
     },
     {
         method: "PATCH",
@@ -287,7 +315,9 @@ function eachRecord(key: string, doc: unknown, f: (r: Rec) => Rec | undefined): 
 /** One op on one document. */
 export function applyOp(key: string, doc: unknown, op: PendingOp): unknown {
     const m = mutatorOf(op);
-    if (!m || doc === undefined || doc === null || !m.families.includes(family(key))) return doc;
+    if (!m || doc === undefined || doc === null) return doc;
+    if (isHistory(key)) return m.row ? eachRecord(key, doc, (r) => (r.id === m.id!(op) ? m.row!(r, op) : undefined)) : doc;
+    if (!m.families.includes(family(key))) return doc;
     if (m.add) {
         const r = m.add(key, op);
         if (!r || !Array.isArray(doc) || (doc as Rec[]).some((x) => x.id === r.id)) return doc;
@@ -304,7 +334,7 @@ export function applyOps(key: string, doc: unknown, ops: PendingOp[]): unknown {
 }
 
 /** Does any mutator change documents under this key? Lets the cache skip the rest cheaply. */
-export const mutates = (key: string) => MUTATORS.some((m) => m.families.includes(family(key)));
+export const mutates = (key: string) => isHistory(key) || MUTATORS.some((m) => m.families.includes(family(key)));
 
 /**
  * A save landed and the server answered with the record: put it in place of the record in a document,
@@ -313,6 +343,8 @@ export const mutates = (key: string) => MUTATORS.some((m) => m.families.includes
  */
 export function takeAnswer(key: string, doc: unknown, op: PendingOp, answer: unknown): unknown {
     const m = mutatorOf(op);
+    // A history row has none of the answer's shape: it keeps the change until the screen reads it again.
+    if (m && isHistory(key)) return applyOp(key, doc, op);
     if (!m || !m.families.includes(family(key))) return doc;
     if (m.settles) return applyOp(key, doc, op);
     if (!answer || typeof answer !== "object") return doc;

@@ -1,7 +1,7 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 import { BASE, owner } from "./offline";
-import { diskValues, doneSessionForNewClient } from "./support";
+import { addSessionForNewClient, clockInHere, diskValues, doneSessionForNewClient } from "./support";
 
 const down = /\/(api\/|health)/;
 type Item = { path: string; failed?: string };
@@ -111,3 +111,57 @@ test("a change someone else made meanwhile is refused, never written over", { se
     const after = (await (await fetch(`${BASE}/api/sessions/${id}`, { headers: auth })).json()) as { version: number; finalPrice: string };
     expect(after).toMatchObject({ version: version + 1, finalPrice: "999.00" });
 });
+
+// A mark made on Today with no signal (or still on its way) showed only on Today: the session's own page and the
+// client's page still said Waiting until it landed. The price changed after it goes out from the server's version,
+// since the mark moves none on this phone, so both land.
+test(
+    "a session marked done offline shows done on its page and the client's page, and still once sent",
+    { session: "owner" },
+    async ({ app, screen, browser }) => {
+        await app.open("/#/today");
+        await clockInHere(screen, browser);
+        const name = await addSessionForNewClient(screen);
+        const row = screen.getByRole("row").filter({ hasText: name });
+        const sessionMark = () => browser.evaluate(() => document.querySelector("section.panel header .mark")?.textContent?.trim() ?? "");
+        const clientRow = () =>
+            browser.evaluate(() => {
+                const r = document.querySelector("table.grid tbody tr");
+                return r ? `${r.querySelector(".mark")?.textContent?.trim()} ${r.querySelector("td.num")?.textContent?.trim()}` : "";
+            });
+        const go = (hash: string) => browser.evaluate((h) => void (location.hash = h), hash);
+
+        // Both pages once with signal, so the phone has them (a row opens once its session has landed).
+        await expect(row.getByRole("button", "Done")).toBeVisible();
+        await row.getByText(name).tap();
+        await expect.poll(sessionMark).toBe("Waiting");
+        const session = await browser.evaluate(() => location.hash);
+        await screen.getByRole("link", name).tap();
+        await expect.poll(clientRow).toMatch(/^Waiting /);
+        const client = await browser.evaluate(() => location.hash);
+        await go("#/today");
+
+        await browser.route(down, (route) => route.abort());
+        await row.getByRole("button", "Done").tap();
+        await expect(row.getByText("Done")).toBeVisible();
+        await go(session);
+        await expect.poll(sessionMark, { timeout: 5_000 }).toBe("Done");
+        await screen.getByRole("button", "Change").first().tap();
+        const dialog = screen.getByRole("dialog", "Change price");
+        await dialog.getByLabel(/^Final price/).fill("1234");
+        await dialog.getByRole("button", "Save").tap();
+        await expect(screen.getByText("2 changes waiting to send", { exact: false })).toBeVisible({ timeout: 20_000 });
+        await go(client);
+        await expect.poll(clientRow, { timeout: 5_000 }).toBe("Done 1,234.00");
+
+        await browser.unroute(down);
+        await expect.poll(async () => (await saved(browser)).length, { timeout: 40_000 }).toBe(0);
+        await expect(screen.getByText("couldn't be sent", { exact: false })).not.toBeVisible();
+        await expect.poll(clientRow).toBe("Done 1,234.00");
+        await browser.reload();
+        await expect.poll(clientRow, { timeout: 15_000 }).toBe("Done 1,234.00");
+        await go(session);
+        await expect.poll(sessionMark, { timeout: 15_000 }).toBe("Done");
+        await expect(screen.getByText("1,234.00", { exact: false })).toBeVisible();
+    },
+);

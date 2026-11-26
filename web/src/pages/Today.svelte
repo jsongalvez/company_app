@@ -137,8 +137,9 @@
         const rows = isToday ? dash.data?.sessions : (pastList.data ?? (switching ? heldRows : undefined));
         const marks = heldMarks();
         const fromServer = (rows ?? []).map((s) => {
+            // Flagged while it waits, even once the row shows it (the queued mark applies to every screen's copy, lib/mutators.ts).
             const h = marks.get(s.id);
-            return h && h !== s.sessionStatus
+            return h
                 ? { ...s, sessionStatus: h as S["DashboardSessionResponse"]["sessionStatus"], held: true, local: null }
                 : { ...s, held: false, local: null };
         });
