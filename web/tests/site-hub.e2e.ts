@@ -5,6 +5,7 @@ import { connect, createServer, type Server } from "node:net";
 import { request } from "node:https";
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { businessDate } from "./clock";
+import { navigate } from "./live";
 import { owner } from "./offline";
 
 // A provincial tour with no signal (owner, 2026-11-21): four phones on the laptop's hotspot see each other's
@@ -96,7 +97,7 @@ async function phone(browser: Browser, user: string, name: string, proxy: string
         .getByRole("button", { name: /Clock (in|out)/ })
         .first();
     for (let tries = 0; ; tries++) {
-        await page.goto(`${BASE}/`);
+        await navigate(page, `${BASE}/`);
         await page.getByLabel("Username").fill(user);
         await page.getByLabel("Password").fill("staff-dev-pass");
         await page.getByRole("button", { name: "Sign in" }).click();
@@ -112,7 +113,7 @@ async function phone(browser: Browser, user: string, name: string, proxy: string
 const shown = (l: ReturnType<Page["getByText"]>, timeout = 20_000) => expect.poll(() => l.isVisible(), { timeout }).toBe(true);
 
 async function pick(p: Phone, branch: string) {
-    await p.page.goto(`${BASE}/#/today`);
+    await navigate(p.page, `${BASE}/#/today`);
     const picker = p.page.getByLabel("Branch");
     await expect.poll(() => picker.locator("option", { hasText: branch }).count(), { timeout: 20_000 }).toBeGreaterThan(0);
     await picker.selectOption({ label: branch });
@@ -296,7 +297,7 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
 
         // Signal back: each phone sends its own work; the cloud ends as it did for the same work online.
         for (const p of [...phones, loner]) await p.context.unrouteAll();
-        for (const p of phones) await p.page.reload();
+        for (const p of phones) await navigate(p.page);
         await expect.poll(async () => (await Promise.all(phones.map(unsent))).reduce((x, y) => x + y), { timeout: 120_000 }).toBe(0);
         expect(delta(fieldBefore, await totals(field))).toEqual(delta(deskBefore, deskAfter));
     } finally {

@@ -1,5 +1,5 @@
 import { surfaceOf, type PlaywrightLiveSurface } from "@e2e-dev/web";
-import { devices, type BrowserContext } from "playwright-core";
+import { devices, type BrowserContext, type Page } from "playwright-core";
 
 // What the e2e engine has no form for (a phone's device profile, the page's clock) is Playwright's own,
 // reached through the engine handle e2e.config.ts leaves on globalThis.
@@ -20,4 +20,14 @@ export async function iPhone(init?: () => void): Promise<BrowserContext> {
     const context = await browser.newContext({ ...profile, timezoneId: "Asia/Manila" });
     if (init) await context.addInitScript(init);
     return context;
+}
+
+/**
+ * Go to `url` (or reload) on a Playwright page and wait out the saved screen: a signed-in open first shows the
+ * last screen (lib/snapshot.ts), an inert copy whose controls carry the live app's labels, and Playwright's own
+ * locators (unlike e2e's) find both until reveal() removes it.
+ */
+export async function navigate(page: Page, url?: string): Promise<void> {
+    await (url === undefined ? page.reload() : page.goto(url));
+    await page.locator("#snap").waitFor({ state: "detached" });
 }

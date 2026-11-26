@@ -1,7 +1,7 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 import type { Locator, Page } from "playwright-core";
-import { iPhone } from "./live";
+import { iPhone, navigate } from "./live";
 
 // Staff use iPhones (owner, 2026-11-20). Safari may clear a site's data after seven days unused unless the
 // site is on the Home Screen, so the app asks for lasting storage at start and, in Safari, shows a bar
@@ -38,7 +38,7 @@ async function signIn(page: Page) {
         .first();
     const refused = page.getByText(/^Too many tries/);
     for (let tries = 0; ; tries++) {
-        await page.goto(`${BASE}/`);
+        await navigate(page, `${BASE}/`);
         await page.getByLabel("Username").fill("role-practitioner");
         await page.getByLabel("Password").fill("staff-dev-pass");
         await page.getByRole("button", { name: "Sign in" }).tap();
@@ -80,7 +80,7 @@ test("in iPhone Safari the app asks to keep its data and shows how to add it to 
         // "Not now" holds after the app is opened again.
         await bar.getByRole("button", { name: "Not now" }).tap();
         await gone(bar);
-        await page.reload();
+        await navigate(page);
         await shown(
             page
                 .getByRole("banner")
