@@ -1,5 +1,7 @@
 package com.companyb.companyapp.api
 
+import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import com.companyb.companyapp.registerAllRoutes
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
@@ -36,6 +38,8 @@ class RouteGateTest {
         val gates =
             gates { config ->
                 config.get("/api/open", Gate.SignedIn("test")) { it.result("ok") }
+                config.get("/api/can", Gate.Can(Act.SEE_BRANCH)) { it.result("ok") }
+                config.get("/api/at", Gate.At(Act.SEE_BRANCH) { Place.Everywhere }) { it.result("ok") }
                 config.get("/api/before", Gate.Before { }) { it.result("ok") }
                 config.get("/api/handler", Gate.InHandler("test")) { it.result("ok") }
             }
@@ -68,12 +72,12 @@ class RouteGateTest {
 
     private companion object {
         /** Routes whose gate is a lambda or an in-handler check: no test can read the action they ask for. */
-        const val HIDDEN_ACTION_ROUTES = 127
+        const val HIDDEN_ACTION_ROUTES = 34
         const val HIDDEN_FIX =
             "Gate a new route with an action this test can read, and lower HIDDEN_ACTION_ROUTES when a route stops " +
                 "hiding its action. The policy table (docs/rebuild/plan.md) replaces these gates."
         const val FIX =
             "Declare each route with config.get/post/put/patch/delete(path, gate) from api/Gate.kt, and put its " +
-                "access check in Gate.Before instead of a config.routes.before filter."
+                "access check in Gate.Can or Gate.At instead of a config.routes.before filter."
     }
 }

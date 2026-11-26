@@ -113,7 +113,7 @@ object ExpenseRoutes {
     // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY) ---
 
     private val expensesReadGate =
-        Gate.Before { Access.require(it, Act.WORK_DAY, Place.day(it.uuidFromQuery("branchDayId"))) }
+        Gate.At(Act.WORK_DAY) { Place.day(it.uuidFromQuery("branchDayId")) }
 
     private val expensesCreateGate =
         Gate.Before { context ->
@@ -130,18 +130,12 @@ object ExpenseRoutes {
         }
 
     private val expenseGate =
-        Gate.Before { context ->
-            val expenseId = context.pathParamAsUuid("expenseId")
-            ExpenseAuthz.requireForExpense(context, expenseId, Act.WORK_DAY)
-        }
+        Gate.At(Act.WORK_DAY) { ExpenseAuthz.placeOf(it.pathParamAsUuid("expenseId")) }
 
     // Record-scoped EDIT_BRANCH_DATA via the expense's branch day; 404 for a missing expense keeps
     // the handler from running against a phantom.
     private val expenseRestoreGate =
-        Gate.Before { context ->
-            val expenseId = context.pathParamAsUuid("expenseId")
-            ExpenseAuthz.requireForExpense(context, expenseId, Act.WORK_DAY)
-        }
+        Gate.At(Act.WORK_DAY) { ExpenseAuthz.placeOf(it.pathParamAsUuid("expenseId")) }
 
     private fun registerReads(config: JavalinConfig) {
         config.get(ApiRoutes.EXPENSES, expensesReadGate) { context ->

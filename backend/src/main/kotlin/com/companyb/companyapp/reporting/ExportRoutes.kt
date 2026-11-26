@@ -71,11 +71,7 @@ object ExportRoutes {
     fun register(config: JavalinConfig) {
         // ReportsReadScopeAuthzTest proves 403 for zero-grant callers.
         val branchGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid("branchId")
-                BranchService.findById(branchId)
-                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-            }
+            Gate.At(Act.SEE_BRANCH) { Place.Branch(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
         config.get(ApiRoutes.BRANCH_EXPORT_REPORT_PATH, branchGate) { context ->
             val (from, to) = parseRange(context)
             val format = parseFormat(context.queryParam("format"))

@@ -138,13 +138,7 @@ object UserFeedbackRoutes {
     private fun String?.clean(max: Int): String? = this?.trim()?.take(max)?.ifEmpty { null }
 
     private val triageGate =
-        Gate.Before {
-            Access.require(
-                it,
-                Act.MANAGE_USERS,
-                message = "Only owners can read feedback",
-            )
-        }
+        Gate.Can(Act.MANAGE_USERS, message = "Only owners can read feedback")
 
     private fun UserFeedback.toResponse() =
         FeedbackNoteResponse(

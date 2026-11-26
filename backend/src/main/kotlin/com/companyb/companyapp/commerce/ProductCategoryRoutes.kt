@@ -64,22 +64,10 @@ object ProductCategoryRoutes {
 
     fun register(config: JavalinConfig) {
         val productCategoriesGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.MANAGE_CATALOG,
-                    message = "MANAGE_CATALOG capability required to manage product categories",
-                )
-            }
+            Gate.Can(Act.MANAGE_CATALOG, message = "MANAGE_CATALOG capability required to manage product categories")
 
         val productCategoryGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.MANAGE_CATALOG,
-                    message = "MANAGE_CATALOG capability required to manage product categories",
-                )
-            }
+            Gate.Can(Act.MANAGE_CATALOG, message = "MANAGE_CATALOG capability required to manage product categories")
 
         config.post(ApiRoutes.PRODUCT_CATEGORIES, productCategoriesGate) { context ->
             val callerId = context.callerUuid()

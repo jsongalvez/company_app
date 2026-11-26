@@ -120,49 +120,19 @@ object ClientRoutes {
 
     fun register(config: JavalinConfig) {
         val clientsGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.WORK_ANYWHERE,
-                    message = "EDIT_BRANCH_DATA capability required to manage clients",
-                )
-            }
+            Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage clients")
 
         val clientDirectoryGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.WORK_ANYWHERE,
-                    message = "EDIT_BRANCH_DATA capability required to manage clients",
-                )
-            }
+            Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage clients")
 
         val clientsRecentGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.WORK_ANYWHERE,
-                    message = "EDIT_BRANCH_DATA capability required to manage clients",
-                )
-            }
+            Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage clients")
 
         val clientGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.WORK_ANYWHERE,
-                    message = "EDIT_BRANCH_DATA capability required to manage clients",
-                )
-            }
+            Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage clients")
 
         val clientAnonymizeGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.ERASE_CLIENT,
-                    message = "Only a Coordinator or above can erase personal details",
-                )
-            }
+            Gate.Can(Act.ERASE_CLIENT, message = "Only a Coordinator or above can erase personal details")
 
         config.post(ApiRoutes.CLIENTS, clientsGate, ::handleCreate)
         config.get(ApiRoutes.CLIENTS, clientsGate, ::handleSearch)

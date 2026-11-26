@@ -156,26 +156,10 @@ object BranchInventoryRoutes {
         return branchId
     }
 
-    private val branchInventoryCreateGate =
-        Gate.Before { Access.require(it, Act.MANAGE_STOCK, Place.Branch(requireKnownBranchId(it))) }
+    private val stockGate = Gate.At(Act.MANAGE_STOCK) { Place.Branch(requireKnownBranchId(it)) }
 
-    private val branchInventoryGate = Gate.Before { requireStockRead(it, requireKnownBranchId(it)) }
-
-    private val branchInventoryLowStockGate =
-        Gate.Before { context ->
-            requireStockRead(context, requireKnownBranchId(context))
-        }
-
-    private val branchInventoryMovementsGate =
-        Gate.Before { context ->
-            requireStockRead(context, requireKnownBranchId(context))
-        }
-
-    private val branchInventoryRestockGate =
-        Gate.Before { context ->
-            val branchId = requireKnownBranchId(context)
-            Access.require(context, Act.MANAGE_STOCK, Place.Branch(branchId))
-        }
+    /** The user: relief "can see it physically", so relief on its day reads the stock, view only. */
+    private val stockReadGate = Gate.At(Act.SEE_DAY) { Place.today(requireKnownBranchId(it)) }
 
     private val branchInventoryMovementGate =
         Gate.Before { context ->
@@ -190,18 +174,12 @@ object BranchInventoryRoutes {
             Access.require(context, act, Place.Branch(branchId))
         }
 
-    /** The user: relief "can see it physically", so relief on its day reads the stock, view only. */
-    private fun requireStockRead(
-        context: Context,
-        branchId: UUID,
-    ) = Access.require(context, Act.SEE_DAY, Place.today(branchId))
-
     private fun registerHandlers(config: JavalinConfig) {
-        config.post(ApiRoutes.BRANCH_INVENTORY_PATH, branchInventoryCreateGate, ::handleEnsureCard)
-        config.post(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH, branchInventoryRestockGate, ::handleRestock)
-        config.get(ApiRoutes.BRANCH_INVENTORY_PATH, branchInventoryGate, ::handleGetInventory)
-        config.get(ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH, branchInventoryLowStockGate, ::handleGetLowStock)
-        config.get(ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH, branchInventoryMovementsGate, ::handleGetMovements)
+        config.post(ApiRoutes.BRANCH_INVENTORY_PATH, stockGate, ::handleEnsureCard)
+        config.post(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH, stockGate, ::handleRestock)
+        config.get(ApiRoutes.BRANCH_INVENTORY_PATH, stockReadGate, ::handleGetInventory)
+        config.get(ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH, stockReadGate, ::handleGetLowStock)
+        config.get(ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH, stockReadGate, ::handleGetMovements)
         config.post(ApiRoutes.BRANCH_INVENTORY_MOVEMENT_PATH, branchInventoryMovementGate, ::handleRecordMovement)
     }
 

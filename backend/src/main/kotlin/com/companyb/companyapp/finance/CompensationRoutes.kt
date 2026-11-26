@@ -74,24 +74,19 @@ object CompensationRoutes {
     }
 
     private val compensationCreateGate =
-        Gate.Before { context ->
-            val request = context.bodyAsClass<CreateCompensationRequest>()
-            Access.require(context, Act.PAY, Place.day(uuidOrThrow(request.workBranchDayId, "work branch day id")))
+        Gate.At(Act.PAY) {
+            Place.day(uuidOrThrow(it.bodyAsClass<CreateCompensationRequest>().workBranchDayId, "work branch day id"))
         }
 
     private val compensationsGate =
-        Gate.Before { context ->
-            val branchDayId = context.uuidFromQuery("branchDayId")
-            Access.require(context, Act.PAY, Place.day(branchDayId))
-        }
+        Gate.At(Act.PAY) { Place.day(it.uuidFromQuery("branchDayId")) }
 
     private val compensationGate =
-        Gate.Before { context ->
-            val compensationId = context.pathParamAsUuid("compensationId")
+        Gate.At(Act.PAY) { context ->
             val compensation =
-                FinanceReads.findCompensationById(compensationId)
+                FinanceReads.findCompensationById(context.pathParamAsUuid("compensationId"))
                     ?: throw io.javalin.http.NotFoundResponse("Compensation not found")
-            Access.require(context, Act.PAY, Place.day(compensation.workBranchDayId))
+            Place.day(compensation.workBranchDayId)
         }
 
     private fun registerReads(config: JavalinConfig) {

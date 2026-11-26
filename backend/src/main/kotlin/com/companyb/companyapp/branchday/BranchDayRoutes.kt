@@ -53,19 +53,11 @@ object BranchDayRoutes {
 
     fun register(config: JavalinConfig) {
         val branchTodayGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-                BranchService.findById(branchId)
-                // via the shared today gate: a BRANCH_DAY relief grant for today
-                // reads today's status for its granted day.
-                Access.require(context, Act.WORK_DAY, Place.today(branchId))
-            }
+            // A BRANCH_DAY relief grant for today reads today's status for its granted day.
+            Gate.At(Act.WORK_DAY) { Place.today(BranchService.findById(it.pathParamAsUuid(BRANCH_ID_PARAM)).id) }
 
         val branchDayUsersGate =
-            Gate.Before { context ->
-                val branchDayId = context.pathParamAsUuid(BRANCH_DAY_ID_PARAM)
-                Access.require(context, Act.PAY, Place.day(branchDayId))
-            }
+            Gate.At(Act.PAY) { Place.day(it.pathParamAsUuid(BRANCH_DAY_ID_PARAM)) }
 
         config.get(ApiRoutes.BRANCH_TODAY_PATH, branchTodayGate, ::handleGetToday)
 

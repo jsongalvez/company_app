@@ -2,13 +2,14 @@ package com.companyb.companyapp.api
 
 import com.companyb.companyapp.authorization.Access
 import com.companyb.companyapp.authorization.Act
+import com.companyb.companyapp.authorization.Place
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.http.Handler
 
 /**
  * Who may call a route. Every route names its gate where it is declared, as in
- * `config.get(path, Gate.Before { Access.require(it, Act.SEE_BRANCH, ...) }) { ... }`, and
+ * `config.get(path, Gate.At(Act.SEE_BRANCH) { Place.Branch(...) }) { ... }`, and
  * `RouteGateTest` fails for any route registered without one. What each gate lets each role do is
  * pinned per route in `backend/src/test/resources/route-access.txt` (`RouteAccessTest`).
  */
@@ -31,9 +32,20 @@ sealed interface Gate {
     /** The caller may do [act] everywhere; unlike [Before], a test can read which act the route asks for. */
     data class Can(
         val act: Act,
+        val message: String? = null,
     ) : Gate
 
-    /** [check] runs before the handler and throws to refuse. */
+    /**
+     * The caller may do [act] at the place [where] finds. [where] only finds the place, and may answer 404
+     * for a missing row; [GatedHandler] asks `Access` for [act] itself, so the act a test reads is the one checked.
+     */
+    class At(
+        val act: Act,
+        val message: String? = null,
+        val where: (Context) -> Place,
+    ) : Gate
+
+    /** [check] runs before the handler and throws to refuse. Only for a check no [Can] or [At] can state. */
     class Before(
         val check: (Context) -> Unit,
     ) : Gate
@@ -47,11 +59,19 @@ class GatedHandler(
     override fun handle(ctx: Context) {
         when (gate) {
             is Gate.Before -> gate.check(ctx)
-            is Gate.Can -> Access.require(ctx, gate.act)
+            is Gate.Can -> require(ctx, gate.act, Place.Everywhere, gate.message)
+            is Gate.At -> require(ctx, gate.act, gate.where(ctx), gate.message)
             else -> Unit
         }
         handler.handle(ctx)
     }
+
+    private fun require(
+        ctx: Context,
+        act: Act,
+        place: Place,
+        message: String?,
+    ) = if (message == null) Access.require(ctx, act, place) else Access.require(ctx, act, place, message)
 }
 
 fun JavalinConfig.get(

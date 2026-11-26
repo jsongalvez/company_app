@@ -48,11 +48,7 @@ object MonthlyRemittanceSummaryRoutes {
 
     fun register(config: JavalinConfig) {
         val branchMonthlySummaryGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid("branchId")
-                BranchService.findById(branchId)
-                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-            }
+            Gate.At(Act.SEE_BRANCH) { Place.Branch(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
 
         config.get(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH, branchMonthlySummaryGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")

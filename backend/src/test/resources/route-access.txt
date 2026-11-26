@@ -19,22 +19,22 @@ POST /api/attendance/clock-in                                        400  400  4
 POST /api/attendance/clock-out                                       400  400  400  400  400  400  400  400  400  400  InHandler: AttendanceService: the caller's own attendance
 POST /api/branches/{branchId}/attendance/marks                       400  400  400  400  400  400  400  400  400  400  InHandler: AttendanceService.mark
 GET /api/branches/accessible                                         200  200  200  200  200  200  200  200  200  200  SignedIn: lists only the branches the caller may see
-POST /api/branches                                                   400  403  403  403  400  400  400  403  403  403  Before
-GET /api/branches                                                    200  403  403  403  200  200  200  403  403  403  Before
-PATCH /api/branches/{branchId}                                       400  403  403  403  400  400  400  403  403  403  Before
-GET /api/branches/{branchId}                                         200  200  200  200  200  200  200  403  403  403  Before
+POST /api/branches                                                   400  403  403  403  400  400  400  403  403  403  Can: MANAGE_USERS
+GET /api/branches                                                    200  403  403  403  200  200  200  403  403  403  Can: MANAGE_USERS
+PATCH /api/branches/{branchId}                                       400  403  403  403  400  400  400  403  403  403  At: SEE_BRANCH
+GET /api/branches/{branchId}                                         200  200  200  200  200  200  200  403  403  403  At: SEE_BRANCH
 POST /api/branches/{branchId}/assignments                            400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
 GET /api/branches/{branchId}/assignments                             200  200  200  200  200  200  200  403  403  403  InHandler: UserBranchAssignmentService
 DELETE /api/branches/{branchId}/assignments/{assignmentId}           404  403  403  403  404  404  404  403  403  403  InHandler: UserBranchAssignmentService
 PATCH /api/branches/{branchId}/assignments/{assignmentId}/slot       400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
 POST /api/branches/{branchId}/slots/swap                             400  400  400  400  400  400  400  400  400  400  InHandler: UserBranchAssignmentService
 GET /api/branches/{branchId}/members                                 200  200  200  200  200  200  200  403  200  403  InHandler: UserBranchAssignmentService
-PATCH /api/users/{userId}/deactivate                                 204  403  403  403  204  204  204  403  403  403  Before
-GET /api/users                                                       200  403  403  403  200  200  200  403  403  403  Before
-PATCH /api/users/{userId}/reactivate                                 204  403  403  403  204  204  204  403  403  403  Before
-POST /api/invites                                                    201  403  403  403  201  201  201  403  403  403  Before
-GET /api/roles                                                       200  403  403  403  200  200  200  403  403  403  Before
-PUT /api/users/{userId}/roles                                        400  403  403  403  400  400  400  403  403  403  Before
+PATCH /api/users/{userId}/deactivate                                 204  403  403  403  204  204  204  403  403  403  Can: MANAGE_USERS
+GET /api/users                                                       200  403  403  403  200  200  200  403  403  403  Can: MANAGE_USERS
+PATCH /api/users/{userId}/reactivate                                 204  403  403  403  204  204  204  403  403  403  Can: MANAGE_USERS
+POST /api/invites                                                    201  403  403  403  201  201  201  403  403  403  Can: MANAGE_USERS
+GET /api/roles                                                       200  403  403  403  200  200  200  403  403  403  Can: MANAGE_USERS
+PUT /api/users/{userId}/roles                                        400  403  403  403  400  400  400  403  403  403  Can: MANAGE_USERS
 POST /api/relief-access/request                                      400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may ask for relief
 PATCH /api/relief-access/{requestId}/grant                           404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
 PATCH /api/relief-access/{requestId}/deny                            404  404  404  404  404  404  404  404  404  404  InHandler: ReliefAccessService
@@ -52,79 +52,79 @@ GET /api/branches/{branchId}/relief-invites/accepted                 200  403  2
 GET /api/branches/{branchId}/relief-invites/by-date                  400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
 GET /api/branches/{branchId}/relief-candidates                       400  400  400  400  400  400  400  400  400  400  InHandler: ReliefInviteService
 GET /api/relief-invites                                              200  200  200  200  200  200  200  200  200  200  SignedIn: invites sent to the caller
-GET /api/branches/{branchId}/delegates                               400  403  403  403  400  400  400  403  403  403  Before
-POST /api/delegates                                                  400  403  403  403  400  400  400  403  403  403  Before
-DELETE /api/delegates/{delegateId}                                   404  403  403  403  404  404  404  403  403  403  Before
-POST /api/clients                                                    400  403  400  400  400  400  403  400  400  403  Before
-GET /api/clients                                                     400  400  400  400  400  400  400  400  400  403  Before
-GET /api/client-directory                                            200  200  200  200  200  200  200  200  200  403  Before
-GET /api/recent-clients                                              200  200  200  200  200  200  200  200  200  403  Before
-GET /api/clients/{clientId}                                          404  404  404  404  404  404  404  404  404  403  Before
-PATCH /api/clients/{clientId}                                        400  403  400  400  400  400  403  400  400  403  Before
-POST /api/clients/{clientId}/anonymize                               404  403  403  404  404  404  404  403  403  403  Before
-POST /api/branches/{branchId}/rates                                  400  403  400  400  400  400  403  403  403  403  Before
-GET /api/branches/{branchId}/rates                                   200  200  200  200  200  200  200  403  403  403  Before
-POST /api/branches/{branchId}/bookings                               400  403  400  400  400  400  403  403  403  403  Before
-PATCH /api/branches/{branchId}/bookings/{bookingId}                  400  403  400  400  400  400  403  403  403  403  Before
-GET /api/clients/{clientId}/bookings                                 200  200  200  200  200  200  200  200  200  403  Before
+GET /api/branches/{branchId}/delegates                               400  403  403  403  400  400  400  403  403  403  Can: ASSIGN_DELEGATE
+POST /api/delegates                                                  400  403  403  403  400  400  400  403  403  403  Can: ASSIGN_DELEGATE
+DELETE /api/delegates/{delegateId}                                   404  403  403  403  404  404  404  403  403  403  Can: ASSIGN_DELEGATE
+POST /api/clients                                                    400  403  400  400  400  400  403  400  400  403  Can: WORK_ANYWHERE
+GET /api/clients                                                     400  400  400  400  400  400  400  400  400  403  Can: WORK_ANYWHERE
+GET /api/client-directory                                            200  200  200  200  200  200  200  200  200  403  Can: WORK_ANYWHERE
+GET /api/recent-clients                                              200  200  200  200  200  200  200  200  200  403  Can: WORK_ANYWHERE
+GET /api/clients/{clientId}                                          404  404  404  404  404  404  404  404  404  403  Can: WORK_ANYWHERE
+PATCH /api/clients/{clientId}                                        400  403  400  400  400  400  403  400  400  403  Can: WORK_ANYWHERE
+POST /api/clients/{clientId}/anonymize                               404  403  403  404  404  404  404  403  403  403  Can: ERASE_CLIENT
+POST /api/branches/{branchId}/rates                                  400  403  400  400  400  400  403  403  403  403  At: WORK_HOME_BRANCH
+GET /api/branches/{branchId}/rates                                   200  200  200  200  200  200  200  403  403  403  At: SEE_BRANCH
+POST /api/branches/{branchId}/bookings                               400  403  400  400  400  400  403  403  403  403  At: WORK_HOME_BRANCH
+PATCH /api/branches/{branchId}/bookings/{bookingId}                  400  403  400  400  400  400  403  403  403  403  At: WORK_HOME_BRANCH
+GET /api/clients/{clientId}/bookings                                 200  200  200  200  200  200  200  200  200  403  Can: WORK_ANYWHERE
 GET /api/sessions/{sessionId}                                        404  404  404  404  404  404  404  404  404  404  InHandler: DashboardService.getSessionDetail: the session's day
 POST /api/sessions                                                   400  400  400  400  400  400  400  400  400  400  InHandler: SessionSaveService: the body's day
-GET /api/sessions/{sessionId}/practitioners                          404  404  404  404  404  404  404  404  404  404  Before
+GET /api/sessions/{sessionId}/practitioners                          404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
 PATCH /api/sessions/{sessionId}/status                               400  400  400  400  400  400  400  400  400  400  Before
-PATCH /api/sessions/{sessionId}/final-price                          404  404  404  404  404  404  404  404  404  404  Before
-POST /api/sessions/{sessionId}/void                                  404  404  404  404  404  404  404  404  404  404  Before
-POST /api/sessions/{sessionId}/unvoid                                404  404  404  404  404  404  404  404  404  404  Before
-POST /api/sessions/{sessionId}/practitioners                         404  404  404  404  404  404  404  404  404  404  Before
-PATCH /api/sessions/{sessionId}/practitioners/{practitionerId}       404  404  404  404  404  404  404  404  404  404  Before
-DELETE /api/sessions/{sessionId}/practitioners/{practitionerId}      404  404  404  404  404  404  404  404  404  404  Before
-GET /api/concerns                                                    200  200  200  200  200  200  200  200  200  403  Before
-DELETE /api/concerns/{concernId}                                     404  403  404  404  404  404  403  404  404  403  Before
-GET /api/sessions/{sessionId}/concerns                               404  404  404  404  404  404  404  404  404  404  Before
-POST /api/sessions/{sessionId}/concerns                              404  404  404  404  404  404  404  404  404  404  Before
-DELETE /api/sessions/{sessionId}/concerns/{concernId}                404  404  404  404  404  404  404  404  404  404  Before
-POST /api/sessions/{sessionId}/promote-concern                       404  404  404  404  404  404  404  404  404  404  Before
-GET /api/branches/{branchId}/session-preview                         400  400  400  400  400  400  400  403  400  403  Before
-POST /api/product-categories                                         400  403  400  400  400  400  400  400  400  403  Before
-GET /api/product-categories                                          200  403  200  200  200  200  200  200  200  403  Before
-GET /api/product-categories/{categoryId}                             404  403  404  404  404  404  404  404  404  403  Before
-POST /api/products                                                   400  403  400  400  400  400  400  400  400  403  Before
-PATCH /api/products/{productId}                                      400  403  400  400  400  400  400  400  400  403  Before
-GET /api/products                                                    200  403  200  200  200  200  200  200  200  403  Before
-GET /api/products/{productId}                                        404  403  404  404  404  404  404  404  404  403  Before
-POST /api/branches/{branchId}/inventory                              400  403  403  400  400  400  403  403  403  403  Before
-POST /api/branches/{branchId}/inventory/{productId}/restock          400  403  403  400  400  400  403  403  403  403  Before
-GET /api/branches/{branchId}/inventory                               200  200  200  200  200  200  200  403  200  403  Before
-GET /api/branches/{branchId}/inventory/low-stock                     200  200  200  200  200  200  200  403  200  403  Before
-GET /api/branches/{branchId}/inventory/movements                     200  200  200  200  200  200  200  403  200  403  Before
+PATCH /api/sessions/{sessionId}/final-price                          404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+POST /api/sessions/{sessionId}/void                                  404  404  404  404  404  404  404  404  404  404  At: VOID
+POST /api/sessions/{sessionId}/unvoid                                404  404  404  404  404  404  404  404  404  404  At: VOID
+POST /api/sessions/{sessionId}/practitioners                         404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+PATCH /api/sessions/{sessionId}/practitioners/{practitionerId}       404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+DELETE /api/sessions/{sessionId}/practitioners/{practitionerId}      404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+GET /api/concerns                                                    200  200  200  200  200  200  200  200  200  403  Can: WORK_ANYWHERE
+DELETE /api/concerns/{concernId}                                     404  403  404  404  404  404  403  404  404  403  Can: WORK_ANYWHERE
+GET /api/sessions/{sessionId}/concerns                               404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+POST /api/sessions/{sessionId}/concerns                              404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+DELETE /api/sessions/{sessionId}/concerns/{concernId}                404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+POST /api/sessions/{sessionId}/promote-concern                       404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+GET /api/branches/{branchId}/session-preview                         400  400  400  400  400  400  400  403  400  403  At: WORK_DAY
+POST /api/product-categories                                         400  403  400  400  400  400  400  400  400  403  Can: MANAGE_CATALOG
+GET /api/product-categories                                          200  403  200  200  200  200  200  200  200  403  Can: MANAGE_CATALOG
+GET /api/product-categories/{categoryId}                             404  403  404  404  404  404  404  404  404  403  Can: MANAGE_CATALOG
+POST /api/products                                                   400  403  400  400  400  400  400  400  400  403  Can: MANAGE_CATALOG
+PATCH /api/products/{productId}                                      400  403  400  400  400  400  400  400  400  403  Can: MANAGE_CATALOG
+GET /api/products                                                    200  403  200  200  200  200  200  200  200  403  Can: MANAGE_CATALOG
+GET /api/products/{productId}                                        404  403  404  404  404  404  404  404  404  403  Can: MANAGE_CATALOG
+POST /api/branches/{branchId}/inventory                              400  403  403  400  400  400  403  403  403  403  At: MANAGE_STOCK
+POST /api/branches/{branchId}/inventory/{productId}/restock          400  403  403  400  400  400  403  403  403  403  At: MANAGE_STOCK
+GET /api/branches/{branchId}/inventory                               200  200  200  200  200  200  200  403  200  403  At: SEE_DAY
+GET /api/branches/{branchId}/inventory/low-stock                     200  200  200  200  200  200  200  403  200  403  At: SEE_DAY
+GET /api/branches/{branchId}/inventory/movements                     200  200  200  200  200  200  200  403  200  403  At: SEE_DAY
 POST /api/branches/{branchId}/inventory/{productId}/movement         400  400  400  400  400  400  400  400  400  400  Before
-PUT /api/branches/{branchId}/inventory/{productId}/price             404  403  404  404  404  404  403  403  403  403  Before
-GET /api/branches/{branchId}/today                                   200  200  200  200  200  200  200  403  200  403  Before
-GET /api/branch-days/{branchDayId}/users                             200  403  403  200  200  200  200  403  403  403  Before
-GET /api/branches/{branchId}/sessions                                400  400  400  400  400  400  400  403  403  403  Before
+PUT /api/branches/{branchId}/inventory/{productId}/price             404  403  404  404  404  404  403  403  403  403  At: WORK_HOME_BRANCH
+GET /api/branches/{branchId}/today                                   200  200  200  200  200  200  200  403  200  403  At: WORK_DAY
+GET /api/branch-days/{branchDayId}/users                             200  403  403  200  200  200  200  403  403  403  At: PAY
+GET /api/branches/{branchId}/sessions                                400  400  400  400  400  400  400  403  403  403  At: SEE_DAY
 GET /api/branches/{branchId}/today-screen                            200  200  200  200  200  200  200  200  200  200  InHandler: TodayScreenService: per part of the screen
 POST /api/site-hub/laptops                                           400  403  403  403  400  400  400  403  403  403  Can: MANAGE_USERS
 PUT /site-hub/challenge                                              400  400  400  400  400  400  400  400  400  400  Open: the laptop token is the key
 DELETE /site-hub/challenge                                           400  400  400  400  400  400  400  400  400  400  Open: the laptop token is the key
-GET /api/product-sales                                               400  400  400  400  400  400  400  400  400  400  Before
-POST /api/product-sales                                              400  400  400  400  400  400  400  400  400  400  Before
-PATCH /api/product-sales/{saleId}                                    404  404  404  404  404  404  404  404  404  404  Before
-DELETE /api/product-sales/{saleId}                                   404  404  404  404  404  404  404  404  404  404  Before
-POST /api/product-sales/{saleId}/restore                             404  404  404  404  404  404  404  404  404  404  Before
-GET /api/compensations                                               400  400  400  400  400  400  400  400  400  400  Before
-POST /api/compensation                                               400  400  400  400  400  400  400  400  400  400  Before
-PATCH /api/compensation/{compensationId}                             404  404  404  404  404  404  404  404  404  404  Before
-POST /api/commission-inclusions                                      400  400  400  400  400  400  400  400  400  400  Before
-GET /api/commission-splits/{branchDayId}                             200  403  200  200  200  200  403  403  200  403  Before
-POST /api/commission/recalculate/{branchDayId}                       403  403  403  200  200  200  403  403  403  403  Before
-GET /api/branches/{branchId}/daily-summary                           400  400  400  400  400  400  400  400  400  400  Before
-GET /api/branches/{branchId}/daily-summaries                         200  200  200  200  200  200  200  403  403  403  Before
-GET /api/expenses                                                    400  400  400  400  400  400  400  400  400  400  Before
+GET /api/product-sales                                               400  400  400  400  400  400  400  400  400  400  At: SEE_DAY
+POST /api/product-sales                                              400  400  400  400  400  400  400  400  400  400  At: WORK_DAY
+PATCH /api/product-sales/{saleId}                                    404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+DELETE /api/product-sales/{saleId}                                   404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+POST /api/product-sales/{saleId}/restore                             404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+GET /api/compensations                                               400  400  400  400  400  400  400  400  400  400  At: PAY
+POST /api/compensation                                               400  400  400  400  400  400  400  400  400  400  At: PAY
+PATCH /api/compensation/{compensationId}                             404  404  404  404  404  404  404  404  404  404  At: PAY
+POST /api/commission-inclusions                                      400  400  400  400  400  400  400  400  400  400  At: PAY
+GET /api/commission-splits/{branchDayId}                             200  403  200  200  200  200  403  403  200  403  At: SEE_COMMISSION
+POST /api/commission/recalculate/{branchDayId}                       403  403  403  200  200  200  403  403  403  403  At: CHANGE_CLOSED_DAY
+GET /api/branches/{branchId}/daily-summary                           400  400  400  400  400  400  400  400  400  400  At: SEE_DAY
+GET /api/branches/{branchId}/daily-summaries                         200  200  200  200  200  200  200  403  403  403  At: SEE_BRANCH
+GET /api/expenses                                                    400  400  400  400  400  400  400  400  400  400  At: WORK_DAY
 POST /api/expenses                                                   400  400  400  400  400  400  400  400  400  400  Before
-PATCH /api/expenses/{expenseId}                                      404  404  404  404  404  404  404  404  404  404  Before
-DELETE /api/expenses/{expenseId}                                     404  404  404  404  404  404  404  404  404  404  Before
-POST /api/expenses/{expenseId}/restore                               404  404  404  404  404  404  404  404  404  404  Before
-POST /api/allowances                                                 400  400  400  400  400  400  400  400  400  400  Before
-GET /api/allowances                                                  400  400  400  400  400  400  400  400  400  400  Before
+PATCH /api/expenses/{expenseId}                                      404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+DELETE /api/expenses/{expenseId}                                     404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+POST /api/expenses/{expenseId}/restore                               404  404  404  404  404  404  404  404  404  404  At: WORK_DAY
+POST /api/allowances                                                 400  400  400  400  400  400  400  400  400  400  At: PAY
+GET /api/allowances                                                  400  400  400  400  400  400  400  400  400  400  At: PAY
 GET /api/notifications                                               200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
 GET /api/notifications/history                                       200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
 GET /api/notifications/unread-count                                  200  200  200  200  200  200  200  200  200  200  SignedIn: the caller's own notifications
@@ -132,31 +132,31 @@ POST /api/notifications/read-all                                     200  200  2
 PATCH /api/notifications/{notificationId}/read                       404  404  404  404  404  404  404  404  404  404  SignedIn: only the caller's own notification is found
 POST /api/feedback                                                   400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may report
 POST /api/feedback-notes                                             400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may send
-GET /api/feedback-notes                                              200  403  403  403  200  200  200  403  403  403  Before
-PATCH /api/feedback-notes/{feedbackId}                               400  403  403  403  400  400  400  403  403  403  Before
+GET /api/feedback-notes                                              200  403  403  403  200  200  200  403  403  403  Can: MANAGE_USERS
+PATCH /api/feedback-notes/{feedbackId}                               400  403  403  403  400  400  400  403  403  403  Can: MANAGE_USERS
 POST /api/telemetry                                                  400  400  400  400  400  400  400  400  400  400  SignedIn: anyone signed in may send timings
 POST /telemetry                                                      400  400  400  400  400  400  400  400  400  400  Open: a signed-out page's errors and timings, limited per address
-GET /api/branches/{branchId}/monthly-summary                         400  400  400  400  400  400  400  403  403  403  Before
-GET /api/remittances                                                 400  400  400  400  400  400  400  400  400  400  Before
-GET /api/remittances/{remittanceId}                                  404  404  404  404  404  404  404  404  404  404  Before
-GET /api/remittances/{remittanceId}/drift                            404  404  404  404  404  404  404  404  404  404  Before
-POST /api/remittances                                                400  400  400  400  400  400  400  400  400  400  Before
-POST /api/remittances/{remittanceId}/lines                           404  404  404  404  404  404  404  404  404  404  Before
-DELETE /api/remittances/{remittanceId}/lines/{lineId}                404  404  404  404  404  404  404  404  404  404  Before
-POST /api/remittances/{remittanceId}/day-breakdowns                  404  404  404  404  404  404  404  404  404  404  Before
-DELETE /api/remittances/{remittanceId}/day-breakdowns/{breakdownId}  404  404  404  404  404  404  404  404  404  404  Before
-POST /api/remittances/{remittanceId}/submit                          404  404  404  404  404  404  404  404  404  404  Before
-POST /api/remittances/{remittanceId}/undo                            404  404  404  404  404  404  404  404  404  404  Before
-PATCH /api/remittances/{remittanceId}                                404  404  404  404  404  404  404  404  404  404  Before
-GET /api/branches/{branchId}/remittance-sessions                     400  400  403  400  400  400  400  403  403  403  Before
-GET /api/branches/{branchId}/remittance-product-sales                400  400  403  400  400  400  400  403  403  403  Before
-GET /api/branches/{branchId}/remittance-days                         400  400  400  400  400  400  400  403  403  403  Before
+GET /api/branches/{branchId}/monthly-summary                         400  400  400  400  400  400  400  403  403  403  At: SEE_BRANCH
+GET /api/remittances                                                 400  400  400  400  400  400  400  400  400  400  At: SUBMIT_REMITTANCE
+GET /api/remittances/{remittanceId}                                  404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+GET /api/remittances/{remittanceId}/drift                            404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+POST /api/remittances                                                400  400  400  400  400  400  400  400  400  400  At: SUBMIT_REMITTANCE
+POST /api/remittances/{remittanceId}/lines                           404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+DELETE /api/remittances/{remittanceId}/lines/{lineId}                404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+POST /api/remittances/{remittanceId}/day-breakdowns                  404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+DELETE /api/remittances/{remittanceId}/day-breakdowns/{breakdownId}  404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+POST /api/remittances/{remittanceId}/submit                          404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+POST /api/remittances/{remittanceId}/undo                            404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+PATCH /api/remittances/{remittanceId}                                404  404  404  404  404  404  404  404  404  404  At: SUBMIT_REMITTANCE
+GET /api/branches/{branchId}/remittance-sessions                     400  400  403  400  400  400  400  403  403  403  At: SUBMIT_REMITTANCE
+GET /api/branches/{branchId}/remittance-product-sales                400  400  403  400  400  400  400  403  403  403  At: SUBMIT_REMITTANCE
+GET /api/branches/{branchId}/remittance-days                         400  400  400  400  400  400  400  403  403  403  At: SEE_BRANCH
 GET /api/audit-log/entries                                           200  200  200  200  200  200  200  200  200  200  InHandler: AuditLogService: per row
 GET /api/audit-log/tables                                            200  200  200  200  200  200  200  200  200  200  SignedIn: table names only
 GET /api/audit-log                                                   400  400  400  400  400  400  400  400  400  400  InHandler: AuditLogService: per row
 GET /api/audit-log/flagged                                           200  200  200  200  200  200  200  200  200  200  InHandler: AuditLogService: per row
 PATCH /api/audit-log/{entryId}/acknowledge                           404  404  404  404  404  404  404  404  404  404  InHandler: AuditLogService.acknowledge
-GET /api/branches/{branchId}/export/report                           400  400  400  400  400  400  400  403  403  403  Before
+GET /api/branches/{branchId}/export/report                           400  400  400  400  400  400  400  403  403  403  At: SEE_BRANCH
 GET /api/branches/export/report                                      400  400  400  400  400  400  400  400  400  400  SignedIn: only the branches the caller may read
 GET /api/me/history                                                  400  400  400  400  400  400  400  400  400  400  SignedIn: the caller's own work
-GET /api/clients/{clientId}/history                                  200  200  200  200  200  200  200  200  200  403  Before
+GET /api/clients/{clientId}/history                                  200  200  200  200  200  200  200  200  200  403  Can: WORK_ANYWHERE

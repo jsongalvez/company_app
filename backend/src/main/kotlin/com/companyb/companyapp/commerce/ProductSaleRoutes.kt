@@ -105,14 +105,13 @@ object ProductSaleRoutes {
     fun register(config: JavalinConfig) {
         config.get(
             ApiRoutes.PRODUCT_SALES,
-            Gate.Before { Access.require(it, Act.SEE_DAY, Place.day(it.uuidFromQuery("branchDayId"))) },
+            Gate.At(Act.SEE_DAY) { Place.day(it.uuidFromQuery("branchDayId")) },
             ::handleList,
         )
         config.post(
             ApiRoutes.PRODUCT_SALES,
-            Gate.Before {
-                val request = it.bodyAsClass<CreateProductSaleRequest>()
-                Access.require(it, Act.WORK_DAY, Place.day(uuidOrThrow(request.branchDayId, "branch day id")))
+            Gate.At(Act.WORK_DAY) {
+                Place.day(uuidOrThrow(it.bodyAsClass<CreateProductSaleRequest>().branchDayId, "branch day id"))
             },
             ::handleCreate,
         )
@@ -122,11 +121,11 @@ object ProductSaleRoutes {
     }
 
     private val saleGate =
-        Gate.Before { context ->
+        Gate.At(Act.WORK_DAY) { context ->
             val sale =
                 ProductSaleRepository.findById(context.pathParamAsUuid("saleId"))
                     ?: throw NotFoundResponse("Product sale not found")
-            Access.require(context, Act.WORK_DAY, Place.day(sale.branchDayId))
+            Place.day(sale.branchDayId)
         }
 
     private fun handleList(context: Context) {

@@ -34,13 +34,7 @@ object ClientHistoryRoutes {
     fun register(config: JavalinConfig) {
         // Same gate as the client record itself (ClientRoutes): clients are global records.
         val clientHistoryGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.WORK_ANYWHERE,
-                    message = "EDIT_BRANCH_DATA capability required to manage clients",
-                )
-            }
+            Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage clients")
         config.get(ApiRoutes.CLIENT_HISTORY_PATH, clientHistoryGate) { context ->
             context.json(ClientHistoryRepository.load(context.pathParamAsUuid("clientId")))
         }

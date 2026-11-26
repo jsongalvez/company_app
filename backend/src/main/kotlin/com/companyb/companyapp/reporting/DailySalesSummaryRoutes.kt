@@ -72,7 +72,7 @@ import java.util.UUID
 object DailySalesSummaryRoutes {
     fun register(config: JavalinConfig) {
         val branchDailySummaryGate =
-            Gate.Before { context ->
+            Gate.At(Act.SEE_DAY) { context ->
                 val branchId = context.pathParamAsUuid("branchId")
                 BranchService.findById(branchId)
                 val date = parseRequiredDate(context)
@@ -82,15 +82,11 @@ object DailySalesSummaryRoutes {
                 // missing day row means no day grant can exist for it, and the branch/global
                 // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
                 // a multi-day list cannot be authorized by a single-day grant.
-                Access.require(context, Act.SEE_DAY, Place.onDate(branchId, date))
+                Place.onDate(branchId, date)
             }
 
         val branchDailySummariesGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid("branchId")
-                BranchService.findById(branchId)
-                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-            }
+            Gate.At(Act.SEE_BRANCH) { Place.Branch(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
 
         config.get(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH, branchDailySummaryGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")

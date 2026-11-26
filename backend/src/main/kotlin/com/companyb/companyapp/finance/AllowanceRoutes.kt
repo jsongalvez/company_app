@@ -53,8 +53,7 @@ import java.util.UUID
 )
 object AllowanceRoutes {
     fun register(config: JavalinConfig) {
-        fun allowancesGate(branchDayIdOf: (Context) -> UUID) =
-            Gate.Before { Access.require(it, Act.PAY, Place.day(branchDayIdOf(it))) }
+        fun allowancesGate(branchDayIdOf: (Context) -> UUID) = Gate.At(Act.PAY) { Place.day(branchDayIdOf(it)) }
 
         config.post(
             ApiRoutes.ALLOWANCES,

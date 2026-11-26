@@ -116,9 +116,7 @@ object UserRoutes {
 
     fun deactivate(config: JavalinConfig) {
         val userDeactivateGate =
-            Gate.Before { context ->
-                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-            }
+            Gate.Can(Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
 
         config.patch(ApiRoutes.USER_DEACTIVATE_PATH, userDeactivateGate) { context ->
             val callerId = context.callerUuid()
@@ -131,9 +129,7 @@ object UserRoutes {
 
     private fun list(config: JavalinConfig) {
         val usersGate =
-            Gate.Before { context ->
-                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-            }
+            Gate.Can(Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
 
         config.get(ApiRoutes.USERS, usersGate) { context ->
             context.status(HttpStatus.OK)
@@ -143,9 +139,7 @@ object UserRoutes {
 
     private fun reactivate(config: JavalinConfig) {
         val userReactivateGate =
-            Gate.Before { context ->
-                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-            }
+            Gate.Can(Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
 
         config.patch(ApiRoutes.USER_REACTIVATE_PATH, userReactivateGate) { context ->
             val callerId = context.callerUuid()
@@ -163,9 +157,7 @@ object UserRoutes {
      */
     private fun mintInvite(config: JavalinConfig) {
         val invitesGate =
-            Gate.Before { context ->
-                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-            }
+            Gate.Can(Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
 
         config.post(ApiRoutes.INVITES, invitesGate) { context ->
             val callerId = context.callerUuid()
@@ -178,9 +170,7 @@ object UserRoutes {
 
     private fun roles(config: JavalinConfig) {
         val rolesGate =
-            Gate.Before { context ->
-                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-            }
+            Gate.Can(Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
 
         config.get(ApiRoutes.ROLES, rolesGate) { context ->
             context.status(HttpStatus.OK)
@@ -190,9 +180,7 @@ object UserRoutes {
 
     private fun replaceRoles(config: JavalinConfig) {
         val userRolesGate =
-            Gate.Before { context ->
-                Access.require(context, Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
-            }
+            Gate.Can(Act.MANAGE_USERS, message = MANAGE_USERS_MESSAGE)
 
         config.put(ApiRoutes.USER_ROLES_PATH, userRolesGate) { context ->
             val callerId = context.callerUuid()

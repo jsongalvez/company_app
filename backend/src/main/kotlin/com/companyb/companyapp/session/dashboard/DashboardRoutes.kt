@@ -48,10 +48,10 @@ object DashboardRoutes {
 
     fun register(config: JavalinConfig) {
         val branchSessionsGate =
-            Gate.Before { context ->
+            Gate.At(Act.SEE_DAY) { context ->
                 val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
                 val date = context.queryParam("date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                Access.require(context, Act.SEE_DAY, date?.let { Place.onDate(branchId, it) } ?: Place.Branch(branchId))
+                date?.let { Place.onDate(branchId, it) } ?: Place.Branch(branchId)
             }
         config.get(ApiRoutes.BRANCH_SESSIONS_PATH, branchSessionsGate, ::handleGetSessionsForDay)
     }

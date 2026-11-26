@@ -67,26 +67,20 @@ import java.util.UUID
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
         val commissionInclusionsGate =
-            Gate.Before { context ->
+            Gate.At(Act.PAY) { context ->
                 val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
                 val productSaleId = uuidOrThrow(request.productSaleId, "product sale id")
                 val sale =
                     CommerceReads.findSaleById(productSaleId)
                         ?: throw NotFoundResponse("Product sale not found")
-                Access.require(context, Act.PAY, Place.day(sale.branchDayId))
+                Place.day(sale.branchDayId)
             }
 
         val commissionSplitsGate =
-            Gate.Before { context ->
-                val branchDayId = context.pathParamAsUuid("branchDayId")
-                Access.require(context, Act.SEE_COMMISSION, Place.day(branchDayId))
-            }
+            Gate.At(Act.SEE_COMMISSION) { Place.day(it.pathParamAsUuid("branchDayId")) }
 
         val commissionRecalculateGate =
-            Gate.Before { context ->
-                val branchDayId = context.pathParamAsUuid("branchDayId")
-                Access.require(context, Act.CHANGE_CLOSED_DAY, Place.day(branchDayId))
-            }
+            Gate.At(Act.CHANGE_CLOSED_DAY) { Place.day(it.pathParamAsUuid("branchDayId")) }
 
         config.post(ApiRoutes.COMMISSION_INCLUSIONS, commissionInclusionsGate, ::handleCreateInclusion)
         config.get(ApiRoutes.COMMISSION_SPLITS_PATH, commissionSplitsGate, ::handleGetSplits)

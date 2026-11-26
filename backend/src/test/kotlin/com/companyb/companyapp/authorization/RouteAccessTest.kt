@@ -287,6 +287,7 @@ class RouteAccessTest : BasePostgresTest() {
                 is Gate.InHandler -> "InHandler: ${gate.why}"
                 is Gate.Before -> "Before"
                 is Gate.Can -> "Can: ${gate.act}"
+                is Gate.At -> "At: ${gate.act}"
                 null -> "none"
             }
 

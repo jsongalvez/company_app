@@ -28,11 +28,14 @@ object SessionAuthz {
         context: Context,
         sessionId: UUID,
         act: Act,
-    ) {
+    ) = Access.require(context, act, placeOf(sessionId))
+
+    /** The session's day. Throws NotFoundResponse (404) when the session does not exist. */
+    fun placeOf(sessionId: UUID): Place.Day {
         val session =
             SessionReads.findById(sessionId)
                 ?: throw NotFoundResponse("Session not found")
-        Access.require(context, act, Place.day(session.branchDayId))
+        return Place.day(session.branchDayId)
     }
 
     /** The command repeats this check after locking the branch day. */

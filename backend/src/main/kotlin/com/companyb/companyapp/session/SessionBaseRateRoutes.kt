@@ -66,15 +66,8 @@ object SessionBaseRateRoutes {
 
     fun register(config: JavalinConfig) {
         fun branchRatesGate(act: Act) =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-                // 404 precedence for an unknown branch before the capability gate:
-                // the access check alone conflates "unknown branch" with
-                // "known but non-member" (the createInvite / listSent order, resolving
-                // the session-rate filter policy with the same precedence).
-                BranchService.findById(branchId)
-                Access.require(context, act, Place.Branch(branchId))
-            }
+            // An unknown branch answers 404 before the access check, which alone would answer 403.
+            Gate.At(act) { Place.Branch(BranchService.findById(it.pathParamAsUuid(BRANCH_ID_PARAM)).id) }
 
         config.post(ApiRoutes.BRANCH_RATES_PATH, branchRatesGate(Act.WORK_HOME_BRANCH)) { context ->
             val callerId = context.callerUuid()

@@ -80,16 +80,10 @@ object VisitBookingRoutes {
     fun register(config: JavalinConfig) {
         // Any branch member may book: the same capability that lets them add sessions there.
         // The branch's booked visits are read with the Today screen.
-        val branchBookingsGate = Gate.Before { context -> requireMember(context) }
-        val branchBookingGate = Gate.Before { context -> requireMember(context) }
+        val branchBookingsGate =
+            Gate.At(Act.WORK_HOME_BRANCH) { Place.Branch(BranchService.findById(it.pathParamAsUuid(BRANCH_ID)).id) }
         val clientBookingsGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.WORK_ANYWHERE,
-                    message = "EDIT_BRANCH_DATA capability required to manage clients",
-                )
-            }
+            Gate.Can(Act.WORK_ANYWHERE, message = "EDIT_BRANCH_DATA capability required to manage clients")
 
         config.post(ApiRoutes.BRANCH_BOOKINGS_PATH, branchBookingsGate) { context ->
             val request = context.bodyAsClass<CreateBookingRequest>()
@@ -104,7 +98,7 @@ object VisitBookingRoutes {
             context.status(if (created) HttpStatus.CREATED else HttpStatus.OK)
             context.json(booking)
         }
-        config.patch(ApiRoutes.BRANCH_BOOKING_PATH, branchBookingGate) { context ->
+        config.patch(ApiRoutes.BRANCH_BOOKING_PATH, branchBookingsGate) { context ->
             val request = context.bodyAsClass<UpdateBookingRequest>()
             context.json(
                 VisitBookingService.update(
@@ -119,12 +113,6 @@ object VisitBookingRoutes {
         config.get(ApiRoutes.CLIENT_BOOKINGS_PATH, clientBookingsGate) { context ->
             context.json(VisitBookingService.forClient(context.pathParamAsUuid("clientId")))
         }
-    }
-
-    private fun requireMember(context: io.javalin.http.Context) {
-        val branchId = context.pathParamAsUuid(BRANCH_ID)
-        BranchService.findById(branchId)
-        Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
     }
 
     private fun input(

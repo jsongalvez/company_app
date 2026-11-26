@@ -91,22 +91,10 @@ object ProductRoutes {
     }
 
     private val productsGate =
-        Gate.Before { context ->
-            Access.require(
-                context,
-                Act.MANAGE_CATALOG,
-                message = "MANAGE_CATALOG capability required to manage products",
-            )
-        }
+        Gate.Can(Act.MANAGE_CATALOG, message = "MANAGE_CATALOG capability required to manage products")
 
     private val productGate =
-        Gate.Before { context ->
-            Access.require(
-                context,
-                Act.MANAGE_CATALOG,
-                message = "MANAGE_CATALOG capability required to manage products",
-            )
-        }
+        Gate.Can(Act.MANAGE_CATALOG, message = "MANAGE_CATALOG capability required to manage products")
 
     private fun registerMutations(config: JavalinConfig) {
         config.post(ApiRoutes.PRODUCTS, productsGate, ::handleCreate)

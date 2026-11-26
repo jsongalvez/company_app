@@ -67,9 +67,7 @@ import java.util.UUID
 object MedicalMissionDelegateRoutes {
     fun listDelegates(config: JavalinConfig) {
         val branchDelegatesGate =
-            Gate.Before { context ->
-                Access.require(context, Act.ASSIGN_DELEGATE)
-            }
+            Gate.Can(Act.ASSIGN_DELEGATE)
 
         config.get(ApiRoutes.BRANCH_DELEGATES_PATH, branchDelegatesGate) { context ->
             val branchId = context.pathParamAsUuid("branchId")
@@ -79,9 +77,7 @@ object MedicalMissionDelegateRoutes {
 
     fun assignDelegate(config: JavalinConfig) {
         val delegatesGate =
-            Gate.Before { context ->
-                Access.require(context, Act.ASSIGN_DELEGATE)
-            }
+            Gate.Can(Act.ASSIGN_DELEGATE)
 
         config.post(ApiRoutes.DELEGATES, delegatesGate) { context ->
             val callerId = context.callerUuid()
@@ -107,9 +103,7 @@ object MedicalMissionDelegateRoutes {
 
     fun revokeDelegate(config: JavalinConfig) {
         val delegateGate =
-            Gate.Before { context ->
-                Access.require(context, Act.ASSIGN_DELEGATE)
-            }
+            Gate.Can(Act.ASSIGN_DELEGATE)
 
         config.delete(ApiRoutes.DELEGATE_PATH, delegateGate) { context ->
             val callerId = context.callerUuid()

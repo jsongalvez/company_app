@@ -91,27 +91,15 @@ import java.util.UUID
 object RemittancePickerRoutes {
     fun register(config: JavalinConfig) {
         val branchRemittanceSessionsGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid("branchId")
-                BranchService.findById(branchId)
-                Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
-            }
+            Gate.At(Act.SUBMIT_REMITTANCE) { Place.Branch(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
 
         val branchRemittanceProductSalesGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid("branchId")
-                BranchService.findById(branchId)
-                Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
-            }
+            Gate.At(Act.SUBMIT_REMITTANCE) { Place.Branch(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
 
         // The day list is read-only (dates and status), and Finance uses it to find past days,
         // so anyone who can view the branch may read it, including global viewers like the owner.
         val branchRemittanceDaysGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid("branchId")
-                BranchService.findById(branchId)
-                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-            }
+            Gate.At(Act.SEE_BRANCH) { Place.Branch(BranchService.findById(it.pathParamAsUuid("branchId")).id) }
 
         config.get(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH, branchRemittanceSessionsGate, ::handleListSessionsInRange)
         config.get(

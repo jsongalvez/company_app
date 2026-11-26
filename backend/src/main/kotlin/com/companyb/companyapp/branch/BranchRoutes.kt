@@ -100,20 +100,10 @@ object BranchRoutes {
 
     fun register(config: JavalinConfig) {
         val branchesGate =
-            Gate.Before { context ->
-                Access.require(
-                    context,
-                    Act.MANAGE_USERS,
-                    message = "MANAGE_USERS capability required to manage branches",
-                )
-            }
+            Gate.Can(Act.MANAGE_USERS, message = "MANAGE_USERS capability required to manage branches")
 
         val branchGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-                BranchService.findById(branchId)
-                Access.require(context, Act.SEE_BRANCH, Place.Branch(branchId))
-            }
+            Gate.At(Act.SEE_BRANCH) { Place.Branch(BranchService.findById(it.pathParamAsUuid(BRANCH_ID_PARAM)).id) }
 
         // The Reports picker: the caller's branches, or every branch for a GLOBAL VIEW_BRANCH_DATA holder.
         // Zero-grant callers get an empty list, not 403.

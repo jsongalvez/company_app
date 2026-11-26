@@ -49,11 +49,9 @@ object BranchPriceRoutes {
 
     fun register(config: JavalinConfig) {
         val branchInventoryPriceGate =
-            Gate.Before { context ->
-                val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-                BranchService.findById(branchId)
-                Access.require(context, Act.WORK_HOME_BRANCH, Place.Branch(branchId))
-            }
+            Gate.At(
+                Act.WORK_HOME_BRANCH,
+            ) { Place.Branch(BranchService.findById(it.pathParamAsUuid(BRANCH_ID_PARAM)).id) }
 
         config.put(ApiRoutes.BRANCH_INVENTORY_PRICE_PATH, branchInventoryPriceGate) { context ->
             val request = context.bodyAsClass<SetBranchPriceRequest>()

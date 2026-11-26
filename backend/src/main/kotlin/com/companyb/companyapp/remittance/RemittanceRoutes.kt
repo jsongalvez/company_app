@@ -219,85 +219,15 @@ object RemittanceRoutes {
     }
 
     private fun remittancesGate(branchIdOf: (Context) -> UUID) =
-        Gate.Before { context ->
-            val branchId = branchIdOf(context)
-            BranchService.findById(branchId)
-            Access.require(context, Act.SUBMIT_REMITTANCE, Place.Branch(branchId))
-        }
+        Gate.At(Act.SUBMIT_REMITTANCE) { Place.Branch(BranchService.findById(branchIdOf(it)).id) }
 
     private val remittanceGate =
-        Gate.Before { context ->
-            val remittanceId = context.pathParamAsUuid("remittanceId")
-            RemittanceAuthz.requireForRemittance(context, remittanceId, Act.SUBMIT_REMITTANCE)
-        }
-
-    private val remittanceLinesGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
-
-    private val remittanceLineGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
-
-    private val remittanceDayBreakdownsGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
-
-    private val remittanceDayBreakdownGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
-
-    private val remittanceSubmitGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
-
-    private val remittanceUndoGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
-
-    private val remittanceDriftGate =
-        Gate.Before { context ->
-            RemittanceAuthz.requireForRemittance(
-                context,
-                context.pathParamAsUuid("remittanceId"),
-                Act.SUBMIT_REMITTANCE,
-            )
-        }
+        Gate.At(Act.SUBMIT_REMITTANCE) { RemittanceAuthz.placeOf(it.pathParamAsUuid("remittanceId")) }
 
     private fun registerReads(config: JavalinConfig) {
         config.get(ApiRoutes.REMITTANCES, remittancesGate { it.uuidFromQuery("branchId") }, ::handleListRemittances)
         config.get(ApiRoutes.REMITTANCE_PATH, remittanceGate, ::handleGetRemittance)
-        config.get(ApiRoutes.REMITTANCE_DRIFT_PATH, remittanceDriftGate, ::handleGetDrift)
+        config.get(ApiRoutes.REMITTANCE_DRIFT_PATH, remittanceGate, ::handleGetDrift)
     }
 
     private fun registerMutations(config: JavalinConfig) {
@@ -306,12 +236,12 @@ object RemittanceRoutes {
             remittancesGate { uuidOrThrow(it.bodyAsClass<CreateRemittanceDraftRequest>().branchId, "branch id") },
             ::handleCreateDraft,
         )
-        config.post(ApiRoutes.REMITTANCE_LINES_PATH, remittanceLinesGate, ::handleAddLine)
-        config.delete(ApiRoutes.REMITTANCE_LINE_PATH, remittanceLineGate, ::handleRemoveLine)
-        config.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, remittanceDayBreakdownsGate, ::handleAddDayBreakdown)
-        config.delete(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH, remittanceDayBreakdownGate, ::handleRemoveDayBreakdown)
-        config.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, remittanceSubmitGate, ::handleSubmit)
-        config.post(ApiRoutes.REMITTANCE_UNDO_PATH, remittanceUndoGate, ::handleUndo)
+        config.post(ApiRoutes.REMITTANCE_LINES_PATH, remittanceGate, ::handleAddLine)
+        config.delete(ApiRoutes.REMITTANCE_LINE_PATH, remittanceGate, ::handleRemoveLine)
+        config.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, remittanceGate, ::handleAddDayBreakdown)
+        config.delete(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH, remittanceGate, ::handleRemoveDayBreakdown)
+        config.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, remittanceGate, ::handleSubmit)
+        config.post(ApiRoutes.REMITTANCE_UNDO_PATH, remittanceGate, ::handleUndo)
         config.patch(ApiRoutes.REMITTANCE_PATH, remittanceGate, ::handleUpdateHeader)
     }
 
