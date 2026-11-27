@@ -138,7 +138,11 @@ film() {
 at() {
   local c; c=$(git -C "$ROOT" rev-parse --short "${1:?commit}") || return 1; shift
   local wt=/tmp/verify-at-$c rc=0
-  [ -d "$wt" ] || git -C "$ROOT" worktree add -q --detach "$wt" "$c" || return 1
+  if [ ! -d "$wt" ]; then
+    git clone -q --shared --no-checkout "$ROOT" "$wt" || return 1
+    git -C "$wt" checkout -q --detach "$c" || { rm -rf "$wt"; return 1; }
+  fi
+  [ -f "$ROOT/.env" ] && [ ! -e "$wt/.env" ] && ln -s "$ROOT/.env" "$wt/.env"
   mkdir -p "$wt/tools/verify" && cp -r "$HERE"/. "$wt/tools/verify/"
   # VERIFY_SEED_FROM_HEAD=1: seed the old copy with today's test data (a role user it lacks, say), so a
   # before shot can sign in as the same person as the after shot.
@@ -148,7 +152,7 @@ at() {
   "$wt/tools/verify/verify.sh" up || rc=1
   [ $rc = 0 ] && { "$wt/tools/verify/verify.sh" "$@" || rc=1; }
   "$wt/tools/verify/verify.sh" down >/dev/null
-  git -C "$ROOT" worktree remove --force "$wt"
+  rm -rf "$wt"
   return $rc
 }
 
