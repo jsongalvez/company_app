@@ -243,7 +243,9 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
         // Online: the day's work at Desk H.
         const deskBefore = await totals(desk);
         for (const p of phones) (await pick(p, "Desk H Branch"), await clock(p, "in"));
-        await sessionAndSale(a, "D");
+        const deskClient = await sessionAndSale(a, "D");
+        await a.page.getByRole("row").filter({ hasText: deskClient }).getByRole("button", { name: "Done" }).click();
+        await shown(a.page.getByRole("row").filter({ hasText: deskClient }).getByText("Done"));
         for (const p of phones) await clock(p, "out");
         await expect.poll(async () => (await Promise.all(phones.map(unsent))).reduce((x, y) => x + y), { timeout: 60_000 }).toBe(0);
         const deskAfter = await totals(desk);
@@ -286,6 +288,15 @@ test("four phones on a site hub see each other's unsent work, the hub refills af
         // The phone off the hotspot works as before: it sees none of the site's work.
         await sleep(3_000);
         expect(await loner.page.getByRole("list", { name: "Waiting at the site" }).count()).toBe(0);
+
+        // Marking the session Done offline moves it from Waiting to Done across every phone on the hub.
+        await a.page.getByRole("row").filter({ hasText: client }).getByRole("button", { name: "Done" }).click();
+        await shown(a.page.getByRole("row").filter({ hasText: client }).getByText("Done"));
+        for (const b of others) {
+            const panel = b.page.getByRole("region", { name: "Site" });
+            await expect.poll(() => panel.getByRole("list", { name: "Waiting at the site" }).getByText(client).count(), { timeout: 15_000 }).toBe(0);
+            await shown(panel.getByRole("list", { name: "Done at the site" }).getByText(client), 15_000);
+        }
 
         // The laptop dies and comes back empty; the phones fill it again.
         const room = (JSON.parse((await disk(a, `site:ticket:${field}`))!) as { room: string }).room;

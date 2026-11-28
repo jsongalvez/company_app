@@ -3,7 +3,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { components, paths } from "./schema";
 import { jittered } from "../lib/backoff";
 import { net, onlineOrTimeout, reportNetFailure, reportNetOk } from "../lib/net.svelte";
-import { canQueue, eager, enqueue as hold, mustQueue, newOp, OCCURRED_AT, OP_ID, onlyEagerAhead, waiting } from "../lib/outbox.svelte";
+import { canQueue, eager, enqueue as hold, mustQueue, newOp, noteSiteOp, OCCURRED_AT, OP_ID, onlyEagerAhead, tokenUser, waiting } from "../lib/outbox.svelte";
 import { traceparent } from "../lib/telemetry";
 import { answered, NOT_SENT } from "../lib/tables";
 
@@ -134,8 +134,12 @@ export const BASE_STATUS = "X-Base-Status";
 const RETRY_WAITS_MS = [700, 2000, 5000];
 /** Bad wifi hangs rather than fails: a read gives up in time and the page keeps what it had. */
 const TIMEOUT_MS = 12_000;
+/** Once the link is known bad, uncached reads probe briefly instead of sitting for TIMEOUT_MS. */
+const BAD_NET_TIMEOUT_MS = 5_000;
 /** A save that can wait on the phone gives up sooner: holding it beats a frozen button. */
 const SAVE_TIMEOUT_MS = 6_000;
+/** Direct online writes mirrored to the site hub so other devices see status/shift changes even when sent live. */
+const SITE_LIVE = /^\/api\/(sessions\/[^/]+\/(status|void|unvoid)|attendance\/clock-(in|out))$/;
 const GATEWAY = new Set([502, 503, 504]);
 /** Body keys holding the record's own client-made id: the server treats a resend as the same save. */
 const OWN_ID_KEYS = ["id", "attendanceId", "requestId", "delegateId", "movementId"];
@@ -198,6 +202,11 @@ async function resilientFetch(req: Request): Promise<Response> {
     if (queueable && (net.trouble || !navigator.onLine)) return enqueue(req.method, path, body ?? "", shown, query);
     // New sessions and sales show at once; the queue sends them now and keeps them if that fails.
     if (eager(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query, false);
+    // Browser already knows it has no network: fail non-queued calls at once instead of hanging.
+    if (!navigator.onLine) {
+        if (req.method !== "GET" && req.method !== "HEAD") offlineRefused(req.method, path);
+        throw new NetError(false);
+    }
     // Retry only while the signal still looks fine: once it's known to be bad, answer at once
     // (pages show what they had and reload by themselves when the connection is back).
     const knownBad = net.trouble;
@@ -206,18 +215,20 @@ async function resilientFetch(req: Request): Promise<Response> {
         const last = !retry || attempt >= RETRY_WAITS_MS.length;
         let res: Response;
         try {
-            const signal = AbortSignal.timeout(queueable ? SAVE_TIMEOUT_MS : TIMEOUT_MS);
+            const timeout = queueable ? SAVE_TIMEOUT_MS : knownBad ? BAD_NET_TIMEOUT_MS : TIMEOUT_MS;
+            const signal = AbortSignal.timeout(timeout);
             res = await fetch(req.clone(), { signal });
         } catch (e) {
             if (req.signal.aborted) throw e;
+            const timedOut = e instanceof DOMException && e.name === "TimeoutError";
             reportNetFailure();
             // Saves that can wait are held at the first failure: the queue resends them itself,
             // and each carries its own id or version, so a copy that did arrive isn't doubled.
             if (queueable) return enqueue(req.method, path, body ?? "", shown, query);
             if (req.method !== "GET" && req.method !== "HEAD") offlineRefused(req.method, path);
-            // The phone says it has no signal: say so now; waiting out retries only feels slow.
-            if (!navigator.onLine || knownBad) throw new NetError(false);
-            if (last) throw new NetError(navigator.onLine || (e instanceof DOMException && e.name === "TimeoutError"));
+            // A full timeout already waited out a blip; repeating it three more times hangs startup for ~55s.
+            if (!navigator.onLine || knownBad || timedOut) throw new NetError(timedOut);
+            if (last) throw new NetError(navigator.onLine);
             await onlineOrTimeout(jittered(RETRY_WAITS_MS[attempt]!));
             continue;
         }
@@ -227,6 +238,21 @@ async function resilientFetch(req: Request): Promise<Response> {
         }
         if (GATEWAY.has(res.status) && canQueue(req.method, path)) return enqueue(req.method, path, body ?? "", shown, query);
         reportNetOk();
+        if (res.ok && res.status !== 202 && SITE_LIVE.test(path)) {
+            const liveOp = op ?? newOp();
+            const branchId = localStorage.getItem("branchId") || undefined;
+            noteSiteOp({
+                id: liveOp.id,
+                at: liveOp.at,
+                user: tokenUser(),
+                method: req.method,
+                path,
+                ...(query ? { query } : {}),
+                body: body ?? "",
+                what: "",
+                ...(branchId ? { branchId } : {}),
+            });
+        }
         return res;
     }
 }

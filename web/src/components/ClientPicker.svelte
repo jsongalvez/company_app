@@ -4,6 +4,7 @@
     import { searchLocal } from "../lib/clientdir.svelte";
     import { load } from "../lib/data";
     import { clientName } from "../lib/format";
+    import { net } from "../lib/net.svelte";
 
     let { value = $bindable(null), onnew }: { value?: S["ClientResponse"] | null; onnew?: (q: string) => void } = $props();
 
@@ -25,8 +26,9 @@
         // Clients saved on the phone show at once; the server's answer follows when it can.
         const local = searchLocal(term);
         results = local;
-        localOnly = !navigator.onLine;
-        if (!navigator.onLine) {
+        const offline = !net.online || net.trouble;
+        localOnly = offline;
+        if (offline) {
             searching = false;
             return;
         }

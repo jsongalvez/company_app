@@ -19,6 +19,7 @@
     import TodayAside, { type Roster } from "./TodayAside.svelte";
     import { fetchCached } from "../lib/cache.svelte";
     import { changed } from "../lib/changed";
+    import { net } from "../lib/net.svelte";
     import type { Booking } from "../lib/bookings";
 
     const newSession = later(() => import("../components/NewSession.svelte"));
@@ -118,6 +119,35 @@
             const r = load.roster(bid);
             roster.load(r.key, r.fn);
         }
+    });
+
+    // Keep Today current across devices (phone + laptop): refresh calmly on tab return and every 20s while visible,
+    // plus at once when the site hub sees another device finish sending.
+    $effect(() => {
+        if (!isToday || !bid) return;
+        const sync = (force: boolean) => {
+            if (document.visibilityState !== "visible" || !net.online || net.trouble) return;
+            const l = load.dashboard(bid);
+            void dash.load(l.key, l.fn, force, true);
+            const bk = load.bookings(bid);
+            void booked.load(bk.key, bk.fn, force, true);
+            if (member) {
+                const r = load.roster(bid);
+                void roster.load(r.key, r.fn, force, true);
+            }
+        };
+        const onVisible = () => sync(false);
+        const onSite = () => sync(true);
+        const timer = setInterval(() => sync(false), 20_000);
+        document.addEventListener("visibilitychange", onVisible);
+        window.addEventListener("focus", onVisible);
+        window.addEventListener("app:site-changed", onSite);
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener("visibilitychange", onVisible);
+            window.removeEventListener("focus", onVisible);
+            window.removeEventListener("app:site-changed", onSite);
+        };
     });
 
     const edit = $derived(can("WORK_DAY"));
@@ -303,7 +333,7 @@
     {/if}
 </PageHead>
 
-{#if isToday && SitePanel}<SitePanel />{/if}
+{#if isToday && SitePanel}<SitePanel sessions={dash.data?.sessions ?? []} />{/if}
 {#if remitted}
     <div class="notice warn mb">{day(date)} is remitted. Changes need coordinator rights and a reason.</div>
 {:else if isToday && today.day && today.day.status !== "OPEN"}

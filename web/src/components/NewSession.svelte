@@ -5,6 +5,7 @@
     import { app, can } from "../lib/app.svelte";
     import { today, takeLists } from "../lib/today.svelte";
     import { fetchCached } from "../lib/cache.svelte";
+    import { net } from "../lib/net.svelte";
     import { deferredSoFar, whenLanded } from "../lib/outbox.svelte";
     import { onDestroy, untrack } from "svelte";
     import { load } from "../lib/data";
@@ -121,6 +122,10 @@
         const guess = guessPreview(app.branchId, branchType(), c);
         preview = guess;
         if (guess) price = guess.basePrice;
+        if ((!net.online || net.trouble) && guess) {
+            previewErr = "No signal: price from the rates this phone last saw.";
+            return;
+        }
         previewErr = null;
         ok(api.GET("/api/branches/{branchId}/session-preview", { params: { path: { branchId: app.branchId }, query: { clientId: c.id } } })).then(
             (p) => {

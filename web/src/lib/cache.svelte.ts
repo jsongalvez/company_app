@@ -1,5 +1,5 @@
 import { ApiError } from "../api/client";
-import { RECONNECTED } from "./net.svelte";
+import { net, RECONNECTED } from "./net.svelte";
 import { LANDED, opOf, pendingOps, SENT, tokenUser, type Landed } from "./outbox.svelte";
 import type { PendingOp } from "./mutators";
 import { disk } from "./disk";
@@ -80,7 +80,7 @@ export function fetchCached<T>(key: Key, fn: (seen: Seen) => Promise<T>, force =
     const e = store.get(key);
     // A forced read (after a save) must not reuse a request that started before the save.
     if (e?.inflight && !(force && e.inflightAt! < (e.staleAt ?? 0))) return e.inflight as Promise<T>;
-    if (!force && e && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data as T);
+    if (!force && e && (Date.now() - e.at < FRESH_MS || ((!navigator.onLine || net.trouble) && e.data !== undefined))) return Promise.resolve(e.data as T);
     const mine = ++seq;
     const seen = new Seen();
     const p = fn(seen).then(

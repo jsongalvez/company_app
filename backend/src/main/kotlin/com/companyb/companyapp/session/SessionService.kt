@@ -136,6 +136,7 @@ object SessionService {
                             otherConcerns = new.otherConcerns,
                             nextAppointmentDate = new.nextAppointmentDate,
                             changedBy = callerId,
+                            occurredAt = OpTime.claimedWithin(lockedDay.date),
                         ),
                     )
                 if (result.created) {
@@ -307,6 +308,17 @@ object SessionService {
         throw ConflictException("Session version mismatch")
     }
 
+    private fun completedAtFor(
+        session: Session,
+        newStatus: SessionStatus,
+        date: LocalDate,
+    ): java.time.OffsetDateTime? {
+        if (newStatus != SessionStatus.COMPLETED) return null
+        val at = OpTime.occurredWithin(date)
+        val floor = session.bookedAt ?: session.createdAt
+        return if (at.isBefore(floor)) floor else at
+    }
+
     fun updateStatus(
         callerId: UUID,
         sessionId: UUID,
@@ -372,7 +384,7 @@ object SessionService {
                     )
                 }
 
-                val doneAt = if (newStatus == SessionStatus.COMPLETED) OpTime.occurredWithin(branchDay.date) else null
+                val doneAt = completedAtFor(session, newStatus, branchDay.date)
                 val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion, doneAt)
 
                 SessionAudit.updated(

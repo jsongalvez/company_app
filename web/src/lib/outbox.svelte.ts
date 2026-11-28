@@ -35,7 +35,25 @@ export type Item = {
     tried?: boolean;
     /** Made with good signal: shown as going out, not as waiting, and its answer alone updates Today. */
     eager?: true;
+    /** Branch active when the save was made, for saves whose path/body carry no branchId (e.g. session marks). */
+    branchId?: string;
 };
+
+/** A save mirrored to the site hub, whether held in the outbox or sent straight to the server. */
+export type SiteOp = Pick<Item, "id" | "at" | "user" | "method" | "path" | "query" | "body" | "what" | "branchId">;
+export const SITE_OP = "app:site-op";
+const SITE_OPS_MAX = 200;
+const recentSiteOps: SiteOp[] = [];
+
+export function noteSiteOp(op: SiteOp) {
+    recentSiteOps.push(op);
+    if (recentSiteOps.length > SITE_OPS_MAX) recentSiteOps.shift();
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(SITE_OP));
+}
+
+export function drainSiteOps(): SiteOp[] {
+    return recentSiteOps.splice(0, recentSiteOps.length);
+}
 
 type Rule = {
     method: string;
@@ -328,19 +346,22 @@ export function enqueue(method: string, path: string, body: string, shown?: stri
         drop = from !== undefined && from === String(b.status);
         outbox.items = outbox.items.filter((i) => !(mine(i) && !i.tried));
     }
-    if (!drop)
-        outbox.items.push({
-            id: op.id,
-            at: op.at,
-            user: tokenUser(),
-            method,
-            path,
-            body,
-            what: r.what(b),
-            ...(from !== undefined ? { from } : {}),
-            ...(query ? { query } : {}),
-            ...(r.eager && !held ? { eager: true as const } : {}),
-        });
+    const branchId = typeof localStorage !== "undefined" ? localStorage.getItem("branchId") || undefined : undefined;
+    const item: Item = {
+        id: op.id,
+        at: op.at,
+        user: tokenUser(),
+        method,
+        path,
+        body,
+        what: r.what(b),
+        ...(from !== undefined ? { from } : {}),
+        ...(query ? { query } : {}),
+        ...(r.eager && !held ? { eager: true as const } : {}),
+        ...(branchId ? { branchId } : {}),
+    };
+    if (!drop) outbox.items.push(item);
+    noteSiteOp(item);
     save();
     if (held) queuedCount++;
     deferredCount++;

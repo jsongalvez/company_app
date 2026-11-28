@@ -1,8 +1,12 @@
 <script lang="ts">
-    import { BATTERY_LOW, findHub, site, siteView } from "../lib/site.svelte";
+    import { BATTERY_LOW, findHub, isUnsent, site, siteView } from "../lib/site.svelte";
+    import type { ServerSessionLike } from "../lib/site-view";
     import { time } from "../lib/format";
 
-    const view = $derived((site.entries, siteView()));
+    let { sessions = [] }: { sessions?: readonly ServerSessionLike[] } = $props();
+
+    const serverById = $derived(new Map(sessions.map((s) => [s.id, s])));
+    const view = $derived((site.entries, siteView(sessions)));
     const ago = (s: number) => (s < 60 ? "just now" : `${Math.floor(s / 60)} min ago`);
 </script>
 
@@ -35,13 +39,26 @@
                     {#each view.waiting as e (e.opId)}
                         <li>
                             <b>{e.client}</b> · {e.name} · {time(e.at)}
-                            {#if site.unsent.has(e.opId)}<span class="unsent">not sent yet</span>{/if}
+                            {#if isUnsent(e, serverById)}<span class="unsent">not sent yet</span>{/if}
                         </li>
                     {:else}
                         <li class="none">None</li>
                     {/each}
                 </ul>
             </div>
+            {#if view.done.length}
+                <div>
+                    <h3>Done</h3>
+                    <ul aria-label="Done at the site">
+                        {#each view.done as e (e.opId)}
+                            <li>
+                                <b>{e.client ?? "Session"}</b> · {e.name} · {time(e.at)}
+                                {#if isUnsent(e, serverById)}<span class="unsent">not sent yet</span>{/if}
+                            </li>
+                        {/each}
+                    </ul>
+                </div>
+            {/if}
             <div>
                 <h3>On duty</h3>
                 <ul aria-label="On duty at the site">
@@ -58,7 +75,7 @@
                     {#each view.sales as e (e.opId)}
                         <li>
                             {e.quantity} sold · {e.name} · {time(e.at)}
-                            {#if site.unsent.has(e.opId)}<span class="unsent">not sent yet</span>{/if}
+                            {#if isUnsent(e, serverById)}<span class="unsent">not sent yet</span>{/if}
                         </li>
                     {:else}
                         <li class="none">None</li>

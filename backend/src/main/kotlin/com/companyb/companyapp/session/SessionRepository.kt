@@ -50,6 +50,7 @@ data class SessionCreateParams(
     val otherConcerns: String?,
     val nextAppointmentDate: LocalDate?,
     val changedBy: UUID,
+    val occurredAt: OffsetDateTime? = null,
 )
 
 data class SessionCreateResult(
@@ -157,10 +158,11 @@ internal object SessionRepository {
         // Keep this atomic with the insert: both the precheck and booked_at use the DB transaction clock.
         if (!params.isWalkIn && params.nextAppointmentDate != null) {
             val bookingDate =
-                BranchTable
-                    .select(CurrentTimestampWithTimeZone)
-                    .first()[CurrentTimestampWithTimeZone]
-                    .toLocalDate()
+                params.occurredAt?.toLocalDate()
+                    ?: BranchTable
+                        .select(CurrentTimestampWithTimeZone)
+                        .first()[CurrentTimestampWithTimeZone]
+                        .toLocalDate()
             if (params.nextAppointmentDate.isBefore(bookingDate)) {
                 throw ValidationException("Next appointment date cannot be before booking date")
             }
@@ -184,7 +186,12 @@ internal object SessionRepository {
                     it[SessionTable.createdBy] = params.changedBy
                     if (params.remarks != null) it[SessionTable.remarks] = params.remarks
                     if (params.otherConcerns != null) it[SessionTable.otherConcerns] = params.otherConcerns
-                    if (!params.isWalkIn) it[SessionTable.bookedAt] = CurrentTimestampWithTimeZone
+                    if (params.occurredAt != null) {
+                        it[SessionTable.createdAt] = params.occurredAt
+                        if (!params.isWalkIn) it[SessionTable.bookedAt] = params.occurredAt
+                    } else if (!params.isWalkIn) {
+                        it[SessionTable.bookedAt] = CurrentTimestampWithTimeZone
+                    }
                     if (params.nextAppointmentDate !=
                         null
                     ) {

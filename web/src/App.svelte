@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { ApiError } from "./api/client";
     import { app, boot } from "./lib/app.svelte";
     import { route } from "./lib/router.svelte";
     import Login from "./pages/Login.svelte";
@@ -6,7 +7,9 @@
     import Toast from "./components/Toast.svelte";
     import ReasonAsk from "./components/ReasonAsk.svelte";
 
-    void boot();
+    void boot().catch((e) => {
+        if (!(e instanceof ApiError && e.status <= 0)) throw e;
+    });
 
     // Token-carrying links from email work while signed out.
     const publicPage = $derived(["reset-password", "accept-invite", "forgot-password"].includes(route.current.parts[0] ?? ""));

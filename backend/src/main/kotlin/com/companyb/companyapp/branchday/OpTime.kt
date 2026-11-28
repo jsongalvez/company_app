@@ -83,6 +83,13 @@ object OpTime {
         }
     }
 
+    /**
+     * [occurredWithin] when the request carried a valid [HEADER] (an offline save replayed later),
+     * or null for a live request without one so inserts keep using the database clock.
+     */
+    fun claimedWithin(date: LocalDate): OffsetDateTime? =
+        if (current.get()?.claimed != null) occurredWithin(date) else null
+
     /** [occurred], but never before [floor] (a clock-out before its clock-in). */
     fun occurredAfter(floor: OffsetDateTime): OffsetDateTime {
         val at = occurred().atOffset(ZoneOffset.UTC)

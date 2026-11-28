@@ -48,7 +48,12 @@ async function todayScreen(branchId: string, seen: Seen) {
  * again. If the bundle was for another branch, or failed, they ask as usual. A seed came with no reads of its own: `*`.
  */
 export function seedTodayScreen(branchId: string, bundle: Promise<S["TodayScreenResponse"]>) {
-    const p = bundle.then((screen): Screen => ({ screen, reads: "*" })).catch(() => askToday(branchId));
+    const p = bundle
+        .then((screen): Screen => ({ screen, reads: "*" }))
+        .catch((e) => {
+            if (e instanceof ApiError && e.status <= 0) throw e;
+            return askToday(branchId);
+        });
     p.then((t) => keepTicket(branchId, t.screen)).catch(() => {});
     seeded.add(p);
     todayInFlight.set(branchId, p);
