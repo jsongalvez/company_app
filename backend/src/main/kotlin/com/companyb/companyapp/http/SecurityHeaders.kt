@@ -41,8 +41,9 @@ class SecurityHeaders(
             // Svelte sets style attributes, and the saved-screen script writes the last screen's styles inline.
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
-            // The site hub (hub/) on the laptop's hotspot answers under this name when there is no signal.
-            "connect-src 'self' https://hub.kiel.party",
+            // The site hub (hub/) on the laptop's hotspot answers under hub.kiel.party, and over
+            // direct hotspot HTTP for Chrome when an offline phone skips DNS.
+            "connect-src 'self' https://hub.kiel.party http://192.168.137.1:8787",
             "worker-src 'self'",
             "manifest-src 'self'",
             "object-src 'none'",

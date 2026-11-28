@@ -19,6 +19,8 @@ import { ticketKey, type Member, type Ticket } from "./site-ticket";
 import type { Stop } from "./wiring";
 
 export const HUB = "https://hub.kiel.party";
+/** Direct hotspot IP over HTTP: Chrome skips DNS and exempts local-IP fetches from mixed content. */
+export const HUB_DIRECT = "http://192.168.137.1:8787";
 /** A hub not heard from for this long counts as gone. */
 const GONE_MS = 15_000;
 const FAST_MS = 3_000;
@@ -166,6 +168,23 @@ function entryOf(i: Item, t: Ticket): Omit<Entry, "opId"> | undefined {
 let given = { boot: "", ops: new Set<string>() };
 const opened = new Map<string, Entry>();
 
+type LocalFetchInit = RequestInit & { targetAddressSpace?: "local" };
+let activeHub = HUB;
+
+async function postSync(base: string, room: string, body: string): Promise<Response> {
+    const init: LocalFetchInit = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        cache: "no-store",
+        signal: AbortSignal.timeout(5_000),
+    };
+    if (base === HUB_DIRECT) init.targetAddressSpace = "local";
+    const res = await fetch(`${base}/v1/rooms/${room}/sync`, init);
+    if (!res.ok) throw new Error(`hub ${res.status}`);
+    return res;
+}
+
 async function tick(t: Ticket): Promise<boolean> {
     const key = await cryptoKey(t);
     const me = device();
@@ -180,20 +199,22 @@ async function tick(t: Ticket): Promise<boolean> {
     }
     if (given.boot !== room.boot) given = { boot: room.boot, ops: new Set() };
     const presence: Presence = { user: tokenUser(), name: app.me?.displayName ?? "", unsent: waiting().map((i) => i.id) };
-    const res = await fetch(`${HUB}/v1/rooms/${t.room}/sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            device: me,
-            boot: room.boot,
-            since: room.since,
-            presence: await seal(key, me, presence),
-            records: room.records.filter((r) => !given.ops.has(r.opId)),
-        }),
-        cache: "no-store",
-        signal: AbortSignal.timeout(5_000),
+    const body = JSON.stringify({
+        device: me,
+        boot: room.boot,
+        since: room.since,
+        presence: await seal(key, me, presence),
+        records: room.records.filter((r) => !given.ops.has(r.opId)),
     });
-    if (!res.ok) throw new Error(`hub ${res.status}`);
+    let res: Response;
+    try {
+        res = await postSync(activeHub, t.room, body);
+    } catch (err) {
+        const other = activeHub === HUB ? HUB_DIRECT : HUB;
+        if (other === HUB_DIRECT && site.localNetwork === "none") throw err;
+        res = await postSync(other, t.room, body);
+        activeHub = other;
+    }
     const out = (await res.json()) as {
         boot: string;
         next: number;

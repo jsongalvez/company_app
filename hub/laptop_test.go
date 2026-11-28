@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -279,5 +280,52 @@ func TestRevokedTokenClearsAndRepairs(t *testing.T) {
 	}
 	if certAttempts.Load() < 2 {
 		t.Fatalf("expected revoked attempt then fresh fetch, got %d", certAttempts.Load())
+	}
+}
+
+func TestCheckNamesQueriesUDPDirectly(t *testing.T) {
+	d := &Names{Hub: hubName, IP: net.IPv4(192, 168, 137, 1)}
+	addr, stop, err := d.Listen("127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
+	got := checkNamesAt(addr)
+	if !strings.Contains(got, "hub.kiel.party -> 192.168.137.1") || !strings.Contains(got, "Private Relay off") {
+		t.Fatalf("unexpected checkNamesAt output: %q", got)
+	}
+	if d.Counts()["hub"] != 1 {
+		t.Fatalf("expected hub DNS query to hit UDP listener once, got %v", d.Counts())
+	}
+}
+
+func TestServeLocalAnswersWithPrivateNetworkCORS(t *testing.T) {
+	l, _ := newTestLaptop(t, "https://api.kiel.party", "")
+	relay := NewRelay(quiet)
+	addr, stop, err := l.serveLocal("127.0.0.1:0", relay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+
+	req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Origin", "https://api.kiel.party")
+	res, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	if res.Header.Get("Access-Control-Allow-Private-Network") != "true" {
+		t.Fatalf("missing private-network header: %v", res.Header)
+	}
+	if res.Header.Get("Access-Control-Allow-Origin") != "https://api.kiel.party" {
+		t.Fatalf("missing CORS origin: %v", res.Header)
 	}
 }

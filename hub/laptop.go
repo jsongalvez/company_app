@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 // The laptop program: one window that turns on the laptop's hotspot, answers DNS for
@@ -30,6 +32,9 @@ const (
 	defaultSSID = "Company Site Hub"
 	// The address Windows gives its own end of the Mobile Hotspot.
 	defaultHotspotIP = "192.168.137.1"
+	// Plain HTTP port bound only to the hotspot interface so Chrome reaches the sealed relay
+	// directly when an offline phone skips DNS for hub.kiel.party.
+	localHTTPPort = "8787"
 	// Half of the server's 10-try IP and account lockout window (RateLimiter / LoginFailures), so
 	// one hub run cannot trip a 429 lockout on its own.
 	maxPairAttempts = 5
@@ -268,26 +273,58 @@ func hotspotIP() net.IP {
 	return fallback
 }
 
-// checkNames asks whoever answers DNS on the hotspot address where hub.kiel.party is: the probe
-// P3 result the owner sends back.
-func checkNames(ip net.IP) string {
-	r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "udp", net.JoinHostPort(ip.String(), "53"))
-	}}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-	got, err := r.LookupHost(ctx, hubName)
-	hub := "no answer"
-	if err == nil {
-		hub = strings.Join(got, ",")
+// askDNS sends one UDP DNS A query directly to addr, bypassing the OS hosts file.
+func askDNS(addr, name string) (dnsmessage.RCode, []string, error) {
+	q := dnsmessage.Message{
+		Header:    dnsmessage.Header{ID: 1, RecursionDesired: true},
+		Questions: []dnsmessage.Question{{Name: dnsmessage.MustNewName(name + "."), Type: dnsmessage.TypeA, Class: dnsmessage.ClassINET}},
 	}
-	_, err = r.LookupHost(ctx, "mask.icloud.com")
+	b, err := q.Pack()
+	if err != nil {
+		return 0, nil, err
+	}
+	c, err := net.DialTimeout("udp", addr, 2*time.Second)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer c.Close()
+	_ = c.SetDeadline(time.Now().Add(2 * time.Second))
+	if _, err := c.Write(b); err != nil {
+		return 0, nil, err
+	}
+	buf := make([]byte, 1500)
+	n, err := c.Read(buf)
+	if err != nil {
+		return 0, nil, err
+	}
+	var m dnsmessage.Message
+	if err := m.Unpack(buf[:n]); err != nil {
+		return 0, nil, err
+	}
+	var ips []string
+	for _, ans := range m.Answers {
+		if a, ok := ans.Body.(*dnsmessage.AResource); ok {
+			ips = append(ips, net.IP(a.A[:]).String())
+		}
+	}
+	return m.RCode, ips, nil
+}
+
+// checkNames asks whoever answers UDP 53 on the hotspot address where hub.kiel.party is.
+func checkNames(ip net.IP) string {
+	return checkNamesAt(net.JoinHostPort(ip.String(), "53"))
+}
+
+func checkNamesAt(addr string) string {
+	hub := "no answer"
+	if code, ips, err := askDNS(addr, hubName); err == nil && code == dnsmessage.RCodeSuccess && len(ips) > 0 {
+		hub = strings.Join(ips, ",")
+	}
 	relay := "answered (Private Relay stays on)"
-	var de *net.DNSError
-	if errors.As(err, &de) && de.IsNotFound {
-		relay = "no such name (Private Relay off on this Wi-Fi)"
-	} else if err != nil {
+	if code, _, err := askDNS(addr, "mask.icloud.com"); err != nil {
 		relay = "no answer"
+	} else if code == dnsmessage.RCodeNameError {
+		relay = "no such name (Private Relay off on this Wi-Fi)"
 	}
 	return fmt.Sprintf("%s -> %s; mask.icloud.com -> %s", hubName, hub, relay)
 }
@@ -324,9 +361,18 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() (strin
 	relay.battery = l.os.Battery
 	names := &Names{Hub: hubName, Log: l.logf}
 	var stopNames func()
+	var stopLocal func()
 	var boundIP string
 	var nextCertTry time.Time
 	var certWait time.Duration
+	defer func() {
+		if stopNames != nil {
+			stopNames()
+		}
+		if stopLocal != nil {
+			stopLocal()
+		}
+	}()
 
 	tick := time.NewTicker(30 * time.Second)
 	defer tick.Stop()
@@ -359,12 +405,22 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() (strin
 				stopNames()
 				stopNames = nil
 			}
+			if stopLocal != nil {
+				stopLocal()
+				stopLocal = nil
+			}
+			if _, stop, err := l.serveLocal(net.JoinHostPort(ip.String(), localHTTPPort), relay); err == nil {
+				stopLocal = stop
+			} else {
+				l.logf("local_http_failed", map[string]any{"addr": net.JoinHostPort(ip.String(), localHTTPPort), "error": err.Error()})
+			}
 			names.IP = ip
 			names.Upstream = []string{"1.1.1.1:53", "8.8.8.8:53"}
 			if _, stop, err := names.Listen(net.JoinHostPort(ip.String(), "53")); err == nil {
 				stopNames, boundIP = stop, ip.String()
 				l.set("Names", "answered by the site hub on "+ip.String())
 			} else {
+				boundIP = ip.String()
 				l.set("Names", "port 53 taken ("+err.Error()+"); Windows answers from the hosts file")
 			}
 		}
@@ -436,6 +492,24 @@ func (l *laptop) serve(relay *Relay, certs *Certs) {
 	l.mu.Lock()
 	l.relayErr = err
 	l.mu.Unlock()
+}
+
+// serveLocal serves the sealed relay over plain HTTP on the hotspot address only.
+func (l *laptop) serveLocal(addr string, relay *Relay) (string, func(), error) {
+	ln, err := net.Listen("tcp4", addr)
+	if err != nil {
+		return "", nil, err
+	}
+	srv := &http.Server{
+		Handler:           relay.Handler([]string{"https://api.kiel.party", "https://app.kiel.party"}),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+	}
+	go func() { _ = srv.Serve(ln) }()
+	bound := ln.Addr().String()
+	l.logf("local_http", map[string]any{"addr": bound})
+	return bound, func() { _ = srv.Close() }, nil
 }
 
 var statusOrder = []string{"Hotspot", "Wi-Fi", "Names", "Name check", "Certificate", "Relay", "Phones", "Battery", "Awake", "Setup"}

@@ -32,8 +32,10 @@ with no arguments it is the laptop program (`laptop.go`, Windows parts in `lapto
   switch refuses). Name "Company Site Hub", password made once per laptop, shown in the window.
 - DNS (`dns.go`) on the hotspot address, port 53: `hub.kiel.party` is the laptop, the iCloud Private
   Relay names don't exist (Relay turns off for this Wi-Fi), others go to 1.1.1.1 / 8.8.8.8 when
-  online. If Windows holds port 53 itself, the hosts line is the fallback. The window's "Name check"
-  line says which one answered.
+  online. Public DNS also maps `hub.kiel.party` to `192.168.137.1` so encrypted DNS and mobile-data
+  fallback resolve to the laptop. If Windows holds port 53 itself, the hosts line is the fallback.
+- Direct local HTTP (`192.168.137.1:8787`, bound only to the hotspot interface): serves the same
+  AES-GCM sealed relay so Chrome on an offline phone reaches the laptop even when it skips DNS.
 - Certificate (`cert.go`): the server owns and renews one Let's Encrypt certificate for
   `hub.kiel.party` by DNS-01 when it holds `CLOUDFLARE_DNS_TOKEN` (`SiteHubCerts.kt` /
   `AcmeClient.kt`). Paired laptops pull it via `POST /site-hub/cert` and refresh at two thirds of

@@ -88,8 +88,11 @@ async function phone(browser: Browser, user: string, name: string, proxy: string
         timezoneId: "Asia/Manila",
         viewport: { width: 1200, height: 900 },
     });
-    // The unconnected phone is not on the hotspot: the hub's name leads nowhere for it.
-    if (!proxy) await context.route("https://hub.kiel.party/**", (r) => r.abort());
+    // The unconnected phone is not on the hotspot: the hub's name and direct address lead nowhere for it.
+    if (!proxy) {
+        await context.route("https://hub.kiel.party/**", (r) => r.abort());
+        await context.route("http://192.168.137.1:8787/**", (r) => r.abort());
+    }
     const page = await context.newPage();
     page.on("dialog", (d) => void d.accept());
     const signedIn = page
