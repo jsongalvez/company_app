@@ -73,7 +73,7 @@ func stateDir() string {
 	return filepath.Join(base, "CompanyHub")
 }
 
-func runLaptopWith(p platform, readPassword func() string) int {
+func runLaptopWith(p platform, readPassword func() (string, error)) int {
 	dir := stateDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		fmt.Println(err)

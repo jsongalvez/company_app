@@ -207,7 +207,39 @@ func copyFile(from, to string) error {
 		return err
 	}
 	dst.Close()
-	return os.Rename(tmp, to)
+	if err := os.Rename(tmp, to); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// startInNewConsole starts exe in a fresh console window whose standard handles belong to that
+// console. Leaving os/exec streams nil attaches them to NUL via STARTF_USESTDHANDLES, which leaves
+// the new window blank and its stdin at immediate EOF.
+func startInNewConsole(exe, dir string, args ...string) (*windows.ProcessInformation, error) {
+	app, err := windows.UTF16PtrFromString(exe)
+	if err != nil {
+		return nil, err
+	}
+	cmdLine, err := windows.UTF16PtrFromString(windows.ComposeCommandLine(append([]string{exe}, args...)))
+	if err != nil {
+		return nil, err
+	}
+	var workDir *uint16
+	if dir != "" {
+		workDir, err = windows.UTF16PtrFromString(dir)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var si windows.StartupInfo
+	si.Cb = uint32(unsafe.Sizeof(si))
+	var pi windows.ProcessInformation
+	if err := windows.CreateProcess(app, cmdLine, nil, nil, false, windows.CREATE_NEW_CONSOLE, nil, workDir, &si, &pi); err != nil {
+		return nil, err
+	}
+	return &pi, nil
 }
 
 func laptopMain() int {
@@ -217,17 +249,22 @@ func laptopMain() int {
 	_ = os.MkdirAll(dir, 0o700)
 	exe, _ := os.Executable()
 	if target := install(exe, dir); !strings.EqualFold(target, exe) {
-		cmd := exec.Command(target)
-		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_CONSOLE}
-		if cmd.Start() == nil {
+		if pi, err := startInNewConsole(target, dir); err == nil {
+			_ = windows.CloseHandle(pi.Thread)
+			_ = windows.CloseHandle(pi.Process)
 			return 0
 		}
 	}
-	code := runLaptopWith(winPlatform{}, func() string {
-		b, _ := term.ReadPassword(int(os.Stdin.Fd()))
-		return string(b)
+	code := runLaptopWith(winPlatform{}, func() (string, error) {
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
 	})
-	fmt.Println("Press Enter to close.")
-	_, _ = newStdin().ReadString('\n')
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Println("Press Enter to close.")
+		_, _ = newStdin().ReadString('\n')
+	}
 	return code
 }

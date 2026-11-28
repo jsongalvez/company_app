@@ -59,7 +59,10 @@ func (c *Cloud) Challenge(ctx context.Context, method, token, value string) (str
 	case res.StatusCode == http.StatusServiceUnavailable:
 		return "", ErrNotSetUp
 	case res.StatusCode/100 != 2:
-		return "", fmt.Errorf("cloud answered %d: %s", res.StatusCode, bytes.TrimSpace(b))
+		return "", &httpError{
+			Status: res.StatusCode,
+			Msg:    fmt.Sprintf("cloud answered %d: %s", res.StatusCode, bytes.TrimSpace(b)),
+		}
 	}
 	var out struct {
 		Token string `json:"token"`

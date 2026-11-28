@@ -30,7 +30,30 @@ const (
 	defaultSSID = "Company Site Hub"
 	// The address Windows gives its own end of the Mobile Hotspot.
 	defaultHotspotIP = "192.168.137.1"
+	// Half of the server's 10-try IP and account lockout window (RateLimiter / LoginFailures), so
+	// one hub run cannot trip a 429 lockout on its own.
+	maxPairAttempts = 5
+	// Backoff bounds for failed certificate requests (server caps challenges at 10/hour).
+	certRetryInitial = time.Minute
+	certRetryMax     = 30 * time.Minute
+	certRetryRateLim = time.Hour
 )
+
+type httpError struct {
+	Status int
+	Msg    string
+}
+
+func (e *httpError) Error() string { return e.Msg }
+
+type inputError struct {
+	err error
+}
+
+func (e *inputError) Error() string { return e.err.Error() }
+func (e *inputError) Unwrap() error { return e.err }
+
+var errEmptyCredentials = errors.New("username and password are required")
 
 // platform is what the laptop program needs from the operating system.
 type platform interface {
@@ -107,39 +130,90 @@ func (l *laptop) load() {
 	}
 }
 
-func (l *laptop) ask(prompt string) string {
+func (l *laptop) ask(prompt string) (string, error) {
 	fmt.Fprint(l.out, prompt)
-	s, _ := l.in.ReadString('\n')
-	return strings.TrimSpace(s)
+	s, err := l.in.ReadString('\n')
+	s = strings.TrimSpace(s)
+	if err != nil && (err != io.EOF || s == "") {
+		return "", err
+	}
+	return s, nil
 }
 
 // pair signs an Owner or Manager in once and trades the sign-in for a laptop token.
-func (l *laptop) pair(readPassword func() string) error {
+func (l *laptop) pair(ctx context.Context, readPassword func() (string, error)) error {
 	fmt.Fprintln(l.out, "\nFirst setup: sign in once with an Owner or Manager account (this laptop needs internet now).")
-	user := l.ask("Username: ")
+	user, err := l.ask("Username: ")
+	if err != nil {
+		return &inputError{err: err}
+	}
 	fmt.Fprint(l.out, "Password: ")
-	pass := readPassword()
+	pass, err := readPassword()
 	fmt.Fprintln(l.out)
+	if err != nil {
+		return &inputError{err: err}
+	}
+	if user == "" || pass == "" {
+		return errEmptyCredentials
+	}
 	var login struct {
 		Token string `json:"token"`
 	}
-	if err := postJSON(l.cfg.API+"/auth/login", "", map[string]string{"username": user, "password": pass}, &login); err != nil {
+	if err := postJSON(ctx, l.cfg.API+"/auth/login", "", map[string]string{"username": user, "password": pass}, &login); err != nil {
 		return fmt.Errorf("sign-in: %w", err)
 	}
 	host, _ := os.Hostname()
 	var paired struct {
 		Token string `json:"token"`
 	}
-	if err := postJSON(l.cfg.API+"/api/site-hub/laptops", login.Token, map[string]string{"name": host}, &paired); err != nil {
+	if err := postJSON(ctx, l.cfg.API+"/api/site-hub/laptops", login.Token, map[string]string{"name": host}, &paired); err != nil {
 		return fmt.Errorf("pairing: %w", err)
 	}
 	l.cfg.Token = paired.Token
 	return l.save()
 }
 
-func postJSON(url, bearer string, in, out any) error {
+func (l *laptop) pairLoop(ctx context.Context, readPassword func() (string, error)) error {
+	for attempt := 1; attempt <= maxPairAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := l.pair(ctx, readPassword)
+		if err == nil {
+			l.logf("paired", map[string]any{"attempt": attempt})
+			return nil
+		}
+		l.logf("pair_failed", map[string]any{"attempt": attempt, "error": err.Error()})
+		fmt.Fprintln(l.out, "Could not sign in:", err)
+		var inErr *inputError
+		if errors.As(err, &inErr) {
+			return fmt.Errorf("sign-in aborted (no console input): %w", inErr.err)
+		}
+		var he *httpError
+		if errors.As(err, &he) && he.Status == http.StatusTooManyRequests {
+			return err
+		}
+	}
+	return fmt.Errorf("sign-in stopped after %d failed attempts", maxPairAttempts)
+}
+
+func nextCertWait(prev time.Duration, err error) time.Duration {
+	var he *httpError
+	if errors.As(err, &he) && he.Status == http.StatusTooManyRequests {
+		return certRetryRateLim
+	}
+	if prev <= 0 {
+		return certRetryInitial
+	}
+	if next := prev * 2; next < certRetryMax {
+		return next
+	}
+	return certRetryMax
+}
+
+func postJSON(ctx context.Context, url, bearer string, in, out any) error {
 	b, _ := json.Marshal(in)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
@@ -157,10 +231,11 @@ func postJSON(url, bearer string, in, out any) error {
 		var e struct {
 			Error string `json:"error"`
 		}
+		msg := fmt.Sprintf("server answered %d", res.StatusCode)
 		if json.Unmarshal(body, &e) == nil && e.Error != "" {
-			return errors.New(e.Error)
+			msg = e.Error
 		}
-		return fmt.Errorf("server answered %d", res.StatusCode)
+		return &httpError{Status: res.StatusCode, Msg: msg}
 	}
 	return json.Unmarshal(body, out)
 }
@@ -213,7 +288,7 @@ func checkNames(ip net.IP) string {
 }
 
 // run is the laptop program's main loop; it returns only when ctx ends.
-func (l *laptop) run(ctx context.Context, exe string, readPassword func() string) error {
+func (l *laptop) run(ctx context.Context, exe string, readPassword func() (string, error)) error {
 	l.load()
 	if err := l.save(); err != nil {
 		return err
@@ -234,10 +309,9 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() string
 		SaveToken: func(s string) { l.cfg.Token = s; _ = l.save() },
 	}
 	_ = certs.Load()
-	for certs.Current() == nil && l.cfg.Token == "" {
-		if err := l.pair(readPassword); err != nil {
-			fmt.Fprintln(l.out, "Could not sign in:", err)
-			continue
+	if certs.Current() == nil && l.cfg.Token == "" {
+		if err := l.pairLoop(ctx, readPassword); err != nil {
+			return err
 		}
 	}
 	relay := NewRelay(l.logf)
@@ -245,6 +319,8 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() string
 	names := &Names{Hub: hubName, Log: l.logf}
 	var stopNames func()
 	var boundIP string
+	var nextCertTry time.Time
+	var certWait time.Duration
 
 	tick := time.NewTicker(30 * time.Second)
 	defer tick.Stop()
@@ -289,12 +365,21 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() string
 		if ip != nil {
 			l.set("Name check", checkNames(ip))
 		}
-		if certs.Due(time.Now()) {
+		now := time.Now()
+		if certs.Due(now) && !now.Before(nextCertTry) {
 			cctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 			err := certs.Obtain(cctx)
 			cancel()
-			if err != nil && certs.Current() == nil {
-				l.set("Certificate", "none yet: "+err.Error())
+			if err != nil {
+				certWait = nextCertWait(certWait, err)
+				nextCertTry = time.Now().Add(certWait)
+				l.logf("cert_failed", map[string]any{"error": err.Error(), "retryIn": certWait.String()})
+				if certs.Current() == nil {
+					l.set("Certificate", "none yet: "+err.Error())
+				}
+			} else {
+				certWait = 0
+				nextCertTry = time.Time{}
 			}
 		}
 		if cur := certs.Current(); cur != nil {
