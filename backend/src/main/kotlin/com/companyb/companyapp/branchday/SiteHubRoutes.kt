@@ -4,13 +4,15 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.Gate
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.delete
+import com.companyb.companyapp.api.get
 import com.companyb.companyapp.api.post
-import com.companyb.companyapp.api.put
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.authorization.Act
-import com.companyb.companyapp.contracts.branchday.SiteHubChallengeRequest
-import com.companyb.companyapp.contracts.branchday.SiteHubChallengeResponse
+import com.companyb.companyapp.contracts.branchday.SiteHubCertRequest
+import com.companyb.companyapp.contracts.branchday.SiteHubCertResponse
 import com.companyb.companyapp.contracts.branchday.SiteHubLaptopRequest
 import com.companyb.companyapp.contracts.branchday.SiteHubLaptopResponse
+import com.companyb.companyapp.contracts.branchday.SiteHubLaptopsResponse
 import com.companyb.companyapp.dto.ErrorResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.config.JavalinConfig
@@ -20,10 +22,10 @@ import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiContent
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiRequestBody
 import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
-import java.io.IOException
 
 private val logger = KotlinLogging.logger {}
 
@@ -36,31 +38,39 @@ private val logger = KotlinLogging.logger {}
     responses = [
         OpenApiResponse(status = "200", content = [OpenApiContent(from = SiteHubLaptopResponse::class)]),
         OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
-    ],
-)
-@OpenApi(
-    path = ApiRoutes.SITE_HUB_CHALLENGE,
-    methods = [HttpMethod.PUT],
-    operationId = "site_hub_challenge_put",
-    security = [],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = SiteHubChallengeRequest::class)]),
-    responses = [
-        OpenApiResponse(status = "200", content = [OpenApiContent(from = SiteHubChallengeResponse::class)]),
-        OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "429", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "502", content = [OpenApiContent(from = ErrorResponse::class)]),
-        OpenApiResponse(status = "503", content = [OpenApiContent(from = ErrorResponse::class)]),
     ],
 )
 @OpenApi(
-    path = ApiRoutes.SITE_HUB_CHALLENGE,
+    path = ApiRoutes.SITE_HUB_LAPTOPS,
+    methods = [HttpMethod.GET],
+    operationId = "site_hub_list_laptops",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = SiteHubLaptopsResponse::class)]),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
+    path = ApiRoutes.SITE_HUB_LAPTOP_PATH,
     methods = [HttpMethod.DELETE],
-    operationId = "site_hub_challenge_delete",
-    security = [],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = SiteHubChallengeRequest::class)]),
+    operationId = "site_hub_revoke_laptop",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    pathParams = [OpenApiParam(name = "laptopId", required = true)],
     responses = [
         OpenApiResponse(status = "204"),
+        OpenApiResponse(status = "403", content = [OpenApiContent(from = ErrorResponse::class)]),
+        OpenApiResponse(status = "404", content = [OpenApiContent(from = ErrorResponse::class)]),
+    ],
+)
+@OpenApi(
+    path = ApiRoutes.SITE_HUB_CERT,
+    methods = [HttpMethod.POST],
+    operationId = "site_hub_cert",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = SiteHubCertRequest::class)]),
+    responses = [
+        OpenApiResponse(status = "200", content = [OpenApiContent(from = SiteHubCertResponse::class)]),
         OpenApiResponse(status = "400", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "401", content = [OpenApiContent(from = ErrorResponse::class)]),
         OpenApiResponse(status = "502", content = [OpenApiContent(from = ErrorResponse::class)]),
@@ -69,60 +79,70 @@ private val logger = KotlinLogging.logger {}
 )
 object SiteHubRoutes {
     private const val MAX_NAME = 80
+    private const val LAPTOP_ID_PARAM = "laptopId"
 
     fun register(config: JavalinConfig) {
-        config.post(ApiRoutes.SITE_HUB_LAPTOPS, Gate.Can(Act.MANAGE_USERS)) { ctx ->
+        config.post(
+            ApiRoutes.SITE_HUB_LAPTOPS,
+            Gate.Staff("any active staff member may pair a site hub laptop"),
+        ) { ctx ->
             val name =
                 ctx
                     .bodyAsClass<SiteHubLaptopRequest>()
                     .name
+                    .trim()
                     .take(MAX_NAME)
-            val t = SiteHubCerts.pair()
-            logger.info { "[SITE-HUB] laptop ($name) paired by ${ctx.callerUuid()} until ${t.expiresAt}" }
-            ctx.json(SiteHubLaptopResponse(t.token, t.expiresAt.toString()))
+            val caller = ctx.callerUuid()
+            when (val res = SiteHubCerts.pair(caller, name)) {
+                is SiteHubCerts.PairResult.Paired -> {
+                    logger.info { "[SITE-HUB] laptop ($name, id=${res.id}) paired by $caller" }
+                    ctx.json(SiteHubLaptopResponse(res.id.toString(), res.token))
+                }
+
+                SiteHubCerts.PairResult.TooMany -> {
+                    refuse(ctx, HttpStatus.TOO_MANY_REQUESTS, "Too many laptops paired this hour. Wait and try again.")
+                }
+            }
         }
-        config.put(ApiRoutes.SITE_HUB_CHALLENGE, Gate.Open("the laptop token is the key")) { ctx ->
-            val r = ctx.bodyAsClass<SiteHubChallengeRequest>()
-            answer(ctx, HttpStatus.OK) { SiteHubCerts.put(r.token, r.value) }
+        config.get(ApiRoutes.SITE_HUB_LAPTOPS, Gate.Can(Act.MANAGE_USERS)) { ctx ->
+            ctx.json(SiteHubLaptopsResponse(SiteHubCerts.listLaptops()))
         }
-        config.delete(ApiRoutes.SITE_HUB_CHALLENGE, Gate.Open("the laptop token is the key")) { ctx ->
-            val r = ctx.bodyAsClass<SiteHubChallengeRequest>()
-            answer(ctx, HttpStatus.NO_CONTENT) { SiteHubCerts.remove(r.token, r.value) }
+        config.delete(ApiRoutes.SITE_HUB_LAPTOP_PATH, Gate.Can(Act.MANAGE_USERS)) { ctx ->
+            val laptopId = ctx.pathParamAsUuid(LAPTOP_ID_PARAM)
+            val caller = ctx.callerUuid()
+            if (SiteHubCerts.revoke(laptopId, caller)) {
+                logger.info { "[SITE-HUB] laptop $laptopId revoked by $caller" }
+                ctx.status(HttpStatus.NO_CONTENT)
+            } else {
+                refuse(ctx, HttpStatus.NOT_FOUND, "Laptop not found.")
+            }
+        }
+        config.post(ApiRoutes.SITE_HUB_CERT, Gate.Open("the laptop token is the key")) { ctx ->
+            val req = ctx.bodyAsClass<SiteHubCertRequest>()
+            answerCert(ctx, SiteHubCerts.cert(req.token))
         }
     }
 
-    private fun answer(
+    private fun answerCert(
         ctx: Context,
-        done: HttpStatus,
-        act: () -> SiteHubCerts.Result,
+        result: SiteHubCerts.CertResult,
     ) {
-        val result =
-            try {
-                act()
-            } catch (e: IOException) {
-                logger.warn { "[SITE-HUB] DNS write failed: ${e.message}" }
-                refuse(ctx, HttpStatus.BAD_GATEWAY, "Couldn't write the DNS record. Try again later.")
-                return
-            }
         when (result) {
-            is SiteHubCerts.Result.Done -> {
-                if (done == HttpStatus.OK) ctx.json(SiteHubChallengeResponse(result.token)) else ctx.status(done)
+            is SiteHubCerts.CertResult.Ready -> {
+                val c = result.cert
+                ctx.json(SiteHubCertResponse(c.certPem, c.keyPem, c.notBefore.toString(), c.notAfter.toString()))
             }
 
-            SiteHubCerts.Result.BadToken -> {
+            SiteHubCerts.CertResult.BadToken -> {
                 refuse(ctx, HttpStatus.UNAUTHORIZED, "This laptop isn't paired. Sign in again in the site hub.")
             }
 
-            SiteHubCerts.Result.BadValue -> {
-                refuse(ctx, HttpStatus.BAD_REQUEST, "That isn't a certificate challenge.")
-            }
-
-            SiteHubCerts.Result.TooMany -> {
-                refuse(ctx, HttpStatus.TOO_MANY_REQUESTS, "Too many tries. Wait an hour.")
-            }
-
-            SiteHubCerts.Result.NotSetUp -> {
+            SiteHubCerts.CertResult.NotSetUp -> {
                 refuse(ctx, HttpStatus.SERVICE_UNAVAILABLE, "Site hub certificates are not set up on the server yet.")
+            }
+
+            is SiteHubCerts.CertResult.Failed -> {
+                refuse(ctx, HttpStatus.BAD_GATEWAY, "Couldn't get the site hub certificate. Try again later.")
             }
         }
     }

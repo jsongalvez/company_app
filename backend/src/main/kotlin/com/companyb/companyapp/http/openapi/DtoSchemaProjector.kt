@@ -12,10 +12,12 @@ import com.companyb.companyapp.contracts.branch.MeBranchResponse
 import com.companyb.companyapp.contracts.branch.RenameBranchRequest
 import com.companyb.companyapp.contracts.branchday.BranchDayTodayResponse
 import com.companyb.companyapp.contracts.branchday.BranchDayUserResponse
-import com.companyb.companyapp.contracts.branchday.SiteHubChallengeRequest
-import com.companyb.companyapp.contracts.branchday.SiteHubChallengeResponse
+import com.companyb.companyapp.contracts.branchday.SiteHubCertRequest
+import com.companyb.companyapp.contracts.branchday.SiteHubCertResponse
 import com.companyb.companyapp.contracts.branchday.SiteHubLaptopRequest
 import com.companyb.companyapp.contracts.branchday.SiteHubLaptopResponse
+import com.companyb.companyapp.contracts.branchday.SiteHubLaptopSummary
+import com.companyb.companyapp.contracts.branchday.SiteHubLaptopsResponse
 import com.companyb.companyapp.contracts.client.ClientResponse
 import com.companyb.companyapp.contracts.client.CreateClientRequest
 import com.companyb.companyapp.contracts.client.UpdateClientRequest
@@ -198,8 +200,10 @@ internal object DtoSchemaProjector {
             "BranchDayUserResponse" to BranchDayUserResponse.serializer(),
             "SiteHubLaptopRequest" to SiteHubLaptopRequest.serializer(),
             "SiteHubLaptopResponse" to SiteHubLaptopResponse.serializer(),
-            "SiteHubChallengeRequest" to SiteHubChallengeRequest.serializer(),
-            "SiteHubChallengeResponse" to SiteHubChallengeResponse.serializer(),
+            "SiteHubLaptopSummary" to SiteHubLaptopSummary.serializer(),
+            "SiteHubLaptopsResponse" to SiteHubLaptopsResponse.serializer(),
+            "SiteHubCertRequest" to SiteHubCertRequest.serializer(),
+            "SiteHubCertResponse" to SiteHubCertResponse.serializer(),
             "BranchInventoryResponse" to BranchInventoryResponse.serializer(),
             "BranchMemberResponse" to BranchMemberResponse.serializer(),
             "BranchResponse" to BranchResponse.serializer(),

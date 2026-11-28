@@ -2,20 +2,24 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"sync"
 	"testing"
 	"time"
 )
 
-// Guards the hub certificate: Let's Encrypt allows only five certificates a week for one name, so
-// the laptop renews at two thirds of a certificate's life, not on every start; and the DNS-01
-// proof goes through the cloud with the laptop's token, which slides on every renewal.
+// Guards the hub certificate cache: laptops refresh from the server at two thirds of the
+// certificate's life, validate the hostname before writing to disk, and surface 401/503 clearly.
 
 func TestRenewsAtTwoThirds(t *testing.T) {
 	nb := time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC)
@@ -29,10 +33,10 @@ func TestRenewsAtTwoThirds(t *testing.T) {
 	}
 	c.current.Store(&tls.Certificate{Leaf: leaf})
 	if c.Due(nb.Add(59 * 24 * time.Hour)) {
-		t.Fatal("renewing before two thirds wastes the weekly limit")
+		t.Fatal("refreshing before two thirds is unnecessary")
 	}
 	if !c.Due(nb.Add(60 * 24 * time.Hour)) {
-		t.Fatal("not renewed at two thirds")
+		t.Fatal("not refreshed at two thirds")
 	}
 }
 
@@ -41,71 +45,89 @@ func TestNotSetUpIsNamed(t *testing.T) {
 		http.Error(w, "not set up", http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
-	_, err := (&Cloud{API: srv.URL}).Challenge(context.Background(), http.MethodPut, "t", "v")
+	_, _, err := (&Cloud{API: srv.URL}).FetchCert(context.Background(), "hl2.token")
 	if err != ErrNotSetUp {
 		t.Fatalf("want ErrNotSetUp, got %v", err)
 	}
 }
 
-// fakeCloud records the DNS-01 values the laptop asks for, as the app's server would publish them.
-type fakeCloud struct {
-	mu   sync.Mutex
-	puts []string
-	dels []string
+func testCertPair(t *testing.T, dnsName string) (certPEM, keyPEM string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nb := time.Now().Add(-time.Hour)
+	na := nb.Add(90 * 24 * time.Hour)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: dnsName},
+		DNSNames:     []string{dnsName},
+		NotBefore:    nb,
+		NotAfter:     na,
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkcs8, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPEM = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	keyPEM = string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8}))
+	return certPEM, keyPEM
 }
 
-func (f *fakeCloud) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var in struct{ Token, Value string }
-	_ = json.NewDecoder(r.Body).Decode(&in)
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if in.Token != "laptop-token" && in.Token != "renewed" {
-		http.Error(w, "bad token", http.StatusUnauthorized)
-		return
-	}
-	if r.Method == http.MethodPut {
-		f.puts = append(f.puts, in.Value)
-		_ = json.NewEncoder(w).Encode(map[string]string{"token": "renewed"})
-		return
-	}
-	f.dels = append(f.dels, in.Value)
-	w.WriteHeader(http.StatusNoContent)
-}
+func TestObtainFromCloudAndReload(t *testing.T) {
+	certPEM, keyPEM := testCertPair(t, "hub.kiel.party")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/site-hub/cert" || r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var in struct{ Token string }
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		if in.Token != "hl2.good" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "This laptop isn't paired."})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"certPem": certPEM,
+			"keyPem":  keyPEM,
+		})
+	}))
+	defer srv.Close()
 
-// Runs against Pebble, Let's Encrypt's test server (CI hub.yml starts it with
-// PEBBLE_VA_ALWAYS_VALID=1): the whole order, proof, finalize and save path.
-func TestObtainFromPebble(t *testing.T) {
-	dir := os.Getenv("PEBBLE_DIRECTORY")
-	if dir == "" {
-		t.Skip("PEBBLE_DIRECTORY not set")
-	}
-	fc := &fakeCloud{}
-	cloud := httptest.NewServer(fc)
-	defer cloud.Close()
-	token := "laptop-token"
 	c := &Certs{
-		Dir:       t.TempDir(),
-		Name:      "hub.kiel.party",
-		Directory: dir,
-		// Pebble serves its directory with its own test CA.
-		ACMEHTTP:  &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
-		Cloud:     &Cloud{API: cloud.URL},
-		Token:     func() string { return token },
-		SaveToken: func(s string) { token = s },
+		Dir:   t.TempDir(),
+		Name:  "hub.kiel.party",
+		Cloud: &Cloud{API: srv.URL},
+		Token: func() string { return "hl2.good" },
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	if err := c.Obtain(ctx); err != nil {
+	if err := c.Obtain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if cur := c.Current(); cur == nil || cur.Leaf.DNSNames[0] != "hub.kiel.party" {
 		t.Fatalf("cert: %+v", cur)
 	}
-	if len(fc.puts) != 1 || len(fc.dels) != 1 || fc.puts[0] != fc.dels[0] || token != "renewed" {
-		t.Fatalf("cloud calls puts=%v dels=%v token=%s", fc.puts, fc.dels, token)
-	}
 	again := &Certs{Dir: c.Dir}
 	if err := again.Load(); err != nil || again.Due(time.Now()) {
 		t.Fatalf("saved cert not reloaded: %v", err)
+	}
+
+	bad := &Certs{
+		Dir:   t.TempDir(),
+		Name:  "hub.kiel.party",
+		Cloud: &Cloud{API: srv.URL},
+		Token: func() string { return "hl2.revoked" },
+	}
+	err := bad.Obtain(context.Background())
+	var he *httpError
+	if !errors.As(err, &he) || he.Status != http.StatusUnauthorized {
+		t.Fatalf("expected 401 httpError, got %v", err)
 	}
 }

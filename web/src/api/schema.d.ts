@@ -1931,10 +1931,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["site_hub_list_laptops"];
         put?: never;
         post: operations["site_hub_pair_laptop"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/site-hub/laptops/{laptopId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["site_hub_revoke_laptop"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2164,7 +2180,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/site-hub/challenge": {
+    "/site-hub/cert": {
         parameters: {
             query?: never;
             header?: never;
@@ -2172,9 +2188,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: operations["site_hub_challenge_put"];
-        post?: never;
-        delete: operations["site_hub_challenge_delete"];
+        put?: never;
+        post: operations["site_hub_cert"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2280,19 +2296,34 @@ export interface components {
             userId: string;
             displayName: string;
         };
-        SiteHubChallengeRequest: {
+        SiteHubCertRequest: {
             token: string;
-            value: string;
         };
-        SiteHubChallengeResponse: {
-            token: string;
+        SiteHubCertResponse: {
+            certPem: string;
+            keyPem: string;
+            notBefore: string;
+            notAfter: string;
         };
         SiteHubLaptopRequest: {
             name: string;
         };
         SiteHubLaptopResponse: {
+            id: string;
             token: string;
-            expiresAt: string;
+        };
+        SiteHubLaptopSummary: {
+            id: string;
+            name: string;
+            pairedBy: string;
+            pairedByName: string;
+            pairedAt: string;
+            lastSeenAt: string | null;
+            revokedAt: string | null;
+            revokedBy: string | null;
+        };
+        SiteHubLaptopsResponse: {
+            laptops: components["schemas"]["SiteHubLaptopSummary"][];
         };
         ClientResponse: {
             id: string;
@@ -10281,6 +10312,35 @@ export interface operations {
             };
         };
     };
+    site_hub_list_laptops: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteHubLaptopsResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     site_hub_pair_laptop: {
         parameters: {
             query?: never;
@@ -10305,6 +10365,53 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    site_hub_revoke_laptop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                laptopId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10866,7 +10973,7 @@ export interface operations {
             };
         };
     };
-    site_hub_challenge_put: {
+    site_hub_cert: {
         parameters: {
             query?: never;
             header?: never;
@@ -10875,7 +10982,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["SiteHubChallengeRequest"];
+                "application/json": components["schemas"]["SiteHubCertRequest"];
             };
         };
         responses: {
@@ -10885,75 +10992,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SiteHubChallengeResponse"];
+                    "application/json": components["schemas"]["SiteHubCertResponse"];
                 };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Too Many Requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Bad Gateway */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    site_hub_challenge_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["SiteHubChallengeRequest"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Bad Request */
             400: {

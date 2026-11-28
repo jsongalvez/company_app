@@ -198,3 +198,86 @@ func TestCertRetryBackoff(t *testing.T) {
 		t.Fatalf("429 wait: got %v want %v", got, certRetryRateLim)
 	}
 }
+
+func TestPromptMentionsStaffAccountNotOwnerOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]string{"token": "jwt-ok"})
+		case "/api/site-hub/laptops":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "1", "token": "hl2.staff"})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	l, out := newTestLaptop(t, srv.URL, "staff1\n")
+	if err := l.pair(context.Background(), func() (string, error) { return "pass", nil }); err != nil {
+		t.Fatalf("pair failed: %v", err)
+	}
+	text := out.String()
+	if strings.Contains(text, "Owner or Manager") {
+		t.Fatalf("prompt still restricts to Owner or Manager: %q", text)
+	}
+	if !strings.Contains(text, "staff account") {
+		t.Fatalf("expected staff account wording in prompt, got: %q", text)
+	}
+}
+
+func TestRevokedTokenClearsAndRepairs(t *testing.T) {
+	certPEM, keyPEM := testCertPair(t, "hub.kiel.party")
+	var certAttempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/site-hub/cert":
+			var in struct{ Token string }
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			certAttempts.Add(1)
+			if in.Token == "hl2.revoked" {
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "This laptop isn't paired."})
+				return
+			}
+			if in.Token == "hl2.fresh" {
+				_ = json.NewEncoder(w).Encode(map[string]string{"certPem": certPEM, "keyPem": keyPEM})
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]string{"token": "jwt-ok"})
+		case "/api/site-hub/laptops":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "2", "token": "hl2.fresh"})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	l, _ := newTestLaptop(t, srv.URL, "staff2\n")
+	l.cfg.Token = "hl2.revoked"
+	if err := l.save(); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for certAttempts.Load() < 2 {
+			time.Sleep(10 * time.Millisecond)
+		}
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	err := l.run(ctx, "company-hub.exe", func() (string, error) { return "secret", nil })
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if l.cfg.Token != "hl2.fresh" {
+		t.Fatalf("expected re-paired token hl2.fresh, got %q", l.cfg.Token)
+	}
+	if certAttempts.Load() < 2 {
+		t.Fatalf("expected revoked attempt then fresh fetch, got %d", certAttempts.Load())
+	}
+}

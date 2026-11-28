@@ -132,6 +132,16 @@ object Access {
         place: Place,
     ): Boolean = grants.any { it.code == act.code && Standing.of(it, place) in act.counts }
 
+    /** True when [userId] is an active staff member with a role (not onboarding or deactivated). */
+    fun isStaff(userId: UUID): Boolean = CapabilityRepository.isStaff(userId)
+
+    fun requireStaff(
+        userId: UUID,
+        message: String = "Active staff role required",
+    ) {
+        if (!isStaff(userId)) throw ForbiddenException(message)
+    }
+
     fun require(
         userId: UUID,
         act: Act,

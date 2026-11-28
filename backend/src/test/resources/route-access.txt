@@ -102,9 +102,10 @@ GET /api/branches/{branchId}/today                                   200  200  2
 GET /api/branch-days/{branchDayId}/users                             200  403  403  200  200  200  200  403  403  403  At: PAY
 GET /api/branches/{branchId}/sessions                                400  400  400  400  400  400  400  403  403  403  At: SEE_DAY
 GET /api/branches/{branchId}/today-screen                            200  200  200  200  200  200  200  200  200  200  InHandler: TodayScreenService: per part of the screen
-POST /api/site-hub/laptops                                           400  403  403  403  400  400  400  403  403  403  Can: MANAGE_USERS
-PUT /site-hub/challenge                                              400  400  400  400  400  400  400  400  400  400  Open: the laptop token is the key
-DELETE /site-hub/challenge                                           400  400  400  400  400  400  400  400  400  400  Open: the laptop token is the key
+POST /api/site-hub/laptops                                           400  400  400  400  400  400  400  400  400  403  Staff: any active staff member may pair a site hub laptop
+GET /api/site-hub/laptops                                            200  403  403  403  200  200  200  403  403  403  Can: MANAGE_USERS
+DELETE /api/site-hub/laptops/{laptopId}                              404  403  403  403  404  404  404  403  403  403  Can: MANAGE_USERS
+POST /site-hub/cert                                                  400  400  400  400  400  400  400  400  400  400  Open: the laptop token is the key
 GET /api/product-sales                                               400  400  400  400  400  400  400  400  400  400  At: SEE_DAY
 POST /api/product-sales                                              400  400  400  400  400  400  400  400  400  400  At: WORK_DAY
 PATCH /api/product-sales/{saleId}                                    404  404  404  404  404  404  404  404  404  404  At: WORK_DAY

@@ -1,8 +1,7 @@
 name: hub
 
-# The site hub (hub/): tests on Linux, with Pebble (Let's Encrypt's test server) for the
-# certificate path, and on Windows, where the laptop program runs; then builds the Windows
-# program and, on master, puts it on the "site-hub" release the owner downloads from.
+# The site hub (hub/): tests on Linux and on Windows, where the laptop program runs; then builds
+# the Windows program and, on master, puts it on the "site-hub" release the owner downloads from.
 
 on:
   push:
@@ -31,13 +30,6 @@ jobs:
     defaults:
       run:
         working-directory: hub
-    services:
-      pebble:
-        image: ghcr.io/letsencrypt/pebble:latest
-        env:
-          PEBBLE_VA_ALWAYS_VALID: '1'
-        ports:
-          - 14000:14000
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -47,9 +39,7 @@ jobs:
       - name: Formatting (gofmt)
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./... && GOOS=windows go vet ./...
-      - name: Tests, with the certificate path against Pebble
-        env:
-          PEBBLE_DIRECTORY: https://localhost:14000/dir
+      - name: Tests
         run: go test -v ./...
 
   windows:

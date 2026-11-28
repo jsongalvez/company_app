@@ -33,7 +33,7 @@ const (
 	// Half of the server's 10-try IP and account lockout window (RateLimiter / LoginFailures), so
 	// one hub run cannot trip a 429 lockout on its own.
 	maxPairAttempts = 5
-	// Backoff bounds for failed certificate requests (server caps challenges at 10/hour).
+	// Backoff bounds for failed certificate requests.
 	certRetryInitial = time.Minute
 	certRetryMax     = 30 * time.Minute
 	certRetryRateLim = time.Hour
@@ -140,9 +140,9 @@ func (l *laptop) ask(prompt string) (string, error) {
 	return s, nil
 }
 
-// pair signs an Owner or Manager in once and trades the sign-in for a laptop token.
+// pair signs an active staff member in once and trades the sign-in for a revocable laptop token.
 func (l *laptop) pair(ctx context.Context, readPassword func() (string, error)) error {
-	fmt.Fprintln(l.out, "\nFirst setup: sign in once with an Owner or Manager account (this laptop needs internet now).")
+	fmt.Fprintln(l.out, "\nFirst setup: sign in once with your staff account (this laptop needs internet now).")
 	user, err := l.ask("Username: ")
 	if err != nil {
 		return &inputError{err: err}
@@ -195,6 +195,11 @@ func (l *laptop) pairLoop(ctx context.Context, readPassword func() (string, erro
 		}
 	}
 	return fmt.Errorf("sign-in stopped after %d failed attempts", maxPairAttempts)
+}
+
+func isUnauthorized(err error) bool {
+	var he *httpError
+	return errors.As(err, &he) && he.Status == http.StatusUnauthorized
 }
 
 func nextCertWait(prev time.Duration, err error) time.Duration {
@@ -304,9 +309,10 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() (strin
 		l.set("Setup", "firewall rule and hosts line in place")
 	}
 	certs := &Certs{
-		Dir: l.dir, Name: hubName, Cloud: &Cloud{API: l.cfg.API}, Wait: 20 * time.Second,
-		Token:     func() string { return l.cfg.Token },
-		SaveToken: func(s string) { l.cfg.Token = s; _ = l.save() },
+		Dir:   l.dir,
+		Name:  hubName,
+		Cloud: &Cloud{API: l.cfg.API},
+		Token: func() string { return l.cfg.Token },
 	}
 	_ = certs.Load()
 	if certs.Current() == nil && l.cfg.Token == "" {
@@ -370,6 +376,25 @@ func (l *laptop) run(ctx context.Context, exe string, readPassword func() (strin
 			cctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 			err := certs.Obtain(cctx)
 			cancel()
+			if isUnauthorized(err) {
+				l.logf("token_rejected", map[string]any{"error": err.Error()})
+				l.cfg.Token = ""
+				_ = l.save()
+				certWait = 0
+				nextCertTry = time.Time{}
+				fmt.Fprintln(l.out, "\nThis laptop's pairing is no longer active. Sign in again to re-pair.")
+				if perr := l.pairLoop(ctx, readPassword); perr != nil {
+					if certs.Current() == nil {
+						return perr
+					}
+					certWait = nextCertWait(certWait, perr)
+					nextCertTry = time.Now().Add(certWait)
+				} else {
+					rctx, rcancel := context.WithTimeout(ctx, 3*time.Minute)
+					err = certs.Obtain(rctx)
+					rcancel()
+				}
+			}
 			if err != nil {
 				certWait = nextCertWait(certWait, err)
 				nextCertTry = time.Now().Add(certWait)

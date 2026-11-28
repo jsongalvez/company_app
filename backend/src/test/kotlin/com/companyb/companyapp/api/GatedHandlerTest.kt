@@ -28,6 +28,7 @@ import kotlin.test.assertEquals
 class GatedHandlerTest : BasePostgresTest() {
     override fun initTestData() {
         IdentityFixtures.insertTestUser(member, "gated-member")
+        IdentityFixtures.insertTestUser(newUser, "gated-onboarding")
         BranchWorkforceFixtures.insertTestBranch(home, "Gated Home $home")
         BranchWorkforceFixtures.insertTestBranch(other, "Gated Other $other")
         IdentityFixtures.member(member, home)
@@ -66,6 +67,13 @@ class GatedHandlerTest : BasePostgresTest() {
     }
 
     @Test
+    fun `Staff allows active staff and refuses onboarding accounts`() {
+        assertEquals(200, testServer.client.post("/staff/only", "{}", asUser(member)).code)
+        assertEquals(403, testServer.client.post("/staff/only", "{}", asUser(newUser)).code)
+        assertEquals(1, ran.get())
+    }
+
+    @Test
     fun `Pick checks each act it picks, in order, at its place`() {
         assertEquals(200, post("/pick/work-home/$home"))
         assertEquals(403, post("/pick/work-home/$other"))
@@ -85,6 +93,7 @@ class GatedHandlerTest : BasePostgresTest() {
 
     companion object {
         private val member = TestFixtures.uuid()
+        private val newUser = TestFixtures.uuid()
         private val home = TestFixtures.uuid()
         private val other = TestFixtures.uuid()
         private val ran = AtomicInteger()
@@ -121,6 +130,7 @@ class GatedHandlerTest : BasePostgresTest() {
                 }
                 cfg.post("/can/work-anywhere", Gate.Can(Act.WORK_ANYWHERE)) { ran.incrementAndGet() }
                 cfg.post("/can/manage-users", Gate.Can(Act.MANAGE_USERS)) { ran.incrementAndGet() }
+                cfg.post("/staff/only", Gate.Staff("test")) { ran.incrementAndGet() }
             }
     }
 }

@@ -24,6 +24,11 @@ sealed interface Gate {
         val why: String,
     ) : Gate
 
+    /** Any active staff member (any working role; blocks onboarding and deactivated accounts). */
+    data class Staff(
+        val why: String,
+    ) : Gate
+
     /** The handler asks `Access` itself, once it has loaded the row that says which branch or day this is. */
     data class InHandler(
         val why: String,
@@ -69,6 +74,10 @@ class GatedHandler(
 ) : Handler {
     override fun handle(ctx: Context) {
         when (gate) {
+            is Gate.Staff -> {
+                Access.requireStaff(ctx.callerUuid())
+            }
+
             is Gate.Can -> {
                 require(ctx, gate.act, Place.Everywhere, gate.message)
             }

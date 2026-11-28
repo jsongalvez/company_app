@@ -284,6 +284,7 @@ class RouteAccessTest : BasePostgresTest() {
             when (gate) {
                 is Gate.Open -> "Open: ${gate.why}"
                 is Gate.SignedIn -> "SignedIn: ${gate.why}"
+                is Gate.Staff -> "Staff: ${gate.why}"
                 is Gate.InHandler -> "InHandler: ${gate.why}"
                 is Gate.Pick -> "Pick: ${gate.acts.sorted().joinToString("/")}"
                 is Gate.Can -> "Can: ${gate.act}"

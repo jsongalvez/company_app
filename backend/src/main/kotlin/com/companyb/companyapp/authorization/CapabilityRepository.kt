@@ -55,6 +55,12 @@ internal object CapabilityRepository {
                 }.rows
         }
 
+    /** True when [userId] is active and holds at least one working staff role. */
+    fun isStaff(userId: UUID): Boolean =
+        traced("CapabilityRepository.isStaff") {
+            Policy.isStaff(transaction { factsOf(userId) })
+        }
+
     private val reachedUnassigned = {
         Role.entries
             .filter { it.worksUnassignedAt.isNotEmpty() }

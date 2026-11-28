@@ -117,7 +117,14 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+      pebble:
+        image: ghcr.io/letsencrypt/pebble:latest
+        env:
+          PEBBLE_VA_ALWAYS_VALID: '1'
+        ports:
+          - 14000:14000
     env:
+      PEBBLE_DIRECTORY: https://localhost:14000/dir
       APP_PORT: 8080
       API_BASE_URL: http://localhost:8080
       DB_HOST: localhost

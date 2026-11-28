@@ -128,6 +128,9 @@ object Policy {
     /** Below relief and helper grants ([GrantPriorities]), so a code held both ways names relief or the seat. */
     const val ROLE_PRIORITY: Short = 5
 
+    /** Whether [facts] describe an active staff member (any working role, excluding onboarding and inactive users). */
+    fun isStaff(facts: Facts): Boolean = facts.active && facts.roles.any { it.works }
+
     /**
      * Every grant [facts] give, one per code and context, the highest priority winning. A relief day
      * carries a member's rights, a helper seat [HELPER]'s.
