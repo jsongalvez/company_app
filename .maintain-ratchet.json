@@ -1,0 +1,39 @@
+{
+  "metrics": {
+    "python_cycles": {
+      "kind": "import_cycles",
+      "lang": "python",
+      "count_by": "edges",
+      "max": 0,
+      "target": 0,
+      "note": "keep dependency graph acyclic / lower-triangular"
+    },
+    "web_src_cycles": {
+      "kind": "import_cycles",
+      "lang": "js",
+      "count_by": "edges",
+      "max": 21,
+      "target": 0,
+      "note": "monotonic ceiling on circular import edges; tightens on ratchet --update",
+      "subpath": "web/src"
+    },
+    "backend_src_main_kotlin_cycles": {
+      "kind": "import_cycles",
+      "lang": "kotlin",
+      "count_by": "edges",
+      "max": 154,
+      "target": 0,
+      "note": "monotonic ceiling on circular import edges; tightens on ratchet --update",
+      "subpath": "backend/src/main/kotlin"
+    },
+    "detekt_rules_src_main_kotlin_cycles": {
+      "kind": "import_cycles",
+      "lang": "kotlin",
+      "count_by": "edges",
+      "max": 0,
+      "target": 0,
+      "note": "keep dependency graph acyclic / lower-triangular",
+      "subpath": "detekt-rules/src/main/kotlin"
+    }
+  }
+}
