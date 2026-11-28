@@ -90,6 +90,7 @@ object SiteHubRoutes {
                 ctx
                     .bodyAsClass<SiteHubLaptopRequest>()
                     .name
+                    .filter { it >= ' ' }
                     .trim()
                     .take(MAX_NAME)
             val caller = ctx.callerUuid()

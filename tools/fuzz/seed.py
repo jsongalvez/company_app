@@ -69,7 +69,7 @@ TABLES = {
     "concernId": "concern", "expenseId": "expense", "entryId": "audit_log", "bookingId": "visit_booking",
     "compensationId": "compensation", "delegateId": "medical_mission_delegate", "feedbackId": "user_feedback",
     "notificationId": "notification", "categoryId": "product_category", "breakdownId": "remittance_day_breakdown",
-    "lineId": "remittance_line", "practitionerId": "app_user",
+    "lineId": "remittance_line", "practitionerId": "app_user", "laptopId": "site_hub_laptop",
 }
 params, missing = {}, []
 victim = victim_user()

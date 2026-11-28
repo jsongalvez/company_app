@@ -29,6 +29,7 @@ object SiteHubCerts {
     private const val ACCOUNT_KEY_PURPOSE = "site-hub-acme-account"
     private const val LEAF_KEY_PURPOSE = "site-hub-leaf-key"
     private const val DEFAULT_PROPAGATION_SECONDS = 20L
+    private const val DEV_CERT_DAYS = 90L
     private val DEFAULT_PROPAGATION_WAIT: Duration = Duration.ofSeconds(DEFAULT_PROPAGATION_SECONDS)
 
     /** Writes and deletes TXT records in the kiel.party zone. */
@@ -108,6 +109,26 @@ object SiteHubCerts {
 
     /** Clears per-user pairing counts (tests). */
     fun forgetCounts() = pairTimes.clear()
+
+    /** Seeds a local dev-only certificate row when `CLOUDFLARE_DNS_TOKEN` is absent (used by DevMain/fuzz). */
+    internal fun seedDevCert(now: Instant = Instant.now()) {
+        traced("SiteHubCerts.seedDevCert") {
+            if (SiteHubStore.findCert() != null) return@traced
+            val pair = AcmeClient.generateEcKeyPair()
+            val accountKeyEnc = SiteHub.seal(ACCOUNT_KEY_PURPOSE, AcmeClient.encodeKeyPair(pair))
+            val devCert =
+                IssuedCert(
+                    certPem = "-----BEGIN CERTIFICATE-----\nDEV-SITE-HUB-CERT\n-----END CERTIFICATE-----\n",
+                    keyPem = "-----BEGIN PRIVATE KEY-----\nDEV-SITE-HUB-KEY\n-----END PRIVATE KEY-----\n",
+                    notBefore = now,
+                    notAfter = now.plus(Duration.ofDays(DEV_CERT_DAYS)),
+                )
+            val keyEnc = SiteHub.seal(LEAF_KEY_PURPOSE, devCert.keyPem.toByteArray())
+            transaction {
+                SiteHubStore.saveCertInTransaction(accountKeyEnc, devCert, keyEnc, now)
+            }
+        }
+    }
 
     /** Pairs a new site hub laptop for [pairedBy], returning its id and one-time revocable token. */
     fun pair(
